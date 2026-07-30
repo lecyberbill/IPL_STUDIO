@@ -12,17 +12,15 @@
 
 Why use **IPL (Intent Programming Language)** instead of traditional long natural language prompts?
 
-$$\begin{array}{|l|c|c|}
-\hline
-\textbf{Metric / Metric Category} & \textbf{IPL Intent Code Specification} & \textbf{Standard Natural Language Prompt} \\ \hline
-\mathbf{Input\ Token\ Consumption} & \mathbf{\sim 150 - 350\ \text{tokens\ (-65\% Overhead)}} & \sim 800 - 1500\ \text{tokens (High verbosity)} \\ \hline
-\mathbf{Architectural\ Precision} & \mathbf{100\%\ \text{Deterministic (Canonical 12 Verbs)}} & \sim 60-70\%\ \text{(Prone to misinterpretation)} \\ \hline
-\mathbf{LLM\ Attention\ \&\ Reasoning\ Effort} & \mathbf{\text{Minimal (Structured AST Parse)}} & \text{High (Heavy self-attention disambiguation)} \\ \hline
-\mathbf{Hallucination\ Rate} & \mathbf{< 3\%\ \text{(Strict entity-verb scope)}} & 20 - 35\%\ \text{(Invented APIs / missing imports)} \\ \hline
-\mathbf{Multi-File\ Coherence} & \mathbf{\text{Exact topology mapping via Pass 1}} & \text{Inconsistent (Single monolithic dumps)} \\ \hline
-\mathbf{Model\ Cross-Reproducibility} & \mathbf{\text{Identical output across LLaMA, DeepSeek, GPT-4}} & \text{Highly variable depending on LLM prompt sensitivity} \\ \hline
-\mathbf{Maintenance\ \&\ Refactoring\ Cost} & \mathbf{\text{Single-verb patch (1 line edit)}} & \text{Re-writing full 50-line prompt paragraphs} \\ \hline
-\end{array}$$
+| Metric / Evaluation Category | IPL Intent Code Specification | Standard Natural Language Prompt |
+| :--- | :--- | :--- |
+| **Input Token Consumption** | **~ 150 - 350 tokens (-65% Overhead)** | ~ 800 - 1500 tokens (High verbosity) |
+| **Architectural Precision** | **100% Deterministic (Canonical 12 Verbs)** | ~ 60 - 70% (Prone to misinterpretation) |
+| **LLM Attention & Reasoning Effort** | **Minimal (Structured AST Parse)** | High (Heavy self-attention disambiguation) |
+| **Hallucination Rate** | **< 3% (Strict entity-verb scope)** | 20 - 35% (Invented APIs / missing imports) |
+| **Multi-File Coherence** | **Exact topology mapping via Pass 1** | Inconsistent (Single monolithic dumps) |
+| **Model Cross-Reproducibility** | **Identical output across LLaMA, DeepSeek, GPT-4** | Highly variable depending on prompt |
+| **Maintenance & Refactoring Cost** | **Single-verb patch (1 line edit)** | Re-writing full 50-line prompt paragraphs |
 
 ---
 
