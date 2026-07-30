@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-dark: #0f1117;
+    --bg-panel: #161922;
+    --bg-card: #1e2230;
+    --border-dark: #2a2f42;
+    --accent-cyan: #38bdf8;
+    --accent-purple: #c084fc;
+    --accent-amber: #fbbf24;
+    --text-main: #f3f4f6;
+    --text-muted: #9ca3af;
+  }
+
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-dark);
+    color: var(--text-main);
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow: hidden;
+  }
+}
+
+/* Custom scrollbars for dark atelier theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #111319;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2f42;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3b425d;
+}
+
+/* Monaco Customisation */
+.monaco-editor, .monaco-editor .margin, .monaco-editor-background {
+  background-color: #12141c !important;
+}
+
+/* Pulse animation for compilation */
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 15px rgba(56, 189, 248, 0.2); }
+  50% { box-shadow: 0 0 25px rgba(56, 189, 248, 0.6); }
+}
+
+.compiling-glow {
+  animation: glowPulse 1.5s infinite ease-in-out;
+}

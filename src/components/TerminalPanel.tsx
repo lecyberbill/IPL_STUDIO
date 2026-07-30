@@ -1,0 +1,200 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { Terminal } from 'xterm';
+import { FitAddon } from 'xterm-addon-fit';
+import 'xterm/css/xterm.css';
+import { useIdeStore } from '../store/useIdeStore';
+import { Play, Terminal as TerminalIcon, Trash2, RefreshCw, Bot } from 'lucide-react';
+
+export const TerminalPanel: React.FC = () => {
+  const terminalRef = useRef<HTMLDivElement>(null);
+  const xtermInstance = useRef<Terminal | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [commandInput, setCommandInput] = useState('');
+
+  const { projects, activeProjectId, targetLang, writeArtifactToDisk, autoDebugAndFix, addLog } = useIdeStore();
+  const activeProject = projects.find(p => p.id === activeProjectId);
+  const outputDir = activeProject?.outputDir || `d:/image_to_text/IPL/output/${activeProject?.name.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'mon_projet'}`;
+
+  useEffect(() => {
+    if (!terminalRef.current) return;
+
+    const term = new Terminal({
+      theme: {
+        background: '#0f1117',
+        foreground: '#f8fafc',
+        cursor: '#06b6d4',
+        selectionBackground: '#1e293b'
+      },
+      fontFamily: 'Fira Code, Menlo, Monaco, Consolas, monospace',
+      fontSize: 12,
+      cursorBlink: true,
+      rows: 10
+    });
+
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(terminalRef.current);
+    fitAddon.fit();
+
+    xtermInstance.current = term;
+    fitAddonRef.current = fitAddon;
+
+    term.writeln('\x1b[1;36m=== IPL Studio Terminal Embarqué v1.0 ===\x1b[0m');
+    term.writeln(`\x1b[90mDossier de travail : ${outputDir}\x1b[0m\n`);
+
+    const handleResize = () => fitAddon.fit();
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      term.dispose();
+    };
+  }, []);
+
+  const runProjectCommand = async (customCmd?: string) => {
+    if (isRunning) return;
+    setIsRunning(true);
+
+    const term = xtermInstance.current;
+    if (term) {
+      term.clear();
+      term.writeln('\x1b[1;34m[Disque] Matérialisation des fichiers de l\'artefact...\x1b[0m');
+    }
+
+    // Matérialiser d'abord sur disque
+    await writeArtifactToDisk();
+
+    // Déterminer la commande de lancement par défaut si aucune commande custom n'est spécifiée
+    let cmdToRun = customCmd || commandInput.trim();
+    if (!cmdToRun) {
+      if (targetLang === 'rust') cmdToRun = 'cargo run';
+      else if (targetLang === 'python') cmdToRun = 'python main.py';
+      else if (targetLang === 'javascript') cmdToRun = 'node index.js';
+      else if (targetLang === 'go') cmdToRun = 'go run main.go';
+      else if (targetLang === 'cpp') cmdToRun = 'g++ -std=c++20 main.cpp -o main && ./main';
+      else if (targetLang === 'html') cmdToRun = 'python -m http.server 8000';
+      else cmdToRun = 'python main.py';
+    }
+
+    if (term) {
+      term.writeln(`\x1b[1;32m$ ${cmdToRun}\x1b[0m`);
+      term.writeln(`\x1b[90mExécution dans ${outputDir}...\x1b[0m\n`);
+    }
+
+    try {
+      const response = await fetch('/api/run-command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          command: cmdToRun,
+          cwd: outputDir
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP Error ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const textChunk = decoder.decode(value, { stream: true });
+          term?.write(textChunk.replace(/\n/g, '\r\n'));
+        }
+      }
+      addLog(`[Terminal] Commande "${cmdToRun}" terminée.`, 'success');
+    } catch (err: any) {
+      term?.writeln(`\r\n\x1b[1;31m[Erreur Terminal: ${err.message}]\x1b[0m`);
+      addLog(`Erreur terminal : ${err.message}`, 'error');
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  const handleAgentAutoFix = async () => {
+    if (isRunning) return;
+    setIsRunning(true);
+    const term = xtermInstance.current;
+    if (term) {
+      term.clear();
+      term.writeln('\x1b[1;35m🤖 Mode Agent Codeur Autonome Déclenché !\x1b[0m');
+      term.writeln('\x1b[90mLancement de la boucle Auto-Debug & Self-Healing...\x1b[0m\n');
+    }
+    
+    await autoDebugAndFix(commandInput.trim() || undefined);
+    setIsRunning(false);
+  };
+
+  const clearTerminal = () => {
+    xtermInstance.current?.clear();
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-[#0f1117] text-white select-none">
+      {/* Terminal Toolbar */}
+      <div className="h-8 bg-[#161922] border-b border-[#2a2f42] px-3 flex items-center justify-between text-xs">
+        <div className="flex items-center space-x-2">
+          <TerminalIcon size={14} className="text-cyan-400" />
+          <span className="font-semibold text-gray-300">Terminal Embarqué</span>
+          <span className="text-[10px] text-gray-500 font-mono hidden sm:inline">({outputDir})</span>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              runProjectCommand();
+            }}
+            className="flex items-center space-x-1"
+          >
+            <input
+              type="text"
+              placeholder="Ex: cargo run, python main.py..."
+              value={commandInput}
+              onChange={(e) => setCommandInput(e.target.value)}
+              className="bg-[#0f1117] border border-[#2a2f42] rounded px-2 py-0.5 font-mono text-[11px] text-cyan-300 w-44 focus:outline-none focus:border-cyan-500"
+            />
+          </form>
+
+          <button
+            onClick={() => runProjectCommand()}
+            disabled={isRunning}
+            className="flex items-center space-x-1 px-2.5 py-0.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-40 text-black font-bold rounded text-[11px] transition-all shadow"
+            title="Matérialiser & Exécuter le projet dans le terminal"
+          >
+            {isRunning ? <RefreshCw size={12} className="animate-spin text-black" /> : <Play size={12} className="fill-black" />}
+            <span>{isRunning ? 'Running...' : '▶ Exécuter'}</span>
+          </button>
+
+          <button
+            onClick={handleAgentAutoFix}
+            disabled={isRunning}
+            className="flex items-center space-x-1 px-2.5 py-0.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-40 text-white font-bold rounded text-[11px] transition-all shadow"
+            title="Activer la boucle d'auto-correction autonome en cas d'erreur de compilation/exécution"
+          >
+            {isRunning ? <RefreshCw size={12} className="animate-spin text-white" /> : <Bot size={12} />}
+            <span>🤖 Auto-Fix (Agent)</span>
+          </button>
+
+          <button
+            onClick={clearTerminal}
+            className="p-1 text-gray-400 hover:text-white hover:bg-[#2a2f42] rounded transition-colors"
+            title="Effacer le terminal"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+      </div>
+
+      {/* Xterm Render Area */}
+      <div className="flex-1 p-2 overflow-hidden bg-[#0f1117]">
+        <div ref={terminalRef} className="w-full h-full" />
+      </div>
+    </div>
+  );
+};
