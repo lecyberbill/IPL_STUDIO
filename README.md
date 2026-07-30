@@ -6,129 +6,129 @@
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-3.x-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
-> **IPL Studio** est un environnement de développement web polyglotte, intent-based et agentique. Il transforme des spécifications déclaratives à haut niveau de repères d'intentions (**IPL - Intent Programming Language**) en applications réelles et multi-fichiers (Rust, Python, Node.js, Go, C++, HTML5, Java, Kubernetes, etc.) matérialisées directement sur disque.
+> **IPL Studio** is an AI-powered polyglot, intent-based IDE with autonomous agentic capabilities. It transforms high-level declarative specifications written in **IPL (Intent Programming Language)** into runnable, production-ready multi-file codebases (Rust, Python, Node.js, Go, C++, HTML5, Java, Kubernetes, etc.) written directly to disk.
 
 ---
 
-## 🌟 Fonctionnalités Clés
+## 🌟 Key Features
 
-### 🧠 1. Langage d'Intention IPL (12 Verbes Canoniques)
-- Modélisation déclarative ultra-lisible basée sur 12 verbes canoniques (`add`, `read`, `set`, `remove`, `search`, `send`, `listen`, `compute`, `if`, `for`, `try`, `return`).
-- Coloration syntaxique Monarch sous **Monaco Editor** et vue par blocs AST visuels.
+### 🧠 1. Intent Programming Language (12 Canonical Verbs)
+- Declarative domain model based on 12 canonical verbs (`add`, `read`, `set`, `remove`, `search`, `send`, `listen`, `compute`, `if`, `for`, `try`, `return`).
+- Monarch syntax highlighting powered by **Monaco Editor** and visual AST block representation.
 
-### 🌐 2. Moteur de Compilation LLM Polyglotte 2-Passes
-- **Passe 1 (Architecte)** : Cartographie la topologie et la structure des modules multi-fichiers en JSON.
-- **Passe 2 (Générateur)** : Produit le code source complet balisé XML et streaming temps réel (SSE / Ollama).
-- **Disque Dur Synchronisé** : Matérialisation physique automatique des fichiers dans `output/<nom_projet>`.
+### 🌐 2. Polyglot 2-Pass LLM Compiler Engine
+- **Pass 1 (Architect)**: Analyzes domain intent and designs multi-file project topology in JSON.
+- **Pass 2 (Generator)**: Synthesizes complete XML-tagged source code files with real-time SSE / Ollama streaming.
+- **Disk Sync**: Automatic physical file materialization in `output/<project_name>`.
 
-### 🤖 3. Mode Agent Codeur Autonome (Self-Healing Debug Loop)
-- **Détection & Diagnostic** : En cas d'erreur dans la console (`Traceback`, code d'erreur de sortie `cargo`/`python`), l'Agent capture le log.
-- **Auto-Correction** : Analyse du stacktrace par l'Agent, réécriture intelligente des fichiers impactés et ré-exécution automatique dans le terminal (jusqu'à 3 passes de réparation).
+### 🤖 3. Autonomous Self-Healing Agent Debug Loop
+- **Error Detection & Diagnostics**: Captures terminal stderr output (`Traceback`, `cargo`/`python` non-zero exit codes).
+- **Auto-Fixing**: Analyzes stacktraces via AI, refactors affected files, and re-executes tests automatically (up to 3 repair passes).
 
-### 🖥️ 4. Terminal Embarqué (`xterm.js`) & Runner Direct
-- Intégration de `xterm.js` dans l'IDE pour lancer directement `cargo run`, `python main.py`, `node index.js`, `go run main.go`, etc.
-- Communication bidirectionnelle et streaming stdout/stderr via middleware Node.js API (`/api/run-command`).
+### 🖥️ 4. Embedded Terminal (`xterm.js`) & Runner
+- Integrated `xterm.js` terminal runner for `cargo run`, `python main.py`, `node index.js`, `go run main.go`, etc.
+- Real-time stdout/stderr streaming via Node.js middleware API (`/api/run-command`).
 
-### 🔀 5. Visualiseur Git Diff & Version Control Intégré
-- Intégration native de **Monaco DiffEditor** pour comparer en mode côte à côte la version originale et la version révisée par l'IA.
-- Contrôle de version direct dans l'IDE (`git status`, `git diff` et staging/commit interactif).
+### 🔀 5. Integrated Git Version Control & Monaco Side-by-Side Diff
+- Native **Monaco DiffEditor** integration to inspect side-by-side code changes between original specification and generated code.
+- Interactive version control directly within the IDE (`git status`, `git diff`, staging & committing).
 
-### 📂 6. Arborescence Source Multi-Fichiers `.ipl` & Préprocesseur d'Imports
-- Gestion de projets IPL découpés en plusieurs fichiers sources (`main.ipl`, `models.ipl`, `events.ipl`).
-- Préprocesseur d'imports transparent : `import "submodule.ipl";`.
+### 📂 6. Multi-File `.ipl` Source Tree & Import Preprocessor
+- Organize complex IPL specifications into multiple `.ipl` files (`main.ipl`, `models.ipl`, `events.ipl`).
+- Transparent import resolution: `import "submodule.ipl";`.
 
-### 🧠 7. Services Sémantiques LSP (Language Server Protocol)
-- **Go to Definition ($F12$ / Ctrl+Clic)** : Saut instantané à la ligne de déclaration des symboles et entités IPL.
-- **Hover Provider** : Info-bulles sémantiques riches au survol de la souris sur les verbes et variables.
-- **Autocomplétion Contextuelle** : Suggestions dynamiques des verbes et symboles déclarés.
+### 🧠 7. Semantic Language Server (LSP) Features
+- **Go to Definition ($F12$ / Ctrl+Click)**: Instantly jump to declared symbols and entity lines in Monaco.
+- **Hover Provider**: Rich Markdown tooltips showing verb documentation, snippets, and symbol definitions on hover.
+- **Contextual Autocomplete**: Smart suggestions for IPL verbs and declared project symbols.
 
-### 💬 8. Chat LLM Interactif & Refactoring
-- Onglet de chat dédié à côté de l'inspecteur de fichiers pour converser avec l'Architecte LLM et demander des corrections ciblées.
+### 💬 8. Interactive LLM Architect Chat Panel
+- Dedicated chat interface next to the project file inspector for interactive refactoring and feature requests.
 
-### 🔌 9. Cibles de Compilation Extensibles Custom
-- Ajout dynamique de nouvelles cibles de compilation (*Java 21 Spring Boot*, *Kubernetes Manifests YAML*, *Swift*, *C#*, etc.) avec des consignes de prompts personnalisables.
+### 🔌 9. Custom Extensible Compilation Targets
+- Dynamically register custom target ecosystems (*Java 21 Spring Boot*, *Kubernetes Manifests YAML*, *Swift*, *C#*, etc.) with custom prompt instructions.
 
 ---
 
-## 📐 Architecture Globale
+## 📐 Architecture Overview
 
 ```mermaid
 flowchart TD
-    A[Éditeur IPL Monaco / Blocs] -->|Rédige DSL Intent| B[Préprocesseur resolveIPLImports]
-    B -->|Code IPL Unifié| C[Moteur Compiler 2-Passes]
-    C -->|Passe 1 JSON Topology| D[LLM Architect / Ollama / DeepSeek]
-    D -->|Passe 2 XML Files| E[Matérialisateur Disque /api/write-artifact]
-    E -->|Écrit Fichiers| F[Répertoire Physique ./output/proj]
-    F -->|Exécute Commandes| G[Terminal Embarqué xterm.js /api/run-command]
-    G -->|Capture Erreurs| H{Succès ou Erreur ?}
-    H -->|Erreur| I[🤖 Boucle Agent Self-Healing Auto-Fix]
+    A[Monaco Code / AST Blocks] -->|Write Intent DSL| B[resolveIPLImports Preprocessor]
+    B -->|Unified IPL Code| C[2-Pass LLM Compiler]
+    C -->|Pass 1 JSON Topology| D[LLM Architect / Ollama / DeepSeek]
+    D -->|Pass 2 XML Files| E[Disk Writer /api/write-artifact]
+    E -->|Write Files| F[Physical Directory ./output/project]
+    F -->|Run Commands| G[Embedded Terminal xterm.js /api/run-command]
+    G -->|Capture Errors| H{Success or Error ?}
+    H -->|Error| I[🤖 Autonomous Self-Healing Agent]
     I -->|Fix Code| C
-    H -->|Succès 🎉| J[Projet Matérialisé & Git Commit]
+    H -->|Success 🎉| J[Materialized Project & Git Commit]
 ```
 
 ---
 
-## 🛠️ Installation & Démarrage Rapide
+## 🛠️ Quick Start & Installation
 
-### Prérequis
-- **Node.js** v18+ et **npm**
-- *(Optionnel pour le mode local)* **Ollama** s'exécutant sur `http://localhost:11434`
+### Prerequisites
+- **Node.js** v18+ and **npm**
+- *(Optional for offline local mode)* **Ollama** running on `http://localhost:11434`
 
-### 1. Cloner le dépôt GitHub
+### 1. Clone the GitHub Repository
 ```bash
 git clone https://github.com/lecyberbill/IPL_STUDIO.git
 cd IPL_STUDIO
 ```
 
-### 2. Installer les dépendances
+### 2. Install Dependencies
 ```bash
 npm install
 ```
 
-### 3. Démarrer le serveur de développement Vite
+### 3. Start Development Server
 ```bash
 npm run dev
 ```
-Accédez à l'application sur [http://localhost:5173](http://localhost:5173).
+Open your browser at [http://localhost:5173](http://localhost:5173).
 
 ---
 
-## ⚙️ Configuration du Moteur LLM
+## ⚙️ LLM Engine Configuration
 
-IPL Studio prend en charge deux modes de fonctionnement configurables dans le panneau des paramètres (`⚙️`) :
+IPL Studio supports two execution modes configurable in the Settings modal (`⚙️`):
 
-1. **Mode 100% Local (Ollama)** :
-   - Endpoint : `http://localhost:11434`
-   - Modèles recommandés : `llama3`, `mistral`, `codellama`, `qwen2.5-coder`.
+1. **100% Local Mode (Ollama)**:
+   - Endpoint: `http://localhost:11434`
+   - Recommended models: `llama3`, `mistral`, `codellama`, `qwen2.5-coder`.
 
-2. **Mode Cloud (DeepSeek / OpenAI Compatible)** :
-   - Endpoint : `https://api.deepseek.com` (ou tout endpoint compatible OpenAI).
-   - Sécurité des clés : La clé d'API est lue dynamiquement via la variable d'environnement (ex: `VITE_DP_API_KEY`) sans jamais être stockée en dur dans l'application.
+2. **Cloud API Mode (DeepSeek / OpenAI Compatible)**:
+   - Endpoint: `https://api.deepseek.com` (or any OpenAI-compatible API).
+   - Security: API keys are read dynamically from environment variables (e.g. `VITE_DP_API_KEY`) without hardcoding.
 
 ---
 
-## 📁 Structure du Projet
+## 📁 Repository Structure
 
 ```text
 IPL_STUDIO/
-├── output/                   # Dossier de matérialisation physique des projets générés
+├── output/                   # Physical disk target folder for generated projects
 ├── src/
-│   ├── components/           # Composants UI (Monaco, Terminal, Git, Chat, Inspector, etc.)
-│   ├── engine/               # Moteur LLM Compiler, Grammaire IPL, Artefact Generator
-│   ├── store/                # Zustand Store (État global IDE, Projets, Persistence)
-│   ├── App.tsx               # Layout principal de l'IDE
-│   └── main.tsx              # Point d'entrée React
-├── vite.config.ts            # Configuration Vite & Middlewares API (/api/run-command, /api/git)
+│   ├── components/           # UI components (Monaco, Terminal, Git, Chat, Inspector, etc.)
+│   ├── engine/               # LLM Compiler engine, IPL Grammar, Artifact Generator
+│   ├── store/                # Zustand global store (IDE State, Persistence)
+│   ├── App.tsx               # Main IDE Layout
+│   └── main.tsx              # React Entrypoint
+├── vite.config.ts            # Vite config & API Middlewares (/api/run-command, /api/git)
 ├── package.json
 └── README.md
 ```
 
 ---
 
-## 📄 Licence
+## 📄 License
 
-Ce projet est sous licence **MIT**. Voir le fichier [LICENSE](LICENSE) pour plus de détails.
+This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
 
 ---
 
-<p center="align">Développé avec ❤️ pour la programmation intent-based & l'IA agentique autonome.</p>
+<p align="center">Built with ❤️ for Intent-Based Programming & Autonomous AI Agents.</p>
