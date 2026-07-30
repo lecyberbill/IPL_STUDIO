@@ -29,13 +29,13 @@ export const SourceFileTree: React.FC = () => {
       <div className="h-8 bg-[#161922] px-3 border-b border-[#2a2f42] flex items-center justify-between text-xs text-gray-300">
         <div className="flex items-center space-x-1.5 font-semibold text-[11px]">
           <FolderGit2 size={14} className="text-cyan-400" />
-          <span>Arborescence .ipl</span>
+          <span>IPL Source Tree</span>
         </div>
 
         <button
           onClick={() => setIsAdding(!isAdding)}
           className="p-1 text-gray-400 hover:text-cyan-300 hover:bg-[#2a2f42] rounded transition-colors"
-          title="Nouveau fichier source .ipl"
+          title="New .ipl source file"
         >
           <FilePlus size={14} />
         </button>
@@ -87,7 +87,7 @@ export const SourceFileTree: React.FC = () => {
                     deleteSourceFile(fileName);
                   }}
                   className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-rose-400 transition-opacity"
-                  title="Supprimer ce fichier .ipl"
+                  title="Delete .ipl source file"
                 >
                   <Trash2 size={12} />
                 </button>
@@ -99,8 +99,8 @@ export const SourceFileTree: React.FC = () => {
 
       {/* Footer Info */}
       <div className="p-2 border-t border-[#2a2f42] text-[10px] text-gray-500 bg-[#0f1117] font-mono">
-        <div>Utilisez :</div>
-        <div className="text-cyan-400 font-semibold mt-0.5">import "fichier.ipl";</div>
+        <div>Usage in IPL:</div>
+        <div className="text-cyan-400 font-semibold mt-0.5">import "file.ipl";</div>
       </div>
     </div>
   );

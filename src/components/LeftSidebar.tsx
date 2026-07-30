@@ -20,7 +20,7 @@ export const LeftSidebar: React.FC = () => {
             }`}
           >
             <Layers size={13} />
-            <span>🧩 Verbes</span>
+            <span>🧩 Verbs</span>
           </button>
 
           <button
@@ -32,7 +32,7 @@ export const LeftSidebar: React.FC = () => {
             }`}
           >
             <FolderGit2 size={13} />
-            <span>📂 Fichiers .ipl</span>
+            <span>📂 .ipl Files</span>
           </button>
         </div>
       </div>

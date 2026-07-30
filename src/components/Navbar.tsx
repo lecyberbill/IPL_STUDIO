@@ -2,14 +2,14 @@ import React from 'react';
 import { useIdeStore } from '../store/useIdeStore';
 import type { TargetLanguage } from '../engine/llmCompiler';
 import { 
-  Zap, 
-  Code2, 
-  Boxes, 
+  Play, 
   Settings, 
-  FolderOpen,
-  Plus,
-  Download,
-  GitBranch
+  FolderPlus, 
+  Sparkles, 
+  LayoutTemplate, 
+  Code2, 
+  GitCompare,
+  Download
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -31,96 +31,87 @@ export const Navbar: React.FC = () => {
   } = useIdeStore();
 
   return (
-    <header className="h-14 bg-[#161922] border-b border-[#2a2f42] px-4 flex items-center justify-between text-sm select-none z-20">
+    <header className="h-14 bg-[#161922] border-b border-[#2a2f42] px-4 flex items-center justify-between select-none shadow-md z-10">
       {/* Brand & Project Selector */}
       <div className="flex items-center space-x-4">
         <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center font-bold text-white shadow-lg shadow-cyan-500/20">
-            IPL
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+            <Sparkles size={18} className="text-black fill-black" />
           </div>
           <div>
-            <h1 className="font-bold text-white tracking-wide text-base leading-none">IPL Studio</h1>
-            <span className="text-[10px] text-cyan-400 font-mono">v1.0 Atelier IDE</span>
+            <h1 className="font-bold text-white text-sm tracking-wider flex items-center space-x-1.5">
+              <span>IPL STUDIO</span>
+              <span className="text-[10px] bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-500/30 font-mono">v1.0</span>
+            </h1>
+            <p className="text-[10px] text-gray-400 font-mono">Intent Programming Language IDE</p>
           </div>
         </div>
 
         <div className="h-5 w-[1px] bg-[#2a2f42]" />
 
-        {/* Active Project Dropdown & Manager trigger */}
+        {/* Project Selector */}
         <div className="flex items-center space-x-2">
-          <div className="flex items-center space-x-2 bg-[#0f1117] border border-[#2a2f42] rounded-md px-2 py-1">
-            <FolderOpen size={14} className="text-cyan-400" />
-            <select 
-              value={activeProjectId} 
-              onChange={(e) => switchProject(e.target.value)}
-              className="bg-transparent text-gray-200 text-xs focus:outline-none cursor-pointer font-medium max-w-[180px] truncate"
-            >
-              {projects.map((proj) => (
-                <option key={proj.id} value={proj.id} className="bg-[#161922]">
-                  {proj.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <select
+            value={activeProjectId}
+            onChange={(e) => switchProject(e.target.value)}
+            className="bg-[#0f1117] border border-[#2a2f42] rounded-md px-3 py-1.5 text-xs text-cyan-300 focus:outline-none focus:border-cyan-500 cursor-pointer font-semibold"
+          >
+            {projects.map((proj) => (
+              <option key={proj.id} value={proj.id} className="bg-[#161922] text-white">
+                📂 {proj.name}
+              </option>
+            ))}
+          </select>
 
           <button
             onClick={toggleProjectModal}
-            className="flex items-center space-x-1 px-2.5 py-1.5 bg-[#0f1117] hover:bg-[#2a2f42] text-gray-300 rounded-md border border-[#2a2f42] text-xs font-medium transition-colors"
-            title="Gérer les projets (Créer, Supprimer, Importer)"
+            className="p-1.5 bg-[#0f1117] hover:bg-[#2a2f42] text-gray-300 rounded-md border border-[#2a2f42] transition-colors"
+            title="Create New IPL Project"
           >
-            <Plus size={13} className="text-cyan-400" />
-            <span>Gérer Projets</span>
-          </button>
-
-          <button
-            onClick={() => exportProject()}
-            className="p-1.5 text-gray-400 hover:text-white hover:bg-[#2a2f42] rounded-md transition-colors"
-            title="Télécharger le fichier .ipl"
-          >
-            <Download size={15} />
-          </button>
-        </div>
-      </div>
-
-      {/* Center Controls: View Mode & Target Lang */}
-      <div className="flex items-center space-x-3">
-        {/* Toggle Mode Texuel / Blocs */}
-        <div className="flex bg-[#0f1117] p-1 rounded-lg border border-[#2a2f42]">
-          <button
-            onClick={() => setEditorViewMode('text')}
-            className={`flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all ${
-              editorViewMode === 'text' 
-                ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-sm' 
-                : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            <Code2 size={14} />
-            <span>Texte (Monaco)</span>
-          </button>
-          <button
-            onClick={() => setEditorViewMode('blocks')}
-            className={`flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all ${
-              editorViewMode === 'blocks' 
-                ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-sm' 
-                : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            <Boxes size={14} />
-            <span>Blocs AST</span>
+            <FolderPlus size={15} />
           </button>
         </div>
 
         <div className="h-5 w-[1px] bg-[#2a2f42]" />
 
-        {/* Sélecteur de Cible */}
+        {/* Editor View Toggle (Monaco Code vs AST Blocks) */}
+        <div className="flex bg-[#0f1117] p-0.5 rounded-lg border border-[#2a2f42]">
+          <button
+            onClick={() => setEditorViewMode('text')}
+            className={`flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+              editorViewMode === 'text'
+                ? 'bg-cyan-500/20 text-cyan-300 font-semibold shadow-sm'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <Code2 size={13} />
+            <span>IPL Code</span>
+          </button>
+
+          <button
+            onClick={() => setEditorViewMode('blocks')}
+            className={`flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+              editorViewMode === 'blocks'
+                ? 'bg-cyan-500/20 text-cyan-300 font-semibold shadow-sm'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <LayoutTemplate size={13} />
+            <span>AST Blocks</span>
+          </button>
+        </div>
+
+        <div className="h-5 w-[1px] bg-[#2a2f42]" />
+
+        {/* Target Language Selector */}
         <div className="flex items-center space-x-2">
-          <span className="text-xs text-gray-400 font-medium">Cible:</span>
+          <span className="text-xs text-gray-400 font-medium">Target:</span>
           <select
             value={targetLang}
             onChange={(e) => setTargetLang(e.target.value as TargetLanguage)}
             className="bg-[#0f1117] border border-[#2a2f42] rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 cursor-pointer font-mono"
           >
-            <option value="polyglot" className="bg-[#161922]">🌐 Polyglotte (Choix de l'Architecte)</option>
+            <option value="polyglot" className="bg-[#161922]">🌐 Polyglot (Architect's Choice)</option>
             <option value="rust" className="bg-[#161922]">🦀 Rust (.rs)</option>
             <option value="python" className="bg-[#161922]">🐍 Python 3 (.py)</option>
             <option value="javascript" className="bg-[#161922]">⚡ JavaScript / Node (.js)</option>
@@ -137,36 +128,42 @@ export const Navbar: React.FC = () => {
         </div>
       </div>
 
-      {/* Right Action: Git, Compile & Settings */}
+      {/* Right Actions: Git, Export, Compile & Settings */}
       <div className="flex items-center space-x-3">
         <button
           onClick={toggleGitModal}
           className="flex items-center space-x-1.5 px-3 py-1.5 bg-[#0f1117] hover:bg-[#2a2f42] text-gray-300 rounded-lg border border-[#2a2f42] text-xs font-medium transition-colors"
-          title="Visualiseur Git Diff & Commits"
+          title="Git Diff & Version Control Modal"
         >
-          <GitBranch size={14} className="text-cyan-400" />
+          <GitCompare size={14} className="text-cyan-400" />
           <span>Git Diff</span>
         </button>
 
         <button
-          onClick={runCompilation}
-          disabled={isCompiling}
-          className={`flex items-center space-x-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md ${
-            isCompiling
-              ? 'bg-cyan-900/50 text-cyan-300 border border-cyan-500/30 cursor-wait'
-              : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-cyan-500/20 active:scale-95'
-          }`}
+          onClick={() => exportProject()}
+          className="flex items-center space-x-1.5 px-3 py-1.5 bg-[#0f1117] hover:bg-[#2a2f42] text-gray-300 rounded-lg border border-[#2a2f42] text-xs font-medium transition-colors"
+          title="Export Project Backup JSON"
         >
-          <Zap size={15} className={isCompiling ? 'animate-bounce text-yellow-300' : 'fill-current'} />
-          <span>{isCompiling ? 'Compilation...' : '⚡ Compiler & Exécuter'}</span>
+          <Download size={14} className="text-emerald-400" />
+          <span>Export</span>
         </button>
 
         <button
           onClick={toggleSettings}
-          className="p-2 text-gray-400 hover:text-white hover:bg-[#2a2f42] rounded-lg transition-colors"
-          title="Paramètres LLM & API"
+          className="p-2 bg-[#0f1117] hover:bg-[#2a2f42] text-gray-300 rounded-lg border border-[#2a2f42] transition-colors"
+          title="LLM Engine Settings"
         >
-          <Settings size={18} />
+          <Settings size={16} />
+        </button>
+
+        {/* Compile Button */}
+        <button
+          onClick={runCompilation}
+          disabled={isCompiling}
+          className="flex items-center space-x-2 px-4 py-1.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 text-black font-bold rounded-lg text-xs transition-all shadow-lg shadow-cyan-500/20 active:scale-95"
+        >
+          <Play size={14} className="fill-black" />
+          <span>{isCompiling ? 'Compiling...' : 'Compile (Ctrl+Enter)'}</span>
         </button>
       </div>
     </header>

@@ -14,7 +14,7 @@ export const TerminalPanel: React.FC = () => {
 
   const { projects, activeProjectId, targetLang, writeArtifactToDisk, autoDebugAndFix, addLog } = useIdeStore();
   const activeProject = projects.find(p => p.id === activeProjectId);
-  const outputDir = activeProject?.outputDir || `d:/image_to_text/IPL/output/${activeProject?.name.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'mon_projet'}`;
+  const outputDir = activeProject?.outputDir || `d:/image_to_text/IPL/output/${activeProject?.name.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'my_project'}`;
 
   useEffect(() => {
     if (!terminalRef.current) return;
@@ -40,8 +40,8 @@ export const TerminalPanel: React.FC = () => {
     xtermInstance.current = term;
     fitAddonRef.current = fitAddon;
 
-    term.writeln('\x1b[1;36m=== IPL Studio Terminal Embarqué v1.0 ===\x1b[0m');
-    term.writeln(`\x1b[90mDossier de travail : ${outputDir}\x1b[0m\n`);
+    term.writeln('\x1b[1;36m=== IPL Studio Embedded Terminal v1.0 ===\x1b[0m');
+    term.writeln(`\x1b[90mWorking Directory: ${outputDir}\x1b[0m\n`);
 
     const handleResize = () => fitAddon.fit();
     window.addEventListener('resize', handleResize);
@@ -59,13 +59,11 @@ export const TerminalPanel: React.FC = () => {
     const term = xtermInstance.current;
     if (term) {
       term.clear();
-      term.writeln('\x1b[1;34m[Disque] Matérialisation des fichiers de l\'artefact...\x1b[0m');
+      term.writeln('\x1b[1;34m[Disk] Writing project artifact files to disk...\x1b[0m');
     }
 
-    // Matérialiser d'abord sur disque
     await writeArtifactToDisk();
 
-    // Déterminer la commande de lancement par défaut si aucune commande custom n'est spécifiée
     let cmdToRun = customCmd || commandInput.trim();
     if (!cmdToRun) {
       if (targetLang === 'rust') cmdToRun = 'cargo run';
@@ -79,7 +77,7 @@ export const TerminalPanel: React.FC = () => {
 
     if (term) {
       term.writeln(`\x1b[1;32m$ ${cmdToRun}\x1b[0m`);
-      term.writeln(`\x1b[90mExécution dans ${outputDir}...\x1b[0m\n`);
+      term.writeln(`\x1b[90mExecuting inside ${outputDir}...\x1b[0m\n`);
     }
 
     try {
@@ -107,10 +105,10 @@ export const TerminalPanel: React.FC = () => {
           term?.write(textChunk.replace(/\n/g, '\r\n'));
         }
       }
-      addLog(`[Terminal] Commande "${cmdToRun}" terminée.`, 'success');
+      addLog(`[Terminal] Command "${cmdToRun}" completed.`, 'success');
     } catch (err: any) {
-      term?.writeln(`\r\n\x1b[1;31m[Erreur Terminal: ${err.message}]\x1b[0m`);
-      addLog(`Erreur terminal : ${err.message}`, 'error');
+      term?.writeln(`\r\n\x1b[1;31m[Terminal Error: ${err.message}]\x1b[0m`);
+      addLog(`Terminal Error: ${err.message}`, 'error');
     } finally {
       setIsRunning(false);
     }
@@ -122,8 +120,8 @@ export const TerminalPanel: React.FC = () => {
     const term = xtermInstance.current;
     if (term) {
       term.clear();
-      term.writeln('\x1b[1;35m🤖 Mode Agent Codeur Autonome Déclenché !\x1b[0m');
-      term.writeln('\x1b[90mLancement de la boucle Auto-Debug & Self-Healing...\x1b[0m\n');
+      term.writeln('\x1b[1;35m🤖 Autonomous Coder Agent Mode Triggered!\x1b[0m');
+      term.writeln('\x1b[90mLaunching Auto-Debug & Self-Healing loop...\x1b[0m\n');
     }
     
     await autoDebugAndFix(commandInput.trim() || undefined);
@@ -140,7 +138,7 @@ export const TerminalPanel: React.FC = () => {
       <div className="h-8 bg-[#161922] border-b border-[#2a2f42] px-3 flex items-center justify-between text-xs">
         <div className="flex items-center space-x-2">
           <TerminalIcon size={14} className="text-cyan-400" />
-          <span className="font-semibold text-gray-300">Terminal Embarqué</span>
+          <span className="font-semibold text-gray-300">Embedded Terminal</span>
           <span className="text-[10px] text-gray-500 font-mono hidden sm:inline">({outputDir})</span>
         </div>
 
@@ -154,7 +152,7 @@ export const TerminalPanel: React.FC = () => {
           >
             <input
               type="text"
-              placeholder="Ex: cargo run, python main.py..."
+              placeholder="e.g. cargo run, python main.py..."
               value={commandInput}
               onChange={(e) => setCommandInput(e.target.value)}
               className="bg-[#0f1117] border border-[#2a2f42] rounded px-2 py-0.5 font-mono text-[11px] text-cyan-300 w-44 focus:outline-none focus:border-cyan-500"
@@ -165,17 +163,17 @@ export const TerminalPanel: React.FC = () => {
             onClick={() => runProjectCommand()}
             disabled={isRunning}
             className="flex items-center space-x-1 px-2.5 py-0.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-40 text-black font-bold rounded text-[11px] transition-all shadow"
-            title="Matérialiser & Exécuter le projet dans le terminal"
+            title="Write files to disk and run project in terminal"
           >
             {isRunning ? <RefreshCw size={12} className="animate-spin text-black" /> : <Play size={12} className="fill-black" />}
-            <span>{isRunning ? 'Running...' : '▶ Exécuter'}</span>
+            <span>{isRunning ? 'Running...' : '▶ Run'}</span>
           </button>
 
           <button
             onClick={handleAgentAutoFix}
             disabled={isRunning}
             className="flex items-center space-x-1 px-2.5 py-0.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-40 text-white font-bold rounded text-[11px] transition-all shadow"
-            title="Activer la boucle d'auto-correction autonome en cas d'erreur de compilation/exécution"
+            title="Trigger autonomous self-healing agent to auto-debug & fix compiler/runtime errors"
           >
             {isRunning ? <RefreshCw size={12} className="animate-spin text-white" /> : <Bot size={12} />}
             <span>🤖 Auto-Fix (Agent)</span>
@@ -184,7 +182,7 @@ export const TerminalPanel: React.FC = () => {
           <button
             onClick={clearTerminal}
             className="p-1 text-gray-400 hover:text-white hover:bg-[#2a2f42] rounded transition-colors"
-            title="Effacer le terminal"
+            title="Clear terminal"
           >
             <Trash2 size={13} />
           </button>

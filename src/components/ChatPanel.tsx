@@ -1,26 +1,25 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
-import { Bot, User, Send, Sparkles, RefreshCw } from 'lucide-react';
+import { Send, Bot, User, RefreshCw } from 'lucide-react';
 
 export interface ChatMessage {
   id: string;
   sender: 'user' | 'assistant';
   text: string;
-  time: string;
+  timestamp: string;
 }
 
 export const ChatPanel: React.FC = () => {
-  const { requestLLMCorrection, isCompiling } = useIdeStore();
-  const [inputMsg, setInputMsg] = useState('');
+  const { requestLLMCorrection, isCompiling, addLog } = useIdeStore();
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
-      id: 'init-1',
+      id: 'welcome',
       sender: 'assistant',
-      text: 'Bonjour ! Je suis votre Architecte LLM IPL v1.0. Demandez-moi n\'importe quelle modification, correction d\'erreur, refactorisation ou ajout de fonctionnalité sur les fichiers de votre projet.',
-      time: new Date().toLocaleTimeString()
+      text: 'Hello! I am your LLM Architect. Ask me to add features, refactor code, or fix errors in your project files.',
+      timestamp: new Date().toLocaleTimeString()
     }
   ]);
-
+  const [inputPrompt, setInputPrompt] = useState('');
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -29,120 +28,120 @@ export const ChatPanel: React.FC = () => {
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputMsg.trim() || isCompiling) return;
+    if (!inputPrompt.trim() || isCompiling) return;
 
-    const userText = inputMsg.trim();
+    const userText = inputPrompt.trim();
     const userMsg: ChatMessage = {
-      id: `usr-${Date.now()}`,
+      id: `msg-${Date.now()}`,
       sender: 'user',
       text: userText,
-      time: new Date().toLocaleTimeString()
+      timestamp: new Date().toLocaleTimeString()
     };
 
     setMessages(prev => [...prev, userMsg]);
-    setInputMsg('');
+    setInputPrompt('');
 
-    // Ajouter une bulle de réflexion
-    const assistantMsgId = `ast-${Date.now()}`;
-    setMessages(prev => [
-      ...prev,
-      {
-        id: assistantMsgId,
+    addLog(`[LLM Chat] User request: "${userText}"`, 'info');
+
+    try {
+      await requestLLMCorrection(userText);
+
+      const botReply: ChatMessage = {
+        id: `reply-${Date.now()}`,
         sender: 'assistant',
-        text: '🧠 Réflexion et modification des fichiers du projet en cours...',
-        time: new Date().toLocaleTimeString()
-      }
-    ]);
-
-    await requestLLMCorrection(userText);
-
-    // Mettre à jour la bulle de l'assistant une fois terminé
-    setMessages(prev =>
-      prev.map(m =>
-        m.id === assistantMsgId
-          ? {
-              ...m,
-              text: `✅ Corrections et modifications appliquées avec succès sur l'ensemble des fichiers du projet ! Le projet mis à jour a été matérialisé sur le disque.`
-            }
-          : m
-      )
-    );
+        text: `I have updated your project files according to your request: "${userText}". Check out the updated code in the Project Files tab!`,
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, botReply]);
+    } catch (err: any) {
+      const errorMsg: ChatMessage = {
+        id: `err-${Date.now()}`,
+        sender: 'assistant',
+        text: `Error processing request: ${err.message}`,
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    }
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#12141c] text-white select-none">
-      {/* Header Info */}
-      <div className="bg-[#0f1117] px-3 py-2 border-b border-[#2a2f42] flex items-center justify-between text-xs shrink-0">
-        <div className="flex items-center space-x-2">
-          <Bot size={15} className="text-purple-400" />
-          <span className="font-semibold text-gray-200">Chat Architecte & Correcteur LLM</span>
+    <div className="flex flex-col h-full bg-[#12141c] text-gray-200 select-none">
+      {/* Header */}
+      <div className="px-3 py-2 bg-[#161922] border-b border-[#2a2f42] flex items-center justify-between text-xs shrink-0">
+        <div className="flex items-center space-x-2 font-semibold text-cyan-400">
+          <Bot size={16} />
+          <span>LLM Architect Assistant</span>
         </div>
-        <span className="text-[10px] text-gray-500 font-mono">Modèle Actif</span>
+        <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/30 font-mono">
+          Refactoring & Corrections Active
+        </span>
       </div>
 
-      {/* Messages Scroll Area */}
-      <div className="flex-1 p-3 overflow-y-auto space-y-3 font-sans text-xs select-text">
+      {/* Messages Thread */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-3 font-sans text-xs">
         {messages.map((msg) => (
           <div
             key={msg.id}
             className={`flex items-start space-x-2 ${
-              msg.sender === 'user' ? 'justify-end' : 'justify-start'
+              msg.sender === 'user' ? 'flex-row-reverse space-x-reverse' : ''
             }`}
           >
-            {msg.sender === 'assistant' && (
-              <div className="w-6 h-6 rounded-full bg-purple-600/30 border border-purple-500/40 flex items-center justify-center shrink-0 mt-0.5">
-                <Bot size={13} className="text-purple-300" />
-              </div>
-            )}
+            <div
+              className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-md ${
+                msg.sender === 'user'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gradient-to-tr from-cyan-500 to-blue-600 text-black font-bold'
+              }`}
+            >
+              {msg.sender === 'user' ? <User size={14} /> : <Bot size={14} />}
+            </div>
 
             <div
-              className={`max-w-[85%] rounded-xl p-3 text-xs leading-relaxed shadow ${
+              className={`max-w-[85%] rounded-xl p-3 text-xs leading-relaxed shadow-sm ${
                 msg.sender === 'user'
-                  ? 'bg-cyan-600 text-white rounded-tr-none'
+                  ? 'bg-purple-600/20 border border-purple-500/40 text-purple-100 rounded-tr-none'
                   : 'bg-[#161922] border border-[#2a2f42] text-gray-200 rounded-tl-none'
               }`}
             >
-              <div className="whitespace-pre-wrap">{msg.text}</div>
-              <div className="text-[9px] text-gray-400 mt-1 text-right font-mono">{msg.time}</div>
-            </div>
-
-            {msg.sender === 'user' && (
-              <div className="w-6 h-6 rounded-full bg-cyan-600/30 border border-cyan-500/40 flex items-center justify-center shrink-0 mt-0.5">
-                <User size={13} className="text-cyan-300" />
+              <div className="flex items-center justify-between mb-1 opacity-70 text-[10px]">
+                <span className="font-semibold">{msg.sender === 'user' ? 'You' : 'LLM Architect'}</span>
+                <span>{msg.timestamp}</span>
               </div>
-            )}
+              <p className="whitespace-pre-wrap">{msg.text}</p>
+            </div>
           </div>
         ))}
+
         {isCompiling && (
-          <div className="flex items-center space-x-2 text-purple-400 text-xs italic bg-purple-500/10 p-2 rounded-lg border border-purple-500/20">
-            <Sparkles size={14} className="animate-spin text-purple-400 shrink-0" />
-            <span>L'Architecte réécrit et matérialise les fichiers...</span>
+          <div className="flex items-center space-x-2 p-3 bg-[#161922] border border-[#2a2f42] rounded-xl text-cyan-400 text-xs animate-pulse">
+            <RefreshCw size={14} className="animate-spin" />
+            <span>LLM Architect is thinking and updating project files...</span>
           </div>
         )}
+
         <div ref={chatBottomRef} />
       </div>
 
-      {/* Input Chat Bar */}
-      <div className="p-2.5 bg-[#0f1117] border-t border-[#2a2f42] shrink-0">
-        <form onSubmit={handleSend} className="flex items-center space-x-2">
-          <input
-            type="text"
-            placeholder="Posez une question ou demandez une modification au LLM..."
-            value={inputMsg}
-            onChange={(e) => setInputMsg(e.target.value)}
-            disabled={isCompiling}
-            className="flex-1 bg-[#161922] border border-[#2a2f42] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-          />
-          <button
-            type="submit"
-            disabled={!inputMsg.trim() || isCompiling}
-            className="p-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-40 text-white rounded-lg transition-all shadow"
-            title="Envoyer la consigne"
-          >
-            {isCompiling ? <RefreshCw size={14} className="animate-spin text-white" /> : <Send size={14} />}
-          </button>
-        </form>
-      </div>
+      {/* Input Footer Form */}
+      <form onSubmit={handleSend} className="p-2.5 border-t border-[#2a2f42] bg-[#0f1117] flex items-center space-x-2 shrink-0">
+        <input
+          type="text"
+          placeholder="Ask LLM Architect to refactor, add features, or fix bugs..."
+          value={inputPrompt}
+          onChange={(e) => setInputPrompt(e.target.value)}
+          disabled={isCompiling}
+          className="flex-1 bg-[#161922] border border-[#2a2f42] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 disabled:opacity-50 font-sans"
+        />
+
+        <button
+          type="submit"
+          disabled={!inputPrompt.trim() || isCompiling}
+          className="px-3.5 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-40 text-black font-bold rounded-lg text-xs transition-all shadow flex items-center space-x-1 shrink-0"
+        >
+          <Send size={13} />
+          <span>Send</span>
+        </button>
+      </form>
     </div>
   );
 };

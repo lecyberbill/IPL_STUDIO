@@ -186,13 +186,13 @@ listen event on "user:payment_completed" {
   },
   {
     id: 'proj-ecommerce',
-    name: 'Dashboard E-Commerce',
+    name: 'E-Commerce Dashboard',
     targetLang: 'python',
     updatedAt: new Date().toLocaleTimeString(),
-    code: `// Projet IPL v1.0 - Dashboard E-Commerce
+    code: `// IPL Project v1.0 - E-Commerce Dashboard
 add catalog {
-  name: "Boutique Atelier IPL",
-  currency: "EUR"
+  name: "IPL Studio Store",
+  currency: "USD"
 }
 
 read products from catalog {
@@ -205,18 +205,18 @@ compute totalValue from products {
 
 if (totalValue > 1000) {
   send alert to manager {
-    message: "Volume de ventes élevé"
+    message: "High sales volume detected"
   }
 }`
   },
   {
     id: 'proj-form',
-    name: 'Formulaire Inscription',
+    name: 'User Registration Form',
     targetLang: 'javascript',
     updatedAt: new Date().toLocaleTimeString(),
-    code: `// Projet IPL v1.0 - Formulaire Utilisateur
+    code: `// IPL Project v1.0 - User Registration Form
 add form {
-  title: "Inscription Membre",
+  title: "Member Registration",
   fields: ["email", "password"]
 }
 
@@ -235,7 +235,7 @@ listen event on "form:submit" {
     name: 'Hello World IPL',
     targetLang: 'html',
     updatedAt: new Date().toLocaleTimeString(),
-    code: `// Projet IPL v1.0 - Hello World
+    code: `// IPL Project v1.0 - Hello World
 add message {
   text: "Hello World IPL Studio v1.0",
   target: "console"
@@ -264,7 +264,7 @@ export const useIdeStore = create<IDEState>()(
           id: 'init-1',
           time: new Date().toLocaleTimeString(),
           type: 'info',
-          text: 'IPL Studio v1.0 Initialisé avec gestionnaire de projets persistant.'
+          text: 'IPL Studio v1.0 initialized with persistent multi-project manager.'
         }
       ],
       customTargets: [

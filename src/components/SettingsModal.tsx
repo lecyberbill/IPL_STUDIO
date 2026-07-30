@@ -28,7 +28,7 @@ export const SettingsModal: React.FC = () => {
     addCustomTarget({
       name: newTargetName.trim(),
       extension: newTargetExt.trim().replace(/^\./, ''),
-      promptInstructions: newTargetPrompt.trim() || `Génère un projet ${newTargetName} multi-fichiers complet.`
+      promptInstructions: newTargetPrompt.trim() || `Generate a complete multi-file ${newTargetName} project.`
     });
 
     setNewTargetName('');
@@ -44,7 +44,7 @@ export const SettingsModal: React.FC = () => {
         <div className="px-5 py-4 border-b border-[#2a2f42] flex items-center justify-between bg-[#0f1117] shrink-0">
           <div className="flex items-center space-x-2.5">
             <Settings size={18} className="text-cyan-400" />
-            <h2 className="font-bold text-white text-sm">Paramètres Moteur & Cibles de Compilation Extensibles</h2>
+            <h2 className="font-bold text-white text-sm">LLM Compiler & Custom Extensible Targets Settings</h2>
           </div>
           <button
             onClick={toggleSettings}
@@ -59,7 +59,7 @@ export const SettingsModal: React.FC = () => {
           {/* Mode Selector */}
           <div>
             <label className="block text-gray-400 font-semibold mb-2 uppercase text-[10px] tracking-wider">
-              Mode de Connexion du Moteur LLM
+              LLM Engine Connection Mode
             </label>
             <div className="grid grid-cols-2 gap-3">
               <button
@@ -75,7 +75,7 @@ export const SettingsModal: React.FC = () => {
                   <Server size={15} />
                   <span>100% Local (Ollama)</span>
                 </div>
-                <p className="text-[10px] opacity-80">Execution locale hors-ligne sans fuite de code.</p>
+                <p className="text-[10px] opacity-80">Offline execution with zero code leakage.</p>
               </button>
 
               <button
@@ -89,9 +89,9 @@ export const SettingsModal: React.FC = () => {
               >
                 <div className="flex items-center space-x-2 font-bold mb-1">
                   <Key size={15} />
-                  <span>API Externe (Cloud)</span>
+                  <span>External Cloud API</span>
                 </div>
-                <p className="text-[10px] opacity-80">Utilise des endpoints OpenAI / DeepSeek distants.</p>
+                <p className="text-[10px] opacity-80">Uses OpenAI / DeepSeek compatible remote endpoints.</p>
               </button>
             </div>
           </div>
@@ -100,7 +100,7 @@ export const SettingsModal: React.FC = () => {
           {llmConfig.mode === 'local' ? (
             <div className="space-y-3 bg-[#0f1117] p-3.5 rounded-lg border border-[#2a2f42]">
               <div>
-                <label className="block font-medium text-gray-300 mb-1">Endpoint Ollama Local</label>
+                <label className="block font-medium text-gray-300 mb-1">Local Ollama Endpoint</label>
                 <input
                   type="text"
                   value={llmConfig.localEndpoint}
@@ -110,7 +110,7 @@ export const SettingsModal: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-medium text-gray-300 mb-1">Modèle Ollama (ex: llama3, mistral, codellama)</label>
+                <label className="block font-medium text-gray-300 mb-1">Ollama Model (e.g. llama3, mistral, codellama)</label>
                 <input
                   type="text"
                   value={llmConfig.model}
@@ -122,7 +122,7 @@ export const SettingsModal: React.FC = () => {
           ) : (
             <div className="space-y-3 bg-[#0f1117] p-3.5 rounded-lg border border-[#2a2f42]">
               <div>
-                <label className="block font-medium text-gray-300 mb-1">URL d'API Distante (OpenAI / DeepSeek Compatible)</label>
+                <label className="block font-medium text-gray-300 mb-1">Remote API Endpoint (OpenAI / DeepSeek Compatible)</label>
                 <input
                   type="text"
                   value={llmConfig.externalEndpoint}
@@ -133,7 +133,7 @@ export const SettingsModal: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-medium text-gray-300 mb-1">Nom de la Variable d'Environnement (Sans Clé en Dur)</label>
+                <label className="block font-medium text-gray-300 mb-1">Environment Variable Name (Zero Hardcoded Keys)</label>
                 <input
                   type="text"
                   value={llmConfig.apiKeyName}
@@ -143,18 +143,18 @@ export const SettingsModal: React.FC = () => {
                 />
                 <div className="mt-1.5 flex items-start space-x-1.5 text-[10px] text-amber-400/90 leading-relaxed">
                   <ShieldCheck size={14} className="shrink-0 mt-0.5" />
-                  <span>Sécurité : Seul le NOM de la variable d'environnement (ex: <code>VITE_DP_API_KEY</code>) est conservé.</span>
+                  <span>Security Guaranteed: Only the variable name (e.g. <code>VITE_DP_API_KEY</code>) is stored. Real keys are read from environment.</span>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Section : Cibles de Compilation Extensibles Custom */}
+          {/* Section: Custom Extensible Compilation Targets */}
           <div className="pt-2 border-t border-[#2a2f42]">
             <div className="flex items-center justify-between mb-3">
               <label className="block text-cyan-400 font-semibold uppercase text-[10px] tracking-wider flex items-center space-x-1">
                 <Code2 size={13} />
-                <span>Cibles de Compilation Extensibles ({customTargets.length})</span>
+                <span>Custom Extensible Targets ({customTargets.length})</span>
               </label>
 
               <button
@@ -163,7 +163,7 @@ export const SettingsModal: React.FC = () => {
                 className="flex items-center space-x-1 px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded text-xs transition-colors"
               >
                 <Plus size={13} />
-                <span>Nouvelle Cible</span>
+                <span>New Target</span>
               </button>
             </div>
 
@@ -172,7 +172,7 @@ export const SettingsModal: React.FC = () => {
               <form onSubmit={handleAddTarget} className="bg-[#0f1117] p-3.5 rounded-lg border border-cyan-500/40 space-y-3 mb-3">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[10px] text-gray-400 mb-0.5">Nom de la Cible (ex: Java 21)</label>
+                    <label className="block text-[10px] text-gray-400 mb-0.5">Target Name (e.g. Java 21)</label>
                     <input
                       type="text"
                       placeholder="☕ Java 21 Spring Boot"
@@ -182,7 +182,7 @@ export const SettingsModal: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-gray-400 mb-0.5">Extension Fichier (ex: java)</label>
+                    <label className="block text-[10px] text-gray-400 mb-0.5">Extension (e.g. java)</label>
                     <input
                       type="text"
                       placeholder="java"
@@ -194,10 +194,10 @@ export const SettingsModal: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] text-gray-400 mb-0.5">Consignes Prompt LLM pour cette cible :</label>
+                  <label className="block text-[10px] text-gray-400 mb-0.5">Custom LLM Prompt Instructions for this target:</label>
                   <textarea
                     rows={2}
-                    placeholder="Instructions spécifiques envoyées à l'Architecte LLM pour générer ce langage..."
+                    placeholder="Specific instructions sent to LLM Architect for generating this target language..."
                     value={newTargetPrompt}
                     onChange={(e) => setNewTargetPrompt(e.target.value)}
                     className="w-full bg-[#161922] border border-[#2a2f42] rounded p-2 font-mono text-xs text-gray-200 focus:outline-none focus:border-cyan-500 resize-none"
@@ -210,13 +210,13 @@ export const SettingsModal: React.FC = () => {
                     onClick={() => setIsAddingTarget(false)}
                     className="px-3 py-1 bg-[#2a2f42] text-gray-300 rounded text-xs"
                   >
-                    Annuler
+                    Cancel
                   </button>
                   <button
                     type="submit"
                     className="px-3 py-1 bg-cyan-500 hover:bg-cyan-400 text-black font-bold rounded text-xs"
                   >
-                    Ajouter la Cible
+                    Add Target
                   </button>
                 </div>
               </form>
@@ -239,7 +239,7 @@ export const SettingsModal: React.FC = () => {
                     type="button"
                     onClick={() => deleteCustomTarget(target.id)}
                     className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
-                    title="Supprimer la cible custom"
+                    title="Delete custom target"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -254,12 +254,12 @@ export const SettingsModal: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              addLog(`Configuration du moteur LLM mise à jour (${llmConfig.mode.toUpperCase()})`, 'info');
+              addLog(`LLM Engine settings updated (${llmConfig.mode.toUpperCase()})`, 'info');
               toggleSettings();
             }}
             className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs transition-all shadow-md"
           >
-            Enregistrer les modifications
+            Save Changes
           </button>
         </div>
       </div>
