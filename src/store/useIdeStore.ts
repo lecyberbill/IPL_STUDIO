@@ -100,10 +100,10 @@ export interface IDEState {
 const DEFAULT_PROJECTS: IPLProject[] = [
   {
     id: 'proj-stresstest',
-    name: 'Stress Test Niveau 5 (Entreprise)',
+    name: 'Enterprise System Architecture',
     targetLang: 'python',
     updatedAt: new Date().toLocaleTimeString(),
-    code: `// IPL v1.0 - Stress Test Niveau 5 : Architecture Système d'Entreprise Multi-Services
+    code: `// IPL v1.0 - Enterprise Multi-Services System Architecture Spec
 
 add datacenter {
   name: "Eu-Central-Datacenter",
@@ -272,13 +272,13 @@ export const useIdeStore = create<IDEState>()(
           id: 'java',
           name: '☕ Java 21 Spring Boot (.java)',
           extension: 'java',
-          promptInstructions: 'Génère une application Java 21 Spring Boot multi-fichiers complète.'
+          promptInstructions: 'Generate a complete multi-file Java 21 Spring Boot enterprise application.'
         },
         {
           id: 'k8s',
           name: '☸️ Kubernetes Manifests (.yaml)',
           extension: 'yaml',
-          promptInstructions: 'Génère les manifests Kubernetes (Deployment, Service, Ingress) complets.'
+          promptInstructions: 'Generate complete Kubernetes production manifests (Deployment, Service, Ingress).'
         }
       ],
       llmConfig: DEFAULT_LLM_CONFIG,
@@ -743,12 +743,12 @@ export const useIdeStore = create<IDEState>()(
           }
         }
 
-        addLog(`[Agent Codeur 🤖] Fin des 3 passes d'auto-réparation. Inspectez la console.`, 'warn');
+        addLog(`[Autonomous Agent 🤖] Completed 3 self-healing repair passes. Inspect the terminal log.`, 'warn');
         return false;
       }
     }),
     {
-      name: 'ipl-studio-store-v2',
+      name: 'ipl-studio-store-v4',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         projects: state.projects,
