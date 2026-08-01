@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
-import { Send, Bot, User, RefreshCw } from 'lucide-react';
+import { Send, Bot, User, RefreshCw, FolderCheck } from 'lucide-react';
 
 export interface ChatMessage {
   id: string;
   sender: 'user' | 'assistant';
   text: string;
+  codeChanged?: boolean;
   timestamp: string;
 }
 
@@ -15,7 +16,7 @@ export const ChatPanel: React.FC = () => {
     {
       id: 'welcome',
       sender: 'assistant',
-      text: 'Hello! I am your LLM Architect. Ask me to add features, refactor code, or fix errors in your project files.',
+      text: 'Hello! I am your LLM Architect. Ask me general questions or instruct me to add features, refactor code, or fix errors in your project files.',
       timestamp: new Date().toLocaleTimeString()
     }
   ]);
@@ -44,12 +45,13 @@ export const ChatPanel: React.FC = () => {
     addLog(`[LLM Chat] User request: "${userText}"`, 'info');
 
     try {
-      await requestLLMCorrection(userText);
+      const { textReply, codeChanged } = await requestLLMCorrection(userText);
 
       const botReply: ChatMessage = {
         id: `reply-${Date.now()}`,
         sender: 'assistant',
-        text: `I have updated your project files according to your request: "${userText}". Check out the updated code in the Project Files tab!`,
+        text: textReply,
+        codeChanged,
         timestamp: new Date().toLocaleTimeString()
       };
       setMessages(prev => [...prev, botReply]);
@@ -73,12 +75,12 @@ export const ChatPanel: React.FC = () => {
           <span>LLM Architect Assistant</span>
         </div>
         <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/30 font-mono">
-          Refactoring & Corrections Active
+          Refactoring & Q&A Active
         </span>
       </div>
 
       {/* Messages Thread */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3 font-sans text-xs">
+      <div className="flex-1 overflow-y-auto p-3 space-y-3 font-sans text-xs select-text">
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -87,7 +89,7 @@ export const ChatPanel: React.FC = () => {
             }`}
           >
             <div
-              className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-md ${
+              className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-md select-none ${
                 msg.sender === 'user'
                   ? 'bg-purple-600 text-white'
                   : 'bg-gradient-to-tr from-cyan-500 to-blue-600 text-black font-bold'
@@ -103,19 +105,26 @@ export const ChatPanel: React.FC = () => {
                   : 'bg-[#161922] border border-[#2a2f42] text-gray-200 rounded-tl-none'
               }`}
             >
-              <div className="flex items-center justify-between mb-1 opacity-70 text-[10px]">
+              <div className="flex items-center justify-between mb-1 opacity-70 text-[10px] select-none">
                 <span className="font-semibold">{msg.sender === 'user' ? 'You' : 'LLM Architect'}</span>
                 <span>{msg.timestamp}</span>
               </div>
               <p className="whitespace-pre-wrap">{msg.text}</p>
+
+              {msg.codeChanged && (
+                <div className="mt-2 pt-2 border-t border-[#2a2f42] flex items-center space-x-1.5 text-[11px] text-emerald-400 font-mono font-semibold select-none">
+                  <FolderCheck size={14} />
+                  <span>Project files updated in Project Files tab!</span>
+                </div>
+              )}
             </div>
           </div>
         ))}
 
         {isCompiling && (
-          <div className="flex items-center space-x-2 p-3 bg-[#161922] border border-[#2a2f42] rounded-xl text-cyan-400 text-xs animate-pulse">
+          <div className="flex items-center space-x-2 p-3 bg-[#161922] border border-[#2a2f42] rounded-xl text-cyan-400 text-xs animate-pulse select-none">
             <RefreshCw size={14} className="animate-spin" />
-            <span>LLM Architect is thinking and updating project files...</span>
+            <span>LLM Architect is thinking...</span>
           </div>
         )}
 
@@ -126,7 +135,7 @@ export const ChatPanel: React.FC = () => {
       <form onSubmit={handleSend} className="p-2.5 border-t border-[#2a2f42] bg-[#0f1117] flex items-center space-x-2 shrink-0">
         <input
           type="text"
-          placeholder="Ask LLM Architect to refactor, add features, or fix bugs..."
+          placeholder="Ask LLM Architect a question or instruct code changes..."
           value={inputPrompt}
           onChange={(e) => setInputPrompt(e.target.value)}
           disabled={isCompiling}
@@ -136,7 +145,7 @@ export const ChatPanel: React.FC = () => {
         <button
           type="submit"
           disabled={!inputPrompt.trim() || isCompiling}
-          className="px-3.5 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-40 text-black font-bold rounded-lg text-xs transition-all shadow flex items-center space-x-1 shrink-0"
+          className="px-3.5 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-40 text-black font-bold rounded-lg text-xs transition-all shadow flex items-center space-x-1 shrink-0 select-none"
         >
           <Send size={13} />
           <span>Send</span>

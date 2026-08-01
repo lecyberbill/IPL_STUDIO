@@ -243,20 +243,24 @@ export async function refineIPLArtifact(
 ): Promise<string> {
   onLog(`🤖 Refactoring & updating [${targetLang.toUpperCase()}] project files based on user instruction...`, 'info');
 
-  const prompt = `SYSTEM ROLE: Senior Autonomous Software Engineer.
-TASK: Modify and update the following multi-file project based on the user request.
+  const prompt = `SYSTEM ROLE: Senior Autonomous Software Architect & Assistant.
+TASK: Answer the user question or modify the multi-file project based on the user request.
 
 EXISTING PROJECT FILES:
 \`\`\`xml
 ${existingXml}
 \`\`\`
 
-USER CORRECTION / REFACTORING REQUEST:
+USER REQUEST:
 "${userCorrectionPrompt}"
 
-OUTPUT INSTRUCTIONS:
-1. Output all updated files using <file path="path/file.ext">full code</file> tags.
-2. Return FULL updated file contents (no placeholders).`;
+CRITICAL OUTPUT INSTRUCTIONS:
+1. IF the user is asking to modify code, add features, or fix bugs:
+   - Output all updated files wrapped inside <file path="relative/path/to/file.ext">full code</file> tags.
+   - You may add a brief conversational explanation before or after the <file> tags.
+2. IF the user is asking a general question, asking for clarification, or greeting you (without requesting explicit code changes):
+   - Answer conversationally in normal text.
+   - DO NOT output any <file> tags if no code files were modified.`;
 
   return await callLLM(prompt, config, onLog, onStreamChunk);
 }

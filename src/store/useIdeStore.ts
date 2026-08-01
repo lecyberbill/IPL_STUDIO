@@ -93,7 +93,7 @@ export interface IDEState {
 
   // Compilation & Autonomous Agent triggers
   runCompilation: () => Promise<void>;
-  requestLLMCorrection: (userPrompt: string) => Promise<void>;
+  requestLLMCorrection: (userPrompt: string) => Promise<{ textReply: string; codeChanged: boolean }>;
   autoDebugAndFix: (customCmd?: string) => Promise<boolean>;
 }
 
@@ -629,25 +629,47 @@ export const useIdeStore = create<IDEState>()(
 
       requestLLMCorrection: async (userPrompt: string) => {
         const { compiledCode, targetLang, llmConfig, addLog } = get();
-        if (!userPrompt.trim()) return;
+        if (!userPrompt.trim()) return { textReply: '', codeChanged: false };
 
         set({ isCompiling: true });
         try {
           const { refineIPLArtifact } = await import('../engine/llmCompiler');
-          const result = await refineIPLArtifact(
+          const { parseMultiFileXml } = await import('../engine/artifactGenerator');
+
+          const rawResult = await refineIPLArtifact(
             compiledCode || '',
             userPrompt.trim(),
             targetLang,
             llmConfig,
-            (msg, type) => addLog(msg, type),
-            (streamChunkText) => set({ compiledCode: streamChunkText })
+            (msg, type) => addLog(msg, type)
           );
 
-          set({ compiledCode: result, isCompiling: false });
-          await get().writeArtifactToDisk();
+          const fileMatches = parseMultiFileXml(rawResult);
+
+          if (fileMatches.length > 0) {
+            set({ compiledCode: rawResult, isCompiling: false });
+            await get().writeArtifactToDisk();
+
+            const textReply = rawResult.replace(/<file\s+path=["']([^"']+)["']\s*>([\s\S]*?)<\/file>/gi, '').trim();
+            return {
+              textReply: textReply || `I have updated your project files according to your request: "${userPrompt.trim()}".`,
+              codeChanged: true
+            };
+          } else {
+            // Conversational response only - DO NOT overwrite project code!
+            set({ isCompiling: false });
+            return {
+              textReply: rawResult.trim() || 'I am ready to help you with your project.',
+              codeChanged: false
+            };
+          }
         } catch (err: any) {
-          addLog(`Erreur de correction LLM: ${err.message}`, 'error');
+          addLog(`LLM Chat Error: ${err.message}`, 'error');
           set({ isCompiling: false });
+          return {
+            textReply: `Error: ${err.message}`,
+            codeChanged: false
+          };
         }
       },
 
