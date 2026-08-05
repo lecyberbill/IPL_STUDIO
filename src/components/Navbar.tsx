@@ -9,7 +9,8 @@ import {
   LayoutTemplate, 
   Code2, 
   GitCompare,
-  Download
+  Download,
+  Trash2
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -26,6 +27,8 @@ export const Navbar: React.FC = () => {
     projects,
     activeProjectId,
     switchProject,
+    deleteProject,
+    addLog,
     exportProject,
     customTargets
   } = useIdeStore();
@@ -50,7 +53,7 @@ export const Navbar: React.FC = () => {
         <div className="h-5 w-[1px] bg-[#2a2f42]" />
 
         {/* Project Selector */}
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1.5">
           <select
             value={activeProjectId}
             onChange={(e) => switchProject(e.target.value)}
@@ -66,9 +69,28 @@ export const Navbar: React.FC = () => {
           <button
             onClick={toggleProjectModal}
             className="p-1.5 bg-[#0f1117] hover:bg-[#2a2f42] text-gray-300 rounded-md border border-[#2a2f42] transition-colors"
-            title="Create New IPL Project"
+            title="Project Manager & Create New Project"
           >
             <FolderPlus size={15} />
+          </button>
+
+          <button
+            onClick={() => {
+              const activeProj = projects.find(p => p.id === activeProjectId);
+              if (projects.length <= 1) {
+                addLog('Cannot delete the last remaining project.', 'warn');
+                return;
+              }
+              if (window.confirm(`Are you sure you want to delete project "${activeProj?.name}"?`)) {
+                deleteProject(activeProjectId);
+                addLog(`Project "${activeProj?.name}" deleted successfully.`, 'info');
+              }
+            }}
+            disabled={projects.length <= 1}
+            className="p-1.5 bg-[#0f1117] hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-md border border-[#2a2f42] hover:border-red-500/40 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Delete Current Project"
+          >
+            <Trash2 size={15} />
           </button>
         </div>
 
