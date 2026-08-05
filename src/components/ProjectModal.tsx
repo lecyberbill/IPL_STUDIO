@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
-import { FolderPlus, X } from 'lucide-react';
+import { FolderPlus, X, HardDrive } from 'lucide-react';
 
 export const ProjectModal: React.FC = () => {
   const { isProjectModalOpen, toggleProjectModal, createProject, addLog } = useIdeStore();
 
   const [projectName, setProjectName] = useState('');
+  const [customOutputDir, setCustomOutputDir] = useState('');
   const [templateType, setTemplateType] = useState<'crud' | 'api' | 'auth'>('crud');
 
   if (!isProjectModalOpen) return null;
+
+  const safeName = projectName.trim().toLowerCase().replace(/[^a-z0-9]/g, '_') || 'my_project';
+  const defaultOutputDir = `d:/image_to_text/IPL/output/${safeName}`;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,9 +27,11 @@ export const ProjectModal: React.FC = () => {
       templateCode = `// Auth Spec: ${projectName}\nadd user {\n  email: "user@domain.com",\n  passwordHash: "secret"\n}\nif user.isAuthorized {\n  return token\n}`;
     }
 
-    createProject(projectName.trim(), templateCode);
-    addLog(`New project "${projectName.trim()}" created successfully.`, 'success');
+    const finalOutputDir = customOutputDir.trim() || defaultOutputDir;
+    createProject(projectName.trim(), templateCode, finalOutputDir);
+    addLog(`New project "${projectName.trim()}" created. Disk path: ${finalOutputDir}`, 'success');
     setProjectName('');
+    setCustomOutputDir('');
     toggleProjectModal();
   };
 
@@ -54,12 +60,32 @@ export const ProjectModal: React.FC = () => {
             </label>
             <input
               type="text"
-              placeholder="e.g. ecommerce_payment_engine"
+              placeholder="e.g. weather_forecast_app"
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
               className="w-full bg-[#0f1117] border border-[#2a2f42] rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-cyan-500"
               autoFocus
             />
+          </div>
+
+          <div>
+            <label className="block text-gray-400 font-semibold mb-1.5 uppercase text-[10px] tracking-wider flex items-center justify-between">
+              <span className="flex items-center space-x-1">
+                <HardDrive size={12} className="text-cyan-400" />
+                <span>Target Disk Destination Directory</span>
+              </span>
+              <span className="text-[9px] text-gray-500 font-normal">Optional Custom Path</span>
+            </label>
+            <input
+              type="text"
+              placeholder={defaultOutputDir}
+              value={customOutputDir}
+              onChange={(e) => setCustomOutputDir(e.target.value)}
+              className="w-full bg-[#0f1117] border border-[#2a2f42] rounded-lg px-3 py-2 text-cyan-300 font-mono text-[11px] focus:outline-none focus:border-cyan-500 placeholder-gray-600"
+            />
+            <p className="mt-1 text-[10px] text-gray-500 font-mono truncate">
+              Will write files to: <span className="text-gray-400">{customOutputDir.trim() || defaultOutputDir}</span>
+            </p>
           </div>
 
           <div>

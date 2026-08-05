@@ -377,15 +377,18 @@ export const useIdeStore = create<IDEState>()(
 
       clearLogs: () => set({ logs: [] }),
 
-      // Actions de gestion de projets
-      createProject: (name: string, templateCode?: string) => {
+      createProject: (name: string, templateCode?: string, outputDir?: string) => {
         const newId = `proj-${Date.now()}`;
-        const defaultCode = templateCode || `// Nouveau projet IPL : ${name}\nadd item {\n  name: "${name}"\n}\n`;
+        const defaultCode = templateCode || `// New IPL Project: ${name}\nadd item {\n  name: "${name}"\n}\n`;
+        const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        const finalOutputDir = outputDir?.trim() || `d:/image_to_text/IPL/output/${safeName}`;
+
         const newProject: IPLProject = {
           id: newId,
-          name: name.trim() || 'Nouveau Projet IPL',
+          name: name.trim() || 'New IPL Project',
           code: defaultCode,
           targetLang: 'python',
+          outputDir: finalOutputDir,
           updatedAt: new Date().toLocaleTimeString()
         };
 
