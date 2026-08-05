@@ -185,6 +185,37 @@ listen event on "user:payment_completed" {
 }`
   },
   {
+    id: 'proj-typed-order',
+    name: 'Typed E-Commerce Order Spec',
+    targetLang: 'rust',
+    updatedAt: new Date().toLocaleTimeString(),
+    code: `// IPL Project v1.0 - Typed E-Commerce Order Spec (Human Intent Types)
+add entity Order {
+  id: id,
+  customerName: text,
+  totalAmount: number,
+  isPaid: boolean,
+  createdAt: date,
+  status: options("pending", "processing", "shipped", "delivered")
+}
+
+listen event on "checkout:completed" {
+  read orderData from event {
+    where: totalAmount > 0
+  }
+
+  if (orderData.isPaid == true) {
+    set orderData.status = "processing"
+    send confirmationEmail to orderData.customerName {
+      subject: "Order Confirmation",
+      orderId: orderData.id
+    }
+  } else {
+    set orderData.status = "pending"
+  }
+}`
+  },
+  {
     id: 'proj-ecommerce',
     name: 'E-Commerce Dashboard',
     targetLang: 'python',
@@ -251,7 +282,7 @@ export const useIdeStore = create<IDEState>()(
   persist(
     (set, get) => ({
       projects: DEFAULT_PROJECTS,
-      activeProjectId: 'proj-ecommerce',
+      activeProjectId: 'proj-typed-order',
       code: DEFAULT_PROJECTS[0].code,
       targetLang: DEFAULT_PROJECTS[0].targetLang,
       compiledCode: '',
@@ -748,7 +779,7 @@ export const useIdeStore = create<IDEState>()(
       }
     }),
     {
-      name: 'ipl-studio-store-v4',
+      name: 'ipl-studio-store-v5',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         projects: state.projects,

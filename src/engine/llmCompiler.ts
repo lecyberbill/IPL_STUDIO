@@ -43,14 +43,18 @@ export async function callLLM(
   const isLocal = config.mode === 'local';
   
   if (isLocal) {
-    onLog(`Connecting to local LLM (${config.model} at ${config.localEndpoint})...`, 'info');
+    onLog(`Connecting to local LLM [Deterministic 0.0 Greedy] (${config.model} at ${config.localEndpoint})...`, 'info');
     const response = await fetch(`${config.localEndpoint}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: config.model,
         prompt: prompt,
-        stream: true
+        stream: true,
+        options: {
+          temperature: 0.0,
+          seed: 42
+        }
       })
     });
 
@@ -90,7 +94,7 @@ export async function callLLM(
       throw new Error(`Environment API key variable [${config.apiKeyName}] is missing.`);
     }
 
-    onLog(`Connecting to Cloud API (${config.model} at ${config.externalEndpoint})...`, 'info');
+    onLog(`Connecting to Cloud API [Deterministic 0.0 Greedy] (${config.model} at ${config.externalEndpoint})...`, 'info');
 
     const response = await fetch(`${config.externalEndpoint}/v1/chat/completions`, {
       method: 'POST',
@@ -101,7 +105,8 @@ export async function callLLM(
       body: JSON.stringify({
         model: config.model,
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.2,
+        temperature: 0.0,
+        seed: 42,
         stream: true
       })
     });
@@ -212,8 +217,15 @@ TOPOLOGY REFERENCE:
 ${topologyJsonStr || 'Standard Multi-File Layout'}
 
 CRITICAL CODE GENERATION RULES:
-1. Provide FULL, production-grade source code for every file. NEVER use comments like "// TODO" or "// implement here".
-2. Format every file using the XML tag: <file path="relative/path/to/file.ext">file content</file>
+1. DETERMINISTIC INTENT TYPE MAPPING:
+   - 'text' -> Target String type (e.g., String in Rust/Java, str in Python, string in Go)
+   - 'number' -> Target Numeric type (e.g., f64/i64 in Rust, float/int in Python, float64 in Go)
+   - 'boolean' -> Target Boolean type (e.g., bool in Rust/Python/Go, boolean in Java)
+   - 'id' -> Target Unique Identifier type (e.g., Uuid in Rust, UUID/str in Python/Java, uuid.UUID in Go)
+   - 'date' -> Target DateTime type (e.g., DateTime<Utc> in Rust, datetime in Python)
+   - 'options(...)' -> Target Enum / Union type
+2. Provide FULL, production-grade source code for every file. NEVER use comments like "// TODO" or "// implement here".
+3. Format every file using the XML tag: <file path="relative/path/to/file.ext">file content</file>
 3. Include config files (e.g. Cargo.toml, requirements.txt, package.json, go.mod, Makefile) so the project can be built & executed immediately.
 
 Example:

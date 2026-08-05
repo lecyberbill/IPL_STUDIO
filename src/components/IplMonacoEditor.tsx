@@ -40,6 +40,26 @@ export const IplMonacoEditor: React.FC = () => {
               range
             }));
 
+            // Proposer également les types d'intention humains (text, number, boolean, id, date, options)
+            const intentTypes = [
+              { name: 'text', doc: 'Human Intent Type: Text string or email' },
+              { name: 'number', doc: 'Human Intent Type: Amount, price, score, or count' },
+              { name: 'boolean', doc: 'Human Intent Type: True/false condition or flag' },
+              { name: 'id', doc: 'Human Intent Type: Unique identifier or UUID' },
+              { name: 'date', doc: 'Human Intent Type: Timestamp or date' },
+              { name: 'options("a", "b")', doc: 'Human Intent Type: Choice list or Enum' }
+            ];
+
+            intentTypes.forEach(t => {
+              suggestions.push({
+                label: t.name,
+                kind: monacoInstance.languages.CompletionItemKind.TypeParameter,
+                documentation: t.doc,
+                insertText: t.name,
+                range
+              });
+            });
+
             // Proposer également les symboles déclarés dans le script
             const currentCode = model.getValue();
             const symbols = extractIPLSymbols(currentCode);

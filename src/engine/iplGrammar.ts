@@ -30,9 +30,9 @@ export const IPL_VERBS: IPLVerb[] = [
     id: 'add',
     name: 'add',
     category: 'data',
-    description: 'Adds an item, entity, or module into the data structure or UI view',
-    snippet: 'add item {\n  name: "Name",\n  value: "Value"\n}',
-    example: 'add user { name: "Alice", role: "Admin" }'
+    description: 'Adds an item, entity, or module with optional human intent types (text, number, boolean, id, date, options)',
+    snippet: 'add entity Order {\n  id: id,\n  customerName: text,\n  amount: number,\n  isPaid: boolean,\n  status: options("pending", "shipped", "delivered")\n}',
+    example: 'add entity User { id: id, email: text, age: number, isActive: boolean }'
   },
   {
     id: 'read',
@@ -131,7 +131,7 @@ export const IPL_LANGUAGE_DEFINITION = {
   keywords: IPL_VERBS.map(v => v.name),
 
   typeKeywords: [
-    'string', 'number', 'boolean', 'array', 'object', 'date', 'entity', 'module'
+    'text', 'number', 'boolean', 'id', 'date', 'options', 'list', 'entity', 'module', 'string', 'array', 'object'
   ],
 
   operators: [
