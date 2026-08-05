@@ -38,12 +38,15 @@ export async function callLLM(
   prompt: string,
   config: LLMConfig,
   onLog: (msg: string, type: 'info' | 'success' | 'warn' | 'error') => void,
-  onStreamChunk?: (accumulatedText: string) => void
+  onStreamChunk?: (accumulatedText: string) => void,
+  options?: { temperature?: number; seed?: number }
 ): Promise<string> {
   const isLocal = config.mode === 'local';
+  const temp = options?.temperature ?? 0.15;
+  const seedVal = options?.seed ?? 42;
   
   if (isLocal) {
-    onLog(`Connecting to local LLM [Deterministic 0.0 Greedy] (${config.model} at ${config.localEndpoint})...`, 'info');
+    onLog(`Connecting to local LLM (temp=${temp}) (${config.model} at ${config.localEndpoint})...`, 'info');
     const response = await fetch(`${config.localEndpoint}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -52,8 +55,8 @@ export async function callLLM(
         prompt: prompt,
         stream: true,
         options: {
-          temperature: 0.0,
-          seed: 42
+          temperature: temp,
+          seed: seedVal
         }
       })
     });
@@ -94,7 +97,7 @@ export async function callLLM(
       throw new Error(`Environment API key variable [${config.apiKeyName}] is missing.`);
     }
 
-    onLog(`Connecting to Cloud API [Deterministic 0.0 Greedy] (${config.model} at ${config.externalEndpoint})...`, 'info');
+    onLog(`Connecting to Cloud API (temp=${temp}) (${config.model} at ${config.externalEndpoint})...`, 'info');
 
     const response = await fetch(`${config.externalEndpoint}/v1/chat/completions`, {
       method: 'POST',
@@ -105,8 +108,8 @@ export async function callLLM(
       body: JSON.stringify({
         model: config.model,
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.0,
-        seed: 42,
+        temperature: temp,
+        seed: seedVal,
         stream: true
       })
     });
@@ -274,5 +277,5 @@ CRITICAL OUTPUT INSTRUCTIONS:
    - Answer conversationally in normal text.
    - DO NOT output any <file> tags if no code files were modified.`;
 
-  return await callLLM(prompt, config, onLog, onStreamChunk);
+  return await callLLM(prompt, config, onLog, onStreamChunk, { temperature: 0.7 });
 }
