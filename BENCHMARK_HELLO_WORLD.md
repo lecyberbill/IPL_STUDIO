@@ -1,6 +1,6 @@
 # 📊 IPL Studio v1.0 — LLM Benchmark Suite: "Hello World" Multi-Model Comparison
 
-> **Objective**: Compare architectural choices, token efficiency, file topology, and visual rendering across different local and cloud LLM models given the **exact same IPL intent specification** and target stack.
+> **Objective**: Compare architectural choices, file topology, rendering quality, and **real friction/bugs encountered** across different local and cloud LLM models given the **exact same IPL intent specification** and target stack.
 
 ---
 
@@ -27,14 +27,14 @@ return success
 
 ## 🏆 Comparative Summary Table
 
-| Model Name | Execution Mode | Model Size / Footprint | File Count | Generation Time | Architectural Style & Design Highlights | Status |
+| Model Name | Execution Mode | Footprint | File Count | Architectural Style | Friction & Bugs Encountered | Final Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Liquid LFM-2** | Local (LM Studio) | ~1.5B – 3B (~2 GB RAM) | 3 files | ⚡ ~3.2s | Minimalist single card UI, direct DOM binding, purple gradient background | ✅ **SUCCESS (100%)** |
-| **Bonsai 27B** | Local (PrismML 1-bit) | 27B (~3.9 GB RAM) | 12 files | 🚀 ~12.5s | Modular Event-Bus (IPC), separate `state.js`, `ipl-runtime.js`, `timestamp.js` | ✅ **SUCCESS (100%)** |
+| **Liquid LFM-2** | Local (LM Studio) | ~1.5B – 3B (~2 GB RAM) | 3 files | Minimalist single-card UI, direct DOM binding | Required Tailwind CDN tag in `<head>` for CSS gradient rendering | ✅ **SUCCESS** |
+| **Bonsai 27B** | Local (PrismML 1-bit) | 27B (~3.9 GB RAM) | 12 files | Modular Event-Bus (IPC), separate `state.js`, `ipl-runtime.js` | Leaked Markdown subtitles between XML tags; omitted auto-exec on page load | ✅ **SUCCESS (After Parser Fix)** |
 
 ---
 
-## 🔍 Detailed Model Test Results
+## 🔍 Detailed Model Test Profiles
 
 ### 1. 🟢 Liquid LFM-2 (Local LM Studio)
 * **Mode**: 100% Local (LM Studio on `http://localhost:1234`)
@@ -43,8 +43,10 @@ return success
   * `index.html` (Glassmorphism card UI with Tailwind)
   * `css/styles.css`
   * `js/main.js` (Direct DOM binding & ISO timestamp formatting)
-* **Architectural Strategy**: Compact & token-efficient. Generates a clean single-file JS script with direct execution on page load.
-* **Result**: Runnable out-of-the-box in browser with status pill and system timestamp.
+* **Architectural Approach**: Highly compact and token-efficient. Generates a clean single JS script with direct execution on page load.
+* **Friction / Bugs Encountered**:
+  - Raw HTML output required `<script src="https://cdn.tailwindcss.com"></script>` in `<head>` to render Tailwind utility classes out-of-the-box in standalone browser windows.
+* **Final Assessment**: Clean, functional, and visually striking rendering.
 
 ---
 
@@ -56,9 +58,12 @@ return success
   * `css/styles.css`
   * `js/main.js`, `js/ipl-runtime.js`, `js/timestamp.js`, `js/screen-output.js`, `js/console-output.js`, `js/state.js`, `js/ipc.js`, `js/config.js`
   * `package.json`, `tailwind.config.js`, `Makefile`, `README.md`
-* **Architectural Strategy**: Highly modular Enterprise event-bus pattern (`ipcBus`, `stateManager`, decoupled `ipl-runtime.js` parser).
-* **Result**: Fully functional multi-module architecture with state subscriptions.
+* **Architectural Approach**: Highly modular Enterprise event-bus pattern (`ipcBus`, `stateManager`, decoupled `ipl-runtime.js` parser).
+* **Friction / Bugs Encountered**:
+  1. **Markdown Leakage**: Outputted conversational Markdown section titles (e.g., `## 3. Create src/constants.js if it doesn't exist`) between XML file tags, which contaminated file outputs until the IDE XML parser was updated to truncate strictly at `</file>`.
+  2. **Manual Execution Trap**: Omitted auto-triggering `this.runIPL()` inside `DOMContentLoaded`, initially requiring a manual button click to display output.
+* **Final Assessment**: Extremely sophisticated multi-module architecture, but higher structural friction on 1-bit quantization.
 
 ---
 
-*This document will be updated progressively as new local and cloud models are tested.*
+*This benchmark document is updated transparently as new local and cloud models are tested.*
