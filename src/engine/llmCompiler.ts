@@ -335,11 +335,12 @@ USER REQUEST:
 
 CRITICAL OUTPUT INSTRUCTIONS:
 1. IF the user is asking to modify code, add features, or fix bugs:
-   - Output all updated files wrapped inside <file path="relative/path/to/file.ext">full code</file> tags.
-   - You may add a brief conversational explanation before or after the <file> tags.
-2. IF the user is asking a general question, asking for clarification, or greeting you (without requesting explicit code changes):
-   - Answer conversationally in normal text.
+   - Output ALL modified or new files wrapped strictly inside <file path="relative/path/to/file.ext">full code</file> tags.
+   - DO NOT write markdown headers (e.g. ## 3. Create file...) or conversational text between or outside <file> tags.
+   - Output ONLY the raw <file path="...">...</file> blocks.
+2. IF the user is asking a general question, asking for clarification, or greeting you (without requesting code modifications):
+   - Answer conversationally in plain text.
    - DO NOT output any <file> tags if no code files were modified.`;
 
-  return await callLLM(prompt, config, onLog, onStreamChunk, { temperature: 0.7 });
+  return await callLLM(prompt, config, onLog, onStreamChunk, { temperature: 0.0 });
 }

@@ -39,8 +39,14 @@ export function parseMultiFileXml(rawOutput: string): ProjectArtifactFile[] {
 
     let rawContent = rawOutput.substring(contentStart, contentEnd);
     
-    // Nettoyer les balises fermantes ou blocs de code markdown s'ils existent à la fin
-    rawContent = rawContent.replace(/<\/file>\s*$/i, '');
+    // Si une balise fermante </file> est présente, tronquer le contenu exactement à la balise
+    // Cela élimine automatiquement tout texte conversationnel (ex: "## 3. Create file...") produit après </file>
+    const closeTagIndex = rawContent.indexOf('</file>');
+    if (closeTagIndex !== -1) {
+      rawContent = rawContent.substring(0, closeTagIndex);
+    }
+    
+    // Nettoyer les blocs de code markdown s'ils existent à la fin
     rawContent = rawContent.replace(/```\s*$/i, '');
 
     const cleanContent = rawContent.trim();
