@@ -278,10 +278,10 @@ ${iplCode}
 \`\`\`
 
 ARCHITECTURE GUIDANCE:
-Design a clean, cohesive multi-file module layout with logically grouped features (e.g. index.html, src/app.js, src/ui.js).
+Design a clean, cohesive application architecture. Use multi-file organization ONLY IF NEEDED for complexity, grouping related features logically (e.g. index.html, src/app.js). Avoid unnecessary file fragmentation for simple tasks.
 
 TASK:
-Return ONLY a valid raw JSON object defining the multi-file project topology:
+Return ONLY a valid raw JSON object defining the project topology:
 {
   "projectName": "my_project",
   "files": [
