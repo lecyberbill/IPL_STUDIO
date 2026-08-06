@@ -14,18 +14,38 @@ export interface ProjectArtifact {
 }
 
 /**
- * Extrait les fichiers empaquetés sous forme de balises <file path="...">...</file>
+ * Extrait de façon ultra-robuste les fichiers empaquetés sous forme de balises <file path="...">
+ * Même si le LLM omet ou oublie les balises fermantes </file>
  */
 export function parseMultiFileXml(rawOutput: string): ProjectArtifactFile[] {
   const files: ProjectArtifactFile[] = [];
-  const regex = /<file\s+path=["']([^"']+)["']\s*>([\s\S]*?)<\/file>/gi;
-  let match: RegExpExecArray | null;
+  const fileHeaderRegex = /<file\s+path=["']([^"']+)["']\s*>/gi;
 
-  while ((match = regex.exec(rawOutput)) !== null) {
-    const relativePath = match[1].trim();
-    const content = match[2].trim();
-    if (relativePath && content) {
-      files.push({ relativePath, content });
+  let match: RegExpExecArray | null;
+  const matches: Array<{ path: string; startIndex: number; headerLength: number }> = [];
+
+  while ((match = fileHeaderRegex.exec(rawOutput)) !== null) {
+    matches.push({
+      path: match[1].trim(),
+      startIndex: match.index,
+      headerLength: match[0].length
+    });
+  }
+
+  for (let i = 0; i < matches.length; i++) {
+    const current = matches[i];
+    const contentStart = current.startIndex + current.headerLength;
+    const contentEnd = (i + 1 < matches.length) ? matches[i + 1].startIndex : rawOutput.length;
+
+    let rawContent = rawOutput.substring(contentStart, contentEnd);
+    
+    // Nettoyer les balises fermantes ou blocs de code markdown s'ils existent à la fin
+    rawContent = rawContent.replace(/<\/file>\s*$/i, '');
+    rawContent = rawContent.replace(/```\s*$/i, '');
+
+    const cleanContent = rawContent.trim();
+    if (current.path && cleanContent) {
+      files.push({ relativePath: current.path, content: cleanContent });
     }
   }
 
