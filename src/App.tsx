@@ -8,6 +8,7 @@ import { ConsolePanel } from './components/ConsolePanel';
 import { SettingsModal } from './components/SettingsModal';
 import { ProjectModal } from './components/ProjectModal';
 import { GitDiffModal } from './components/GitDiffModal';
+import { PolyglotModal } from './components/PolyglotModal';
 import { useIdeStore } from './store/useIdeStore';
 
 export const App: React.FC = () => {
@@ -108,6 +109,7 @@ export const App: React.FC = () => {
       {/* 4. Modals */}
       <SettingsModal />
       <ProjectModal />
+      <PolyglotModal />
       <GitDiffModal isOpen={isGitModalOpen} onClose={toggleGitModal} />
     </div>
   );

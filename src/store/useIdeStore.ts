@@ -31,6 +31,17 @@ export interface CustomTarget {
   promptInstructions: string;
 }
 
+export interface PolyglotLayer {
+  id: string;
+  role: string;
+  tech: string;
+}
+
+export interface PolyglotConfig {
+  autoDecide: boolean;
+  layers: PolyglotLayer[];
+}
+
 export interface IDEState {
   // Code & Editor state
   code: string;
@@ -39,6 +50,12 @@ export interface IDEState {
   isCompiling: boolean;
   editorViewMode: 'text' | 'blocks';
   syntaxErrors: SyntaxErrorItem[];
+
+  // Polyglot Stack Config
+  polyglotConfig: PolyglotConfig;
+  isPolyglotModalOpen: boolean;
+  setPolyglotConfig: (config: PolyglotConfig) => void;
+  togglePolyglotModal: () => void;
   
   // Custom Extensible Targets
   customTargets: CustomTarget[];
@@ -320,6 +337,16 @@ export const useIdeStore = create<IDEState>()(
           promptInstructions: 'Generate complete Kubernetes production manifests (Deployment, Service, Ingress).'
         }
       ],
+      polyglotConfig: {
+        autoDecide: true,
+        layers: [
+          { id: 'l-1', role: 'Backend API', tech: 'Python 3 (FastAPI / Flask)' },
+          { id: 'l-2', role: 'Frontend UI', tech: 'HTML5 / JavaScript (Vanilla / Tailwind)' }
+        ]
+      },
+      isPolyglotModalOpen: false,
+      setPolyglotConfig: (config) => set({ polyglotConfig: config }),
+      togglePolyglotModal: () => set((state) => ({ isPolyglotModalOpen: !state.isPolyglotModalOpen })),
       llmConfig: DEFAULT_LLM_CONFIG,
       isSettingsOpen: false,
       isProjectModalOpen: false,
@@ -713,7 +740,7 @@ export const useIdeStore = create<IDEState>()(
       },
 
       runCompilation: async () => {
-        const { code, targetLang, llmConfig, addLog, projects, activeProjectId } = get();
+        const { code, targetLang, llmConfig, polyglotConfig, addLog, projects, activeProjectId } = get();
         const activeProj = projects.find(p => p.id === activeProjectId);
         set({ isCompiling: true });
 
@@ -734,7 +761,8 @@ export const useIdeStore = create<IDEState>()(
           },
           (streamChunkText) => {
             set({ compiledCode: streamChunkText });
-          }
+          },
+          polyglotConfig
         );
 
         set({ compiledCode: result, isCompiling: false });

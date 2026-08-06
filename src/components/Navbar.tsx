@@ -10,7 +10,8 @@ import {
   Code2, 
   GitCompare,
   Download,
-  Trash2
+  Trash2,
+  Layers
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -30,7 +31,9 @@ export const Navbar: React.FC = () => {
     deleteProject,
     addLog,
     exportProject,
-    customTargets
+    customTargets,
+    polyglotConfig,
+    togglePolyglotModal
   } = useIdeStore();
 
   return (
@@ -130,38 +133,40 @@ export const Navbar: React.FC = () => {
           <span className="text-xs text-gray-400 font-medium">Target:</span>
           <select
             value={targetLang}
-            onChange={(e) => setTargetLang(e.target.value as TargetLanguage)}
+            onChange={(e) => {
+              const selected = e.target.value as TargetLanguage;
+              setTargetLang(selected);
+              if (selected === 'polyglot') {
+                togglePolyglotModal();
+              }
+            }}
             className="bg-[#0f1117] border border-[#2a2f42] rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 cursor-pointer font-mono"
           >
             <option value="polyglot" className="bg-[#161922]">🌐 Polyglot (Architect's Choice)</option>
-
-            <optgroup label="⚡ Full-Stack Hybrids (Backend + Frontend)" className="bg-[#161922] text-cyan-400 font-bold">
-              <option value="python-html" className="bg-[#161922] text-white">🐍 Python Backend + 🌐 HTML5/JS Frontend</option>
-              <option value="node-html" className="bg-[#161922] text-white">⚡ Node.js Backend + 🌐 HTML5/JS Frontend</option>
-              <option value="go-html" className="bg-[#161922] text-white">🐹 Go Backend + 🌐 HTML5/JS Frontend</option>
-              <option value="rust-html" className="bg-[#161922] text-white">🦀 Rust Backend + 🌐 HTML5/JS Frontend</option>
-            </optgroup>
-
-            <optgroup label="📦 Standalone Languages" className="bg-[#161922] text-gray-400 font-bold">
-              <option value="python" className="bg-[#161922] text-white">🐍 Python 3 (.py)</option>
-              <option value="javascript" className="bg-[#161922] text-white">⚡ JavaScript / Node (.js)</option>
-              <option value="go" className="bg-[#161922] text-white">🐹 Go (.go)</option>
-              <option value="rust" className="bg-[#161922] text-white">🦀 Rust (.rs)</option>
-              <option value="cpp" className="bg-[#161922] text-white">⚙️ C++ 20 (.cpp)</option>
-              <option value="html" className="bg-[#161922] text-white">🌐 HTML5 / CSS Web App (.html)</option>
-              <option value="pll" className="bg-[#161922] text-white">🧩 PLL v2 Core (.pll)</option>
-            </optgroup>
-
-            {customTargets.length > 0 && (
-              <optgroup label="🔌 Custom Targets" className="bg-[#161922] text-purple-400 font-bold">
-                {customTargets.map((ct) => (
-                  <option key={ct.id} value={ct.id} className="bg-[#161922] text-white">
-                    {ct.name}
-                  </option>
-                ))}
-              </optgroup>
-            )}
+            <option value="rust" className="bg-[#161922]">🦀 Rust (.rs)</option>
+            <option value="python" className="bg-[#161922]">🐍 Python 3 (.py)</option>
+            <option value="javascript" className="bg-[#161922]">⚡ JavaScript / Node (.js)</option>
+            <option value="go" className="bg-[#161922]">🐹 Go (.go)</option>
+            <option value="cpp" className="bg-[#161922]">⚙️ C++ 20 (.cpp)</option>
+            <option value="html" className="bg-[#161922]">🌐 HTML5 / CSS App (.html)</option>
+            <option value="pll" className="bg-[#161922]">🧩 PLL v2 Core (.pll)</option>
+            {customTargets.map((ct) => (
+              <option key={ct.id} value={ct.id} className="bg-[#161922]">
+                {ct.name}
+              </option>
+            ))}
           </select>
+
+          {targetLang === 'polyglot' && (
+            <button
+              onClick={togglePolyglotModal}
+              className="flex items-center space-x-1 px-2.5 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-md text-xs font-semibold transition-all"
+              title="Configurer les composants et technologies Polyglottes"
+            >
+              <Layers size={14} />
+              <span>{polyglotConfig.autoDecide ? 'Auto Polyglotte' : `${polyglotConfig.layers.length} Composant(s)`}</span>
+            </button>
+          )}
         </div>
       </div>
 
