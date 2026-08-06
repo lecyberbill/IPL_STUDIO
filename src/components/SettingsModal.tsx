@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
-import { Settings, X, Server, Key, ShieldCheck, Plus, Trash2, Code2 } from 'lucide-react';
+import { Settings, X, Server, Key, ShieldCheck, Plus, Trash2, Code2, Cpu } from 'lucide-react';
 
 export const SettingsModal: React.FC = () => {
   const { 
@@ -44,7 +44,7 @@ export const SettingsModal: React.FC = () => {
         <div className="px-5 py-4 border-b border-[#2a2f42] flex items-center justify-between bg-[#0f1117] shrink-0">
           <div className="flex items-center space-x-2.5">
             <Settings size={18} className="text-cyan-400" />
-            <h2 className="font-bold text-white text-sm">LLM Compiler & Custom Extensible Targets Settings</h2>
+            <h2 className="font-bold text-white text-sm">LLM Engine Connection & Extensible Targets</h2>
           </div>
           <button
             onClick={toggleSettings}
@@ -61,43 +61,59 @@ export const SettingsModal: React.FC = () => {
             <label className="block text-gray-400 font-semibold mb-2 uppercase text-[10px] tracking-wider">
               LLM Engine Connection Mode
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-2.5">
               <button
                 type="button"
                 onClick={() => setLLMConfig({ mode: 'local' })}
-                className={`p-3 rounded-lg border flex flex-col items-start transition-all ${
+                className={`p-2.5 rounded-lg border flex flex-col items-start transition-all ${
                   llmConfig.mode === 'local'
                     ? 'bg-cyan-500/10 border-cyan-500 text-cyan-300 shadow-md'
                     : 'bg-[#0f1117] border-[#2a2f42] text-gray-400 hover:border-gray-600'
                 }`}
               >
-                <div className="flex items-center space-x-2 font-bold mb-1">
-                  <Server size={15} />
-                  <span>100% Local (Ollama)</span>
+                <div className="flex items-center space-x-1.5 font-bold mb-1">
+                  <Server size={14} />
+                  <span>Ollama Local</span>
                 </div>
-                <p className="text-[10px] opacity-80">Offline execution with zero code leakage.</p>
+                <p className="text-[10px] opacity-80 leading-tight">Port 11434 (Native Ollama API)</p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setLLMConfig({ mode: 'lmstudio' })}
+                className={`p-2.5 rounded-lg border flex flex-col items-start transition-all ${
+                  llmConfig.mode === 'lmstudio'
+                    ? 'bg-emerald-500/10 border-emerald-500 text-emerald-300 shadow-md'
+                    : 'bg-[#0f1117] border-[#2a2f42] text-gray-400 hover:border-gray-600'
+                }`}
+              >
+                <div className="flex items-center space-x-1.5 font-bold mb-1">
+                  <Cpu size={14} />
+                  <span>LM Studio</span>
+                </div>
+                <p className="text-[10px] opacity-80 leading-tight">Port 1234 (Local OpenAI Server)</p>
               </button>
 
               <button
                 type="button"
                 onClick={() => setLLMConfig({ mode: 'external' })}
-                className={`p-3 rounded-lg border flex flex-col items-start transition-all ${
+                className={`p-2.5 rounded-lg border flex flex-col items-start transition-all ${
                   llmConfig.mode === 'external'
                     ? 'bg-purple-500/10 border-purple-500 text-purple-300 shadow-md'
                     : 'bg-[#0f1117] border-[#2a2f42] text-gray-400 hover:border-gray-600'
                 }`}
               >
-                <div className="flex items-center space-x-2 font-bold mb-1">
-                  <Key size={15} />
-                  <span>External Cloud API</span>
+                <div className="flex items-center space-x-1.5 font-bold mb-1">
+                  <Key size={14} />
+                  <span>Cloud API</span>
                 </div>
-                <p className="text-[10px] opacity-80">Uses OpenAI / DeepSeek compatible remote endpoints.</p>
+                <p className="text-[10px] opacity-80 leading-tight">DeepSeek / OpenAI / Remote</p>
               </button>
             </div>
           </div>
 
-          {/* Config Fields for Local / Cloud */}
-          {llmConfig.mode === 'local' ? (
+          {/* Config Fields according to selected mode */}
+          {llmConfig.mode === 'local' && (
             <div className="space-y-3 bg-[#0f1117] p-3.5 rounded-lg border border-[#2a2f42]">
               <div>
                 <label className="block font-medium text-gray-300 mb-1">Local Ollama Endpoint</label>
@@ -106,11 +122,12 @@ export const SettingsModal: React.FC = () => {
                   value={llmConfig.localEndpoint}
                   onChange={(e) => setLLMConfig({ localEndpoint: e.target.value })}
                   className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-cyan-300 focus:outline-none focus:border-cyan-500"
+                  placeholder="http://localhost:11434"
                 />
               </div>
 
               <div>
-                <label className="block font-medium text-gray-300 mb-1">Ollama Model (e.g. llama3, mistral, codellama)</label>
+                <label className="block font-medium text-gray-300 mb-1">Ollama Model Name (e.g. llama3, mistral, qwen2.5-coder)</label>
                 <input
                   type="text"
                   value={llmConfig.model}
@@ -119,7 +136,40 @@ export const SettingsModal: React.FC = () => {
                 />
               </div>
             </div>
-          ) : (
+          )}
+
+          {llmConfig.mode === 'lmstudio' && (
+            <div className="space-y-3 bg-[#0f1117] p-3.5 rounded-lg border border-emerald-500/30">
+              <div>
+                <label className="block font-medium text-gray-300 mb-1">LM Studio Local Server Endpoint</label>
+                <input
+                  type="text"
+                  value={llmConfig.lmStudioEndpoint || 'http://localhost:1234'}
+                  onChange={(e) => setLLMConfig({ lmStudioEndpoint: e.target.value })}
+                  className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-emerald-300 focus:outline-none focus:border-emerald-500"
+                  placeholder="http://localhost:1234"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-gray-300 mb-1">Loaded Model Identifier (or leave "local-model")</label>
+                <input
+                  type="text"
+                  value={llmConfig.model}
+                  onChange={(e) => setLLMConfig({ model: e.target.value })}
+                  className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-white focus:outline-none focus:border-emerald-500"
+                  placeholder="local-model"
+                />
+              </div>
+
+              <div className="mt-1 flex items-start space-x-1.5 text-[10px] text-emerald-400/90 leading-relaxed">
+                <Cpu size={14} className="shrink-0 mt-0.5" />
+                <span>Zero configuration API Key needed. Make sure "Local Server" is started in LM Studio.</span>
+              </div>
+            </div>
+          )}
+
+          {llmConfig.mode === 'external' && (
             <div className="space-y-3 bg-[#0f1117] p-3.5 rounded-lg border border-[#2a2f42]">
               <div>
                 <label className="block font-medium text-gray-300 mb-1">Remote API Endpoint (OpenAI / DeepSeek Compatible)</label>
@@ -129,6 +179,17 @@ export const SettingsModal: React.FC = () => {
                   onChange={(e) => setLLMConfig({ externalEndpoint: e.target.value })}
                   className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-purple-300 focus:outline-none focus:border-purple-500"
                   placeholder="https://api.deepseek.com"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-gray-300 mb-1">Model Name</label>
+                <input
+                  type="text"
+                  value={llmConfig.model}
+                  onChange={(e) => setLLMConfig({ model: e.target.value })}
+                  className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-white focus:outline-none focus:border-purple-500"
+                  placeholder="deepseek-chat"
                 />
               </div>
 

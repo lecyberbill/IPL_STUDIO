@@ -4,8 +4,9 @@
  */
 
 export interface LLMConfig {
-  mode: 'local' | 'external';
+  mode: 'local' | 'lmstudio' | 'external';
   localEndpoint: string;
+  lmStudioEndpoint?: string;
   externalEndpoint: string;
   apiKeyName: string;
   customApiKey?: string;
@@ -15,6 +16,7 @@ export interface LLMConfig {
 export const DEFAULT_LLM_CONFIG: LLMConfig = {
   mode: 'external',
   localEndpoint: 'http://localhost:11434',
+  lmStudioEndpoint: 'http://localhost:1234',
   externalEndpoint: 'https://api.deepseek.com',
   apiKeyName: 'VITE_DP_API_KEY',
   model: 'deepseek-chat'
@@ -41,12 +43,11 @@ export async function callLLM(
   onStreamChunk?: (accumulatedText: string) => void,
   options?: { temperature?: number; seed?: number }
 ): Promise<string> {
-  const isLocal = config.mode === 'local';
   const temp = options?.temperature ?? 0.15;
   const seedVal = options?.seed ?? 42;
   
-  if (isLocal) {
-    onLog(`Connecting to local LLM (temp=${temp}) (${config.model} at ${config.localEndpoint})...`, 'info');
+  if (config.mode === 'local') {
+    onLog(`Connecting to local Ollama (temp=${temp}) (${config.model} at ${config.localEndpoint})...`, 'info');
     const response = await fetch(`${config.localEndpoint}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -84,6 +85,69 @@ export async function callLLM(
             }
           } catch {
             // raw text chunk fallback
+          }
+        }
+      }
+    }
+
+    return accumulatedText;
+  } else if (config.mode === 'lmstudio') {
+    const rawEndpoint = config.lmStudioEndpoint || 'http://localhost:1234';
+    const baseUrl = rawEndpoint.replace(/\/$/, '');
+    const targetUrl = baseUrl.endsWith('/v1') ? `${baseUrl}/chat/completions` : `${baseUrl}/v1/chat/completions`;
+    const selectedModel = config.model || 'local-model';
+
+    onLog(`Connecting to LM Studio Local Server (temp=${temp}) (${selectedModel} at ${targetUrl})...`, 'info');
+
+    const response = await fetch(targetUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer lm-studio'
+      },
+      body: JSON.stringify({
+        model: selectedModel,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: temp,
+        seed: seedVal,
+        stream: true
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`LM Studio HTTP Error ${response.status}: ${errText}`);
+    }
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let accumulatedText = '';
+    let buffer = '';
+
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data: ')) {
+            const dataStr = trimmed.substring(6);
+            if (dataStr === '[DONE]') break;
+            try {
+              const parsed = JSON.parse(dataStr);
+              const content = parsed.choices?.[0]?.delta?.content || '';
+              if (content) {
+                accumulatedText += content;
+                onStreamChunk?.(accumulatedText);
+              }
+            } catch {
+              // raw text chunk fallback
+            }
           }
         }
       }

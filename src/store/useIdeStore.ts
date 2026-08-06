@@ -87,6 +87,7 @@ export interface IDEState {
   exportProject: (id?: string) => void;
   importProject: (fileName: string, fileContent: string) => void;
   writeArtifactToDisk: (id?: string) => Promise<boolean>;
+  readArtifactFromDisk: (id?: string) => Promise<boolean>;
   
   // Native Monaco insertion API preserving Undo/Redo (Ctrl+Z) and cursor position
   insertVerbSnippet: (verb: IPLVerb) => void;
@@ -507,6 +508,48 @@ export const useIdeStore = create<IDEState>()(
           }
         } catch (err: any) {
           addLog(`Échec de la matérialisation physique sur le disque: ${err.message}`, 'error');
+          return false;
+        }
+      },
+
+      readArtifactFromDisk: async (id?: string) => {
+        const { projects, activeProjectId, addLog } = get();
+        const proj = projects.find(p => p.id === (id || activeProjectId));
+        if (!proj) return false;
+
+        const targetDir = proj.outputDir && proj.outputDir.trim()
+          ? proj.outputDir.trim()
+          : `d:/image_to_text/IPL/output/${proj.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+
+        try {
+          const response = await fetch('/api/read-disk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ outputDir: targetDir })
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const diskFiles: Array<{ relativePath: string; content: string }> = data.files || [];
+            
+            if (diskFiles.length === 0) {
+              set({ compiledCode: '' });
+              addLog(`[Disque] Synchro disque : Le dossier "${data.targetDir}" est vide.`, 'warn');
+              return true;
+            }
+
+            const xmlCompiledCode = diskFiles.map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`).join('\n\n');
+            
+            set({ compiledCode: xmlCompiledCode });
+            addLog(`[Disque] Synchro depuis le disque réussie ! ${diskFiles.length} fichier(s) scannés et mis à jour depuis "${data.targetDir}" 🔄`, 'success');
+            return true;
+          } else {
+            const errData = await response.json();
+            addLog(`Erreur lecture disque: ${errData.error}`, 'error');
+            return false;
+          }
+        } catch (err: any) {
+          addLog(`Échec de la synchronisation depuis le disque: ${err.message}`, 'error');
           return false;
         }
       },

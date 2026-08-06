@@ -12,7 +12,8 @@ import {
   Folder, 
   FolderSearch, 
   HardDrive,
-  MessageSquare
+  MessageSquare,
+  RefreshCw
 } from 'lucide-react';
 
 export const TargetInspector: React.FC = () => {
@@ -24,6 +25,7 @@ export const TargetInspector: React.FC = () => {
     projects, 
     activeProjectId, 
     writeArtifactToDisk,
+    readArtifactFromDisk,
     customTargets
   } = useIdeStore();
 
@@ -31,6 +33,7 @@ export const TargetInspector: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isWritingDisk, setIsWritingDisk] = useState(false);
+  const [isReadingDisk, setIsReadingDisk] = useState(false);
   const [selectedFilePath, setSelectedFilePath] = useState<string>('');
 
   const activeProject = projects.find(p => p.id === activeProjectId);
@@ -88,6 +91,17 @@ export const TargetInspector: React.FC = () => {
       console.error(e);
     } finally {
       setIsWritingDisk(false);
+    }
+  };
+
+  const handleReadDisk = async () => {
+    setIsReadingDisk(true);
+    try {
+      await readArtifactFromDisk();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsReadingDisk(false);
     }
   };
 
@@ -195,10 +209,13 @@ export const TargetInspector: React.FC = () => {
             </div>
 
             <button
-              onClick={handleWriteDisk}
-              className="text-cyan-400 hover:underline flex items-center space-x-0.5 shrink-0"
+              onClick={handleReadDisk}
+              disabled={isReadingDisk}
+              className="text-cyan-400 hover:text-cyan-300 hover:underline flex items-center space-x-1 shrink-0 disabled:opacity-50 font-semibold"
+              title="Resynchroniser l'IDE depuis les fichiers réels du disque (Pull)"
             >
-              <span>Sync Disk</span>
+              <RefreshCw size={11} className={isReadingDisk ? 'animate-spin' : ''} />
+              <span>{isReadingDisk ? 'Syncing...' : 'Sync Disk'}</span>
             </button>
           </div>
 

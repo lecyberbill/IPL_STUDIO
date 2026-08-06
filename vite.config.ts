@@ -58,6 +58,69 @@ function artifactDiskWriterPlugin() {
               res.end(JSON.stringify({ error: err.message }));
             }
           });
+        } else if (req.url === '/api/read-disk' && req.method === 'POST') {
+          let body = '';
+          req.on('data', (chunk: any) => { body += chunk; });
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body);
+              const { outputDir } = data;
+              if (!outputDir) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: 'Paramètre outputDir requis' }));
+                return;
+              }
+
+              const resolvedDir = path.isAbsolute(outputDir) 
+                ? outputDir 
+                : path.resolve(process.cwd(), outputDir);
+
+              if (!fs.existsSync(resolvedDir)) {
+                res.statusCode = 200;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: true, targetDir: resolvedDir, files: [] }));
+                return;
+              }
+
+              const ignored = ['.git', 'node_modules', 'venv', '__pycache__', '.DS_Store', 'dist', 'build', '.idea', '.vscode'];
+              const readDirRecursive = (dirPath: string, rootDir: string): Array<{ relativePath: string; content: string }> => {
+                const result: Array<{ relativePath: string; content: string }> = [];
+                const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+
+                for (const entry of entries) {
+                  if (ignored.includes(entry.name)) continue;
+                  const fullPath = path.join(dirPath, entry.name);
+                  if (entry.isDirectory()) {
+                    result.push(...readDirRecursive(fullPath, rootDir));
+                  } else if (entry.isFile()) {
+                    try {
+                      const content = fs.readFileSync(fullPath, 'utf-8');
+                      const relativePath = path.relative(rootDir, fullPath).replace(/\\/g, '/');
+                      result.push({ relativePath, content });
+                    } catch {
+                      // skip binary or unreadable files
+                    }
+                  }
+                }
+                return result;
+              };
+
+              const diskFiles = readDirRecursive(resolvedDir, resolvedDir);
+
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({
+                success: true,
+                targetDir: resolvedDir,
+                files: diskFiles
+              }));
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
         } else if (req.url === '/api/run-command' && req.method === 'POST') {
           let body = '';
           req.on('data', (chunk: any) => { body += chunk; });
