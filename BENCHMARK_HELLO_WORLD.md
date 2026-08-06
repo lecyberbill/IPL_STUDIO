@@ -37,7 +37,8 @@ return success
 | **DeepSeek Coder V2 Lite Instruct** | Local (LM Studio) | ~16B / 2.4B active | 5 files | Dark Glassmorphic Dashboard with status indicators | **Runtime Crash**: Naive line-by-line regex parser in `ipl_interpreter.js` fails on multi-line `add message {}` block -> `IPL Error: Missing message definition` | ❌ **FAILURE (Runtime Bug)** |
 | **Qwen AgentWorld 35B (a3b)** | Local (LM Studio) | 35B (~12 GB RAM) | 8 files | 2-Column Split Layout + Magenta Gradient Banner & EventBus JS | **None (0 Bug, 0 Friction)**. Included Tailwind CDN, EventBus, auto-execution & syntax-highlighted editor box | ⭐ **PERFECT (10/10 1st Try)** |
 | **Microsoft Phi-4 Reasoning Plus** | Local (LM Studio) | ~14B (~9 GB RAM) | 6 files | Clean Card UI with Timezone Resolution | **None (0 Bug, 0 Friction)**. Included Tailwind CDN, auto-exec & dynamic Timezone (`Europe/Paris`) | ⭐ **PERFECT (10/10 1st Try)** |
-| **DeepSeek Flash 4** | Cloud API | API Cloud | 6 files | White card UI with blue gradient & status placeholders | **CORS Execution Blocking**: Used ES6 modules (`<script type="module">` & `import`). Browsers block local ES imports over `file://` protocol, freezing page on `Loading...` | ❌ **FAILURE (ES Module / CORS)** |
+| **DeepSeek Flash 4** | Cloud API | API Cloud | 6 files | White card UI with blue gradient & status placeholders | **CORS Execution Blocking**: Used ES6 modules (`<script type="module">` & `import`). Browsers block local ES imports over `file://`, freezing page on `Loading...` | ❌ **FAILURE (ES Module / CORS)** |
+| **Google Gemini 3.1 Flash Lite** | Cloud API | API Cloud | 6 files | Dark card UI with `#display` container | **CORS Execution Blocking**: Used ES6 modules (`<script type="module">` & `import`). Browsers block local ES imports over `file://`, freezing page on `Initializing...` | ❌ **FAILURE (ES Module / CORS)** |
 
 ---
 
@@ -183,9 +184,24 @@ return success
   * Modern modular ES6 Class architecture split across 5 script files (`init.js`, `app.js`, `console.js`, `message.js`, `timestamp.js`).
 * **Friction / Bugs Encountered**:
   - **Bloqué par les Sécurités CORS des Navigateurs (ES6 Modules sur `file://`)** : DeepSeek Flash 4 a utilisé des modules ES6 (`<script type="module" src="js/init.js">` dans `index.html` et `import { HelloWorldApp } from './app.js'` dans `init.js`).
-  - Lorsque `index.html` est ouvert directement depuis le système de fichiers (`file:///D:/...`), tous les moteurs de navigateurs web (Chrome, Edge, Firefox) bloquent par sécurité les requêtes d'import de modules locaux avec une erreur CORS (`origin null`). 
-  - Résultat : Le script principal s'interrompt immédiatement avant la 1ère ligne de code, laissant l'application figée indéfiniment sur `Loading...` et `Computing...` !
+  - Lorsque `index.html` est ouvert directement depuis le système de fichiers (`file:///D:/...`), les navigateurs web bloquent par sécurité les requêtes d'import de modules locaux avec une erreur CORS (`origin null`). 
 * **Final Assessment**: **❌ ÉCHEC (Fichiers ES Module inopérants sur protocole `file://`)**.
+
+---
+
+### 10. ☁️ Google Gemini 3.1 Flash Lite (Cloud API)
+* **Mode**: Cloud API (`https://generativelanguage.googleapis.com/v1beta/openai`)
+* **File Topology (6 files)**:
+  * `index.html` (Carte sombre épurée avec conteneur `#display`)
+  * `src/style.css`
+  * `src/app.js`, `src/engine.js`
+  * `package.json` & `source/main.ipl`
+* **Architectural Approach**:
+  * Architecture classe propre (`IPLRuntime` dans `src/engine.js`).
+* **Friction / Bugs Encountered**:
+  - **Bloqué par les Sécurités CORS (ES6 Modules sur `file://`)** : Gemini Flash Lite a généré un script avec `<script type="module" src="src/app.js"></script>` et `import { IPLRuntime } from './engine.js'`. Les navigateurs bloquent les imports de modules locaux sur `file://`, laissant l'interface bloquée sur `Initializing...`.
+  - **Solution Système Appliquée** : Règle anti-ES6 Module injectée dans le compilateur IPL pour interdire l'usage de `<script type="module">` et forcer des scripts JS autonomes sans serveur HTTP !
+* **Final Assessment**: **❌ ÉCHEC (Fix Prompt Système Injecté)**.
 
 ---
 

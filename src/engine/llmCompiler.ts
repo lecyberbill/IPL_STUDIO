@@ -322,7 +322,8 @@ CRITICAL CODE GENERATION RULES:
 2. Provide FULL, production-grade source code for every file. NEVER use comments like "// TODO" or "// implement here".
 3. Format every file using the XML tag: <file path="relative/path/to/file.ext">file content</file>
 4. FOR HTML5 / WEB FRONTEND: Always include <script src="https://cdn.tailwindcss.com"></script> inside <head> of index.html so Tailwind CSS utility classes render out-of-the-box in any browser without needing an offline build step.
-5. Include config files (e.g. Cargo.toml, requirements.txt, package.json, go.mod, Makefile) so the project can be built & executed immediately.
+5. NO ES6 MODULES FOR STANDALONE HTML: DO NOT use <script type="module"> or ES6 import/export statements between browser JS files. Web browsers strictly block local file module imports over file:// protocol due to CORS security rules. Always load JS files as standard scripts (<script src="js/file.js"></script>) in correct dependency order or attach classes/services to plain global objects so the application executes instantly when opened directly from disk!
+6. Include config files (e.g. Cargo.toml, requirements.txt, package.json, go.mod, Makefile) so the project can be built & executed immediately.
 
 Example:
 <file path="main.py">
