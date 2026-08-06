@@ -277,6 +277,9 @@ BUSINESS REQUIREMENTS (Structured Pseudo-Code):
 ${iplCode}
 \`\`\`
 
+ARCHITECTURE GUIDANCE:
+Design a natural, cohesive multi-file module layout (e.g. index.html, src/app.js, src/ui.js). Group related features logically rather than creating a separate file for every literal verb keyword!
+
 TASK:
 Return ONLY a valid raw JSON object defining the multi-file project topology:
 {
@@ -288,7 +291,7 @@ Return ONLY a valid raw JSON object defining the multi-file project topology:
 
   let topologyJsonStr = '';
   try {
-    topologyJsonStr = await callLLM(pass1Prompt, config, onLog);
+    topologyJsonStr = await callLLM(pass1Prompt, config, onLog, undefined, { temperature: 0.4 });
   } catch (err: any) {
     onLog(`Pass 1 Fallback triggered: ${err.message}`, 'warn');
   }
