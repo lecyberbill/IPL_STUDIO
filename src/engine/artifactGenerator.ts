@@ -14,13 +14,70 @@ export interface ProjectArtifact {
 }
 
 /**
- * Extrait de façon ultra-robuste les fichiers empaquetés sous forme de balises <file path="...">
- * Même si le LLM omet ou oublie les balises fermantes </file>
+ * Applique un bloc de modification ciblé SEARCH/REPLACE sur un contenu de fichier existant
  */
-export function parseMultiFileXml(rawOutput: string): ProjectArtifactFile[] {
-  const files: ProjectArtifactFile[] = [];
-  const fileHeaderRegex = /<file\s+path=["']([^"']+)["']\s*>/gi;
+export function applyPatchToContent(originalContent: string, patchBlock: string): string {
+  const searchReplaceRegex = /<<<<<<<\s*SEARCH\s*\n([\s\S]*?)\n=======\s*\n([\s\S]*?)\n>>>>>>>\s*REPLACE/gi;
+  let updatedContent = originalContent;
+  let match: RegExpExecArray | null;
 
+  while ((match = searchReplaceRegex.exec(patchBlock)) !== null) {
+    const searchTarget = match[1];
+    const replacement = match[2];
+
+    if (searchTarget && updatedContent.includes(searchTarget)) {
+      updatedContent = updatedContent.replace(searchTarget, replacement);
+    }
+  }
+
+  return updatedContent;
+}
+
+/**
+ * Extrait de façon ultra-robuste les fichiers empaquetés sous forme de balises <file path="...">
+ * ou applique les modifications ciblées de lignes par balises <patch path="...">
+ */
+export function parseMultiFileXml(rawOutput: string, existingFiles: ProjectArtifactFile[] = []): ProjectArtifactFile[] {
+  const filesMap = new Map<string, string>();
+
+  // Conserver les fichiers existants si fournis
+  for (const ef of existingFiles) {
+    filesMap.set(ef.relativePath, ef.content);
+  }
+
+  // 1. Extraire et appliquer les modifications ciblées de lignes par balises <patch path="...">
+  const patchHeaderRegex = /<patch\s+path=["']([^"']+)["']\s*>/gi;
+  let patchMatch: RegExpExecArray | null;
+  const patchMatches: Array<{ path: string; startIndex: number; headerLength: number }> = [];
+
+  while ((patchMatch = patchHeaderRegex.exec(rawOutput)) !== null) {
+    patchMatches.push({
+      path: patchMatch[1].trim(),
+      startIndex: patchMatch.index,
+      headerLength: patchMatch[0].length
+    });
+  }
+
+  for (let i = 0; i < patchMatches.length; i++) {
+    const current = patchMatches[i];
+    const contentStart = current.startIndex + current.headerLength;
+    const contentEnd = (i + 1 < patchMatches.length) ? patchMatches[i + 1].startIndex : rawOutput.length;
+
+    let patchBlock = rawOutput.substring(contentStart, contentEnd);
+    const closeTagIndex = patchBlock.indexOf('</patch>');
+    if (closeTagIndex !== -1) {
+      patchBlock = patchBlock.substring(0, closeTagIndex);
+    }
+
+    const existingContent = filesMap.get(current.path) || '';
+    if (existingContent && patchBlock) {
+      const patchedContent = applyPatchToContent(existingContent, patchBlock);
+      filesMap.set(current.path, patchedContent);
+    }
+  }
+
+  // 2. Extraire les fichiers complets sous forme de balises <file path="...">
+  const fileHeaderRegex = /<file\s+path=["']([^"']+)["']\s*>/gi;
   let match: RegExpExecArray | null;
   const matches: Array<{ path: string; startIndex: number; headerLength: number }> = [];
 
@@ -40,7 +97,6 @@ export function parseMultiFileXml(rawOutput: string): ProjectArtifactFile[] {
     let rawContent = rawOutput.substring(contentStart, contentEnd);
     
     // Si une balise fermante </file> est présente, tronquer le contenu exactement à la balise
-    // Cela élimine automatiquement tout texte conversationnel (ex: "## 3. Create file...") produit après </file>
     const closeTagIndex = rawContent.indexOf('</file>');
     if (closeTagIndex !== -1) {
       rawContent = rawContent.substring(0, closeTagIndex);
@@ -51,11 +107,11 @@ export function parseMultiFileXml(rawOutput: string): ProjectArtifactFile[] {
 
     const cleanContent = rawContent.trim();
     if (current.path && cleanContent) {
-      files.push({ relativePath: current.path, content: cleanContent });
+      filesMap.set(current.path, cleanContent);
     }
   }
 
-  return files;
+  return Array.from(filesMap.entries()).map(([relativePath, content]) => ({ relativePath, content }));
 }
 
 /**

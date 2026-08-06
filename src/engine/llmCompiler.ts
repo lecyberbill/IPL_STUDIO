@@ -334,13 +334,25 @@ USER REQUEST:
 "${userCorrectionPrompt}"
 
 CRITICAL OUTPUT INSTRUCTIONS:
-1. IF the user is asking to modify code, add features, or fix bugs:
-   - Output ALL modified or new files wrapped strictly inside <file path="relative/path/to/file.ext">full code</file> tags.
-   - DO NOT write markdown headers (e.g. ## 3. Create file...) or conversational text between or outside <file> tags.
-   - Output ONLY the raw <file path="...">...</file> blocks.
-2. IF the user is asking a general question, asking for clarification, or greeting you (without requesting code modifications):
+1. IF the user is asking to modify specific lines, fix bugs, or update existing files:
+   - OPTION A (Targeted Line Patching - Preferred for line edits):
+     <patch path="relative/path/to/file.ext">
+     <<<<<<< SEARCH
+     exact lines to find in file
+     =======
+     new replacement lines
+     >>>>>>> REPLACE
+     </patch>
+   
+   - OPTION B (Full File Replacement / New File):
+     <file path="relative/path/to/file.ext">
+     full file content
+     </file>
+
+2. DO NOT write markdown headers (e.g. ## 3. Create file...) or conversational text between or outside <file> or <patch> tags.
+3. IF the user is asking a general question without requesting code changes:
    - Answer conversationally in plain text.
-   - DO NOT output any <file> tags if no code files were modified.`;
+   - DO NOT output any <file> or <patch> tags if no code was modified.`;
 
   return await callLLM(prompt, config, onLog, onStreamChunk, { temperature: 0.0 });
 }
