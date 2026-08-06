@@ -448,6 +448,9 @@ export const useIdeStore = create<IDEState>()(
             compiledCode: ''
           });
           get().addLog(`Basculé vers le projet "${targetProj.name}".`, 'info');
+          if (targetProj.outputDir) {
+            get().readArtifactFromDisk(targetProj.id);
+          }
         }
       },
 
@@ -825,15 +828,34 @@ export const useIdeStore = create<IDEState>()(
       }
     }),
     {
-      name: 'ipl-studio-store-v5',
+      name: 'ipl-studio-store-v6',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         projects: state.projects,
         activeProjectId: state.activeProjectId,
+        code: state.code,
+        compiledCode: state.compiledCode,
         llmConfig: state.llmConfig,
         targetLang: state.targetLang,
         customTargets: state.customTargets
-      })
+      }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          const activeProj = state.projects.find(p => p.id === state.activeProjectId);
+          if (activeProj) {
+            if (activeProj.code && (!state.code || state.code === DEFAULT_PROJECTS[0].code)) {
+              state.code = activeProj.code;
+            }
+            if (activeProj.targetLang) {
+              state.targetLang = activeProj.targetLang;
+            }
+            state.syntaxErrors = validateIPLCode(state.code || activeProj.code || '');
+            if (activeProj.outputDir) {
+              state.readArtifactFromDisk(activeProj.id);
+            }
+          }
+        }
+      }
     }
   )
 );
