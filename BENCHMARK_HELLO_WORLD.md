@@ -34,6 +34,7 @@ return success
 | **Google Gemma 4-26B (a4b)** | Local (LM Studio) | 26B (~17 GB RAM) | 7 files | Multi-card UI with embedded dark terminal (`consoleOutput.js`) | **None (0 Bug, 0 Friction)**. Included Tailwind CDN & auto-execution out-of-the-box | ⭐ **PERFECT (1st Try)** |
 | **DeepSeek Coder V2 Lite Instruct** | Local (LM Studio) | ~16B / 2.4B active | 5 files | Dark Glassmorphic Dashboard with status indicators | **Runtime Crash**: Naive line-by-line regex parser in `ipl_interpreter.js` fails on multi-line `add message {}` block -> `IPL Error: Missing message definition` | ❌ **FAILURE (Runtime Bug)** |
 | **Qwen AgentWorld 35B (a3b)** | Local (LM Studio) | 35B (~12 GB RAM) | 8 files | 2-Column Split Layout + Magenta Gradient Banner & EventBus JS | **None (0 Bug, 0 Friction)**. Included Tailwind CDN, EventBus, auto-execution & syntax-highlighted editor box | ⭐ **PERFECT (10/10 1st Try)** |
+| **Microsoft Phi-4 Reasoning Plus** | Local (LM Studio) | ~14B (~9 GB RAM) | 6 files | Clean Card UI with Timezone Resolution | **None (0 Bug, 0 Friction)**. Included Tailwind CDN, auto-exec & dynamic Timezone (`Europe/Paris`) | ⭐ **PERFECT (10/10 1st Try)** |
 
 ---
 
@@ -115,6 +116,23 @@ return success
 * **Friction / Bugs Encountered**:
   - **ZERO FRICTION (0 Bug, 0 Friction)**. Included Tailwind Play CDN, auto-execution on DOMContentLoaded, clean XML formatting, and zero runtime errors.
 * **Final Assessment**: **10/10 — Perfect Score (Stunning Visual Rendu)**.
+
+---
+
+### 6. 🟢 Microsoft Phi-4 Reasoning Plus (Local LM Studio)
+* **Mode**: 100% Local (LM Studio on `http://localhost:1234`)
+* **Footprint**: ~9 GB RAM / VRAM (14 Billion Parameters Reasoning model)
+* **File Topology (6 files)**:
+  * `index.html` (Clean white card UI with green status outline pill `✓ Success`)
+  * `css/styles.css`
+  * `js/main.js`, `js/app.js`, `js/message.js`, `js/timestamp.js`
+  * `package.json`, `Makefile`, `README.md` & `source/main.ipl`
+* **Architectural Approach**:
+  * **Reasoning Intelligence Touch**: Dynamically resolved and displayed the system timezone (`System Timestamp: 08/06/2026, 15:04:25 (Europe/Paris)`), demonstrating high-level reasoning when interpreting `compute timestamp from system`!
+  * Pristine white card layout, clean typography, and subtle shadow elevation.
+* **Friction / Bugs Encountered**:
+  - **ZERO FRICTION (0 Bug, 0 Friction)**. Included `<script src="https://cdn.tailwindcss.com"></script>` in `<head>`, formatted clean XML tags, and executed flawlessly on the very first attempt without any intervention.
+* **Final Assessment**: **10/10 — Perfect Score (Smart Timezone Deduction)**.
 
 ---
 
