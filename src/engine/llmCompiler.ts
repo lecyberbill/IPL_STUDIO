@@ -266,24 +266,24 @@ export async function compileIPL(
   }
 
   const INTENT_PHILOSOPHY = `
-IMPORTANT INTENT PHILOSOPHY & PROFESSIONAL BEHAVIOR:
-- The IPL code below is a HIGH-LEVEL INTENT DIRECTIVE for YOU (the AI Senior Software Engineer).
-- IPL is NOT a programming language runtime to be parsed at runtime.
-- DO NOT build an IPL parser, IPL interpreter, or IPL AST evaluator in the generated application code UNLESS explicitly requested.
-- Fulfill the user's intent DIRECTLY by writing clean, elegant, production-grade application code in the target language stack.
+CRITICAL PRODUCT INTENT & PROFESSIONAL CODEGENERATION RULES:
+1. THE INPUT SPECIFICATION IS THE USER'S DIRECT APPLICATION BUSINESS REQUIREMENTS.
+2. Build a REAL-WORLD, PRODUCTION-READY APPLICATION that directly fulfills the user's requested features.
+3. DO NOT build an "IPL demonstrator", "IPL interpreter", "IPL AST evaluator", or "IPL mapping layer".
+4. DO NOT mention "IPL", "IPL Specification", or "IPL mapping" in the generated README.md, code comments, or UI text unless explicitly requested. Treat the specification purely as business requirements for a real-world software product!
 `;
 
   // PASS 1: Topology Analysis
   onLog('Pass 1: Analyzing project topology & multi-file structure...', 'info');
   const pass1Prompt = `SYSTEM ROLE: Senior Autonomous Software Architect.
-TASK: Analyze the following Intent Programming Language (IPL) specification and determine the optimal multi-file project architecture.
+TASK: Analyze the following application business requirements and determine the optimal multi-file project architecture.
 
 ${INTENT_PHILOSOPHY}
 
 ${langInstruction}
 
-IPL INTENT SPECIFICATION:
-\`\`\`ipl
+APPLICATION BUSINESS REQUIREMENTS:
+\`\`\`
 ${iplCode}
 \`\`\`
 
@@ -309,14 +309,14 @@ Required JSON format:
   // PASS 2: Complete Code Generation
   onLog('Pass 2: Generating full multi-file source code with XML tagging...', 'info');
   const pass2Prompt = `SYSTEM ROLE: Senior Software Engineer & Code Generator.
-You are building a complete, runnable multi-file codebase based on the IPL specification and project topology.
+You are building a complete, runnable, production-ready multi-file application fulfilling the user's software requirements.
 
 ${INTENT_PHILOSOPHY}
 
 ${langInstruction}
 
-IPL SPECIFICATION:
-\`\`\`ipl
+APPLICATION REQUIREMENTS:
+\`\`\`
 ${iplCode}
 \`\`\`
 
@@ -324,8 +324,8 @@ TOPOLOGY REFERENCE:
 ${topologyJsonStr || 'Standard Multi-File Layout'}
 
 CRITICAL CODE GENERATION RULES:
-1. DIRECT INTENT FULFILLMENT: Fulfill the business logic directly with professional application code. Do NOT create IPL parsers or interpreter classes.
-2. DETERMINISTIC INTENT TYPE MAPPING:
+1. DIRECT PRODUCT FULFILLMENT: Fulfill the application's business requirements directly with clean, maintainable, production-ready code. Do NOT create IPL parsers, demonstrator layers, or IPL directive mapping tables.
+2. DETERMINISTIC TYPE MAPPING:
    - 'text' -> Target String type (e.g., String in Rust/Java, str in Python, string in Go)
    - 'number' -> Target Numeric type (e.g., f64/i64 in Rust, float/int in Python, float64 in Go)
    - 'boolean' -> Target Boolean type (e.g., bool in Rust/Python/Go, boolean in Java)
@@ -334,8 +334,7 @@ CRITICAL CODE GENERATION RULES:
    - 'options(...)' -> Target Enum / Union type
 3. Provide FULL, production-grade source code for every file. NEVER use comments like "// TODO" or "// implement here".
 4. MANDATORY FILE TAG FORMAT: Wrap EVERY generated file inside the XML tag: <file path="relative/path/to/file.ext">file content</file>. Do NOT use markdown code blocks without <file path="..."> tags!
-5. BROWSER STANDALONE COMPATIBILITY: Do NOT use <script type="module"> or ES6 import/export statements between browser JS files. Web browsers strictly block local ES module imports over file:// protocol due to CORS security rules. Always load JS files as standard scripts (<script src="js/file.js"></script>) in correct dependency order or attach components to window/global scope so the web app executes instantly out-of-the-box in any browser window without CORS crashes!
-6. Include config files (e.g. Cargo.toml, requirements.txt, package.json, go.mod, Makefile) so the project can be built & executed immediately.
+5. Include config files (e.g. Cargo.toml, requirements.txt, package.json, go.mod, Makefile) so the project can be built & executed immediately.
 
 Example:
 <file path="main.py">
