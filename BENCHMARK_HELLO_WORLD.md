@@ -7,7 +7,7 @@
 ## 🧪 Benchmark Protocol & Test Setup
 
 - **IDE Version**: IPL Studio v1.0
-- **Target Stack**: Frontend UI / Polyglot Architecture
+- **Target Stack**: Frontend UI: `HTML5 / CSS / JavaScript (Vanilla / Tailwind)` / Polyglot Target
 - **Sampling Temperature**: `0.0` (Greedy deterministic)
 
 ### Canonical IPL Intent Specification:
@@ -32,7 +32,7 @@ return success
 | **Liquid LFM-2** | Local (LM Studio) | ~1.5B – 3B (~2 GB RAM) | 3 files | Minimalist single-card UI, direct DOM binding | Required Tailwind CDN tag in `<head>` for CSS gradient rendering | ✅ **SUCCESS** |
 | **Bonsai 27B** | Local (PrismML 1-bit) | 27B (~3.9 GB RAM) | 12 files | Modular Event-Bus (IPC), separate `state.js`, `ipl-runtime.js` | Leaked Markdown subtitles between XML tags; omitted auto-exec on page load | ✅ **SUCCESS (After Parser Fix)** |
 | **Google Gemma 4-26B (a4b)** | Local (LM Studio) | 26B (~17 GB RAM) | 7 files | Multi-card UI with embedded dark terminal (`consoleOutput.js`) | **None (0 Bug, 0 Friction)**. Included Tailwind CDN & auto-execution out-of-the-box | ⭐ **PERFECT (1st Try)** |
-| **DeepSeek (Local)** | Local (LM Studio) | ~7B / 14B / 33B | 14+ files | Multi-Language Standard Suite (Rust + Go + Python + Node + C++) | **None (0 Bug)**. Generates full build tools (CMake, Cargo, npm, go.mod) & test suite | 👑 **EXTREME POLYGLOT** |
+| **DeepSeek (Local)** | Local (LM Studio) | ~7B / 14B / 33B | 14+ files | Redundant multi-language demo scripts | **FAILURE (Hors-Sujet)**: Did not build an application; generated 5 redundant hello world scripts in Rust/Go/Python/Node/C++ instead of choosing a cohesive architecture | ❌ **FAILURE (Off-Target)** |
 
 ---
 
@@ -93,14 +93,13 @@ return success
   * **Python** : `requirements.txt`, `main.py`
   * **Node.js** : `package.json`, `index.js`
   * **C++** : `CMakeLists.txt`, `src/main.cpp`
-  * **IPL Core Reference Parser** : `ipl_parser/ipl_spec.json`, `ipl_lexer.py`, `ipl_ast.py`, `ipl_interpreter.py`
-  * **Cross-Language Validation Suite** : `tests/test_hello_world.py`
-  * `README.md` & `docs/architecture.md`
+  * **IPL Reference Parser** : `ipl_parser/`
+  * **Test Suite** : `tests/test_hello_world.py`
 * **Architectural Approach**:
-  * **Literal Polyglot Masterpiece** : DeepSeek took the term "Polyglot" in its truest engineering sense. Rather than building a single application, it compiled the IPL specification **simultaneously into 5 complete language implementations (Rust, Go, Python, Node.js, C++)**, each with its native build manifest (`CMakeLists.txt`, `Cargo.toml`, `go.mod`, `package.json`, `requirements.txt`), an internal reference AST parser (`ipl_parser/`), and an automated cross-language test suite (`test_hello_world.py`)!
+  * **Hors-Sujet & Non-respect de la consigne d'architecture** : Au lieu de faire un choix d'architecture applicatif cohérent (ex: sélectionner l'écosystème le plus adapté pour construire l'application), DeepSeek a produit 5 déclinaisons "Hello World" isolées et redondantes dans 5 langages différents.
 * **Friction / Bugs Encountered**:
-  - **ZERO FRICTION (0 Bug)**. Code structure is impeccably clean, documented, and production-ready across all 5 ecosystems.
-* **Final Assessment**: **10/10 — Extreme Polyglot**. Demonstrates breathtaking cross-ecosystem mastery.
+  - **Échec Fonctionnel** : N'a pas construit d'application utilisable ni d'interface UI responsive demandée, mais un livre d'exemples de démonstration multi-langages.
+* **Final Assessment**: **❌ ÉCHEC (Hors-Sujet)**. A confondu "Choix d'architecture Polyglotte" avec "Générer un exemple dans chaque langage existant".
 
 ---
 
