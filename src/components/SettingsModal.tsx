@@ -194,17 +194,28 @@ export const SettingsModal: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-medium text-gray-300 mb-1">Environment Variable Name (Zero Hardcoded Keys)</label>
+                <label className="block font-medium text-gray-300 mb-1">Direct API Key (Optionnel — Collez directement votre clé ici)</label>
+                <input
+                  type="password"
+                  value={llmConfig.customApiKey || ''}
+                  onChange={(e) => setLLMConfig({ customApiKey: e.target.value })}
+                  className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-cyan-300 focus:outline-none focus:border-purple-500"
+                  placeholder="AIzaSy... ou sk-..."
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-gray-300 mb-1">Environment Variable Name (ex: VITE_GEMINI_API_KEY)</label>
                 <input
                   type="text"
                   value={llmConfig.apiKeyName}
-                  onChange={(e) => setLLMConfig({ apiKeyName: e.target.value, customApiKey: '' })}
+                  onChange={(e) => setLLMConfig({ apiKeyName: e.target.value })}
                   className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-amber-300 focus:outline-none focus:border-purple-500"
-                  placeholder="VITE_DP_API_KEY"
+                  placeholder="VITE_GEMINI_API_KEY"
                 />
                 <div className="mt-1.5 flex items-start space-x-1.5 text-[10px] text-amber-400/90 leading-relaxed">
                   <ShieldCheck size={14} className="shrink-0 mt-0.5" />
-                  <span>Security Guaranteed: Only the variable name (e.g. <code>VITE_DP_API_KEY</code>) is stored. Real keys are read from environment.</span>
+                  <span>Saisissez votre clé directement ci-dessus OU préfixez vos variables .env par <code>VITE_</code> (ex: <code>VITE_GEMINI_API_KEY</code>).</span>
                 </div>
               </div>
             </div>

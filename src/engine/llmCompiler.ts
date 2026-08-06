@@ -155,10 +155,21 @@ export async function callLLM(
 
     return accumulatedText;
   } else {
-    // Mode Externe API Cloud (DeepSeek / OpenAI compatible)
-    const apiKey = import.meta.env[config.apiKeyName] || config.customApiKey;
+    // Mode Externe API Cloud (DeepSeek / Gemini / OpenAI compatible)
+    const envVarName = config.apiKeyName || 'GEMINI_API_KEY';
+    const viteEnvVarName = envVarName.startsWith('VITE_') ? envVarName : `VITE_${envVarName}`;
+
+    const apiKey = 
+      (config.customApiKey && config.customApiKey.trim()) || 
+      import.meta.env[envVarName] || 
+      import.meta.env[viteEnvVarName] ||
+      import.meta.env.VITE_GEMINI_API_KEY ||
+      import.meta.env.VITE_DEEPSEEK_API_KEY ||
+      import.meta.env.VITE_OPENAI_API_KEY ||
+      import.meta.env.VITE_API_KEY;
+
     if (!apiKey) {
-      throw new Error(`Environment API key variable [${config.apiKeyName}] is missing.`);
+      throw new Error(`Cloud API Key introuvable ! Veuillez saisir votre clé directement dans les Paramètres (⚙️) ou la définir dans .env sous [${viteEnvVarName}].`);
     }
 
     onLog(`Connecting to Cloud API (temp=${temp}) (${config.model} at ${config.externalEndpoint})...`, 'info');
