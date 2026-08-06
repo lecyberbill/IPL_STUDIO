@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { useIdeStore } from '../store/useIdeStore';
 import { buildProjectArtifact, downloadProjectZip } from '../engine/artifactGenerator';
@@ -14,7 +14,10 @@ import {
   FolderSearch, 
   HardDrive,
   MessageSquare,
-  RefreshCw
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  FileText
 } from 'lucide-react';
 
 function getLanguageFromFilename(filename?: string): string {
@@ -83,6 +86,16 @@ export const TargetInspector: React.FC = () => {
   const [isWritingDisk, setIsWritingDisk] = useState(false);
   const [isReadingDisk, setIsReadingDisk] = useState(false);
   const [selectedFilePath, setSelectedFilePath] = useState<string>('');
+  const tabsRef = useRef<HTMLDivElement>(null);
+
+  const scrollTabs = (direction: 'left' | 'right') => {
+    if (tabsRef.current) {
+      tabsRef.current.scrollBy({
+        left: direction === 'left' ? -180 : 180,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   const activeProject = projects.find(p => p.id === activeProjectId);
   const outputDir = activeProject?.outputDir || `d:/image_to_text/IPL/output/${activeProject?.name.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'my_project'}`;
@@ -267,26 +280,54 @@ export const TargetInspector: React.FC = () => {
             </button>
           </div>
 
-          {/* Multi-File Tabs Header */}
+          {/* Multi-File Tabs Header with Left/Right Navigation & Mouse Wheel Scrolling */}
           {files.length > 0 && (
-            <div className="flex items-center bg-[#0b0d13] border-b border-[#2a2f42] overflow-x-auto shrink-0 scrollbar-none px-1">
-              {files.map((file) => {
-                const isSelected = file.relativePath === (currentFile?.relativePath || files[0].relativePath);
-                return (
-                  <button
-                    key={file.relativePath}
-                    onClick={() => setSelectedFilePath(file.relativePath)}
-                    className={`flex items-center space-x-1.5 px-3 py-1.5 text-[11px] font-mono border-r border-[#2a2f42] whitespace-nowrap transition-colors ${
-                      isSelected
-                        ? 'bg-[#161922] text-cyan-300 font-bold border-b-2 border-b-cyan-500'
-                        : 'text-gray-400 hover:text-gray-200 hover:bg-[#12141c]'
-                    }`}
-                  >
-                    <FolderSearch size={12} className={isSelected ? 'text-cyan-400' : 'text-gray-500'} />
-                    <span>{file.relativePath}</span>
-                  </button>
-                );
-              })}
+            <div className="relative flex items-center bg-[#0b0d13] border-b border-[#2a2f42] shrink-0">
+              <button
+                type="button"
+                onClick={() => scrollTabs('left')}
+                className="px-1.5 py-2 text-gray-400 hover:text-white bg-[#0b0d13] border-r border-[#2a2f42] z-10 shrink-0 hover:bg-[#161922]"
+                title="Scroll tabs left"
+              >
+                <ChevronLeft size={13} />
+              </button>
+
+              <div
+                ref={tabsRef}
+                onWheel={(e) => {
+                  if (tabsRef.current) {
+                    tabsRef.current.scrollLeft += e.deltaY;
+                  }
+                }}
+                className="flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-cyan-500/20 scrollbar-track-transparent flex-1 px-0.5 select-none"
+              >
+                {files.map((file) => {
+                  const isSelected = file.relativePath === (currentFile?.relativePath || files[0].relativePath);
+                  return (
+                    <button
+                      key={file.relativePath}
+                      onClick={() => setSelectedFilePath(file.relativePath)}
+                      className={`flex items-center space-x-1.5 px-3 py-1.5 text-[11px] font-mono border-r border-[#2a2f42] whitespace-nowrap transition-colors shrink-0 ${
+                        isSelected
+                          ? 'bg-[#161922] text-cyan-300 font-bold border-b-2 border-b-cyan-500'
+                          : 'text-gray-400 hover:text-gray-200 hover:bg-[#12141c]'
+                      }`}
+                    >
+                      <FolderSearch size={12} className={isSelected ? 'text-cyan-400' : 'text-gray-500'} />
+                      <span>{file.relativePath}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => scrollTabs('right')}
+                className="px-1.5 py-2 text-gray-400 hover:text-white bg-[#0b0d13] border-l border-[#2a2f42] z-10 shrink-0 hover:bg-[#161922]"
+                title="Scroll tabs right"
+              >
+                <ChevronRight size={13} />
+              </button>
             </div>
           )}
 
@@ -305,9 +346,27 @@ export const TargetInspector: React.FC = () => {
               </div>
             ) : (files.length > 0 || compiledCode) ? (
               <div className="w-full h-full flex flex-col overflow-hidden">
-                <div className="px-3 py-1 bg-[#0f1117]/90 text-[10px] font-mono text-cyan-300 border-b border-[#2a2f42] flex justify-between shrink-0">
-                  <span>📄 Active File: <strong className="text-white">{currentFile?.relativePath}</strong></span>
-                  <span>{currentFile?.content ? currentFile.content.length : 0} characters</span>
+                <div className="px-3 py-1.5 bg-[#0f1117]/90 text-[10px] font-mono text-cyan-300 border-b border-[#2a2f42] flex items-center justify-between shrink-0">
+                  <div className="flex items-center space-x-2 min-w-0 flex-1 pr-2">
+                    <FileText size={13} className="text-cyan-400 shrink-0" />
+                    {files.length > 0 ? (
+                      <select
+                        value={currentFile?.relativePath || ''}
+                        onChange={(e) => setSelectedFilePath(e.target.value)}
+                        className="bg-[#161922] text-cyan-300 font-mono text-[11px] border border-[#2a2f42] rounded px-2 py-0.5 focus:outline-none focus:border-cyan-500 cursor-pointer truncate max-w-[320px]"
+                        title="Sélectionner n'importe quel fichier de la liste complète"
+                      >
+                        {files.map((f, idx) => (
+                          <option key={f.relativePath} value={f.relativePath} className="bg-[#161922] text-white font-mono">
+                            📄 {idx + 1}/{files.length}: {f.relativePath}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="truncate">Active File: <strong className="text-white">{currentFile?.relativePath}</strong></span>
+                    )}
+                  </div>
+                  <span className="shrink-0 text-gray-400">{currentFile?.content ? currentFile.content.length : 0} chars</span>
                 </div>
                 <div className="flex-1 min-h-0 bg-[#0b0d13]">
                   <Editor
