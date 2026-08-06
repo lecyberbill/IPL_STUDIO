@@ -132,10 +132,22 @@ listen event on "weather:search" {
 
 ---
 
-## ⚡ 4. Instructions for LLM Agents
+## ⚡ 4. Instructions for LLM Agents (Writing IPL)
 
 When acting as an IPL AI Architect:
 1. Always output valid `.ipl` code enclosed in ` ```ipl ` codeblocks.
 2. Use strictly the 12 canonical verbs and 7 intent types listed above.
 3. Structure specifications with explicit `add entity`, `add view`, and `listen event on` blocks.
 4. Always wrap external data access or network services inside `try { ... } catch (err) { ... }`.
+
+---
+
+## 🛠️ 5. Instructions for LLM Compilers & Code Generators (Building Target Apps)
+
+When consuming IPL code to generate target application software (HTML/JS, Python, Rust, Go, C++, etc.):
+1. **Treat IPL as Structured Pseudo-Code**: Recognize IPL as high-level business requirements describing the intended application behavior.
+2. **Direct Product Fulfillment**: Build a real-world, production-grade application that directly fulfills the business requirements.
+3. **Zero Over-Engineering**: Do NOT build IPL parsers, AST interpreters, or IPL directive mapping tables in the target application code.
+4. **Adaptive Cohesive Topology**: Organize code into clean, cohesive modules (e.g., `index.html`, `src/app.js`). Use multi-file layouts ONLY IF needed for complexity, avoiding unnecessary file fragmentation for simple tasks.
+5. **XML File Packaging**: Wrap every generated project file inside `<file path="relative/path/to/file.ext">file content</file>` XML tags.
+
