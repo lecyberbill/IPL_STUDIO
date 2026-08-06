@@ -32,7 +32,7 @@ return success
 | **Liquid LFM-2** | Local (LM Studio) | ~1.5B – 3B (~2 GB RAM) | 3 files | Minimalist single-card UI, direct DOM binding | Required Tailwind CDN tag in `<head>` for CSS gradient rendering | ✅ **SUCCESS** |
 | **Bonsai 27B** | Local (PrismML 1-bit) | 27B (~3.9 GB RAM) | 12 files | Modular Event-Bus (IPC), separate `state.js`, `ipl-runtime.js` | Leaked Markdown subtitles between XML tags; omitted auto-exec on page load | ✅ **SUCCESS (After Parser Fix)** |
 | **Google Gemma 4-26B (a4b)** | Local (LM Studio) | 26B (~17 GB RAM) | 7 files | Multi-card UI with embedded dark terminal (`consoleOutput.js`) | **None (0 Bug, 0 Friction)**. Included Tailwind CDN & auto-execution out-of-the-box | ⭐ **PERFECT (1st Try)** |
-| **DeepSeek (Local)** | Local (LM Studio) | ~7B / 14B / 33B | N/A | *Test to be re-run on HTML5 target* | *Previous run invalidated due to preset reset & prompt ambiguity (now fixed)* | ⚠️ **INVALID (To Re-run)** |
+| **DeepSeek Coder V2 Lite Instruct** | Local (LM Studio) | ~16B / 2.4B active | 5 files | Dark Glassmorphic Dashboard with status indicators | **Runtime Crash**: Naive line-by-line regex parser in `ipl_interpreter.js` fails on multi-line `add message {}` block -> `IPL Error: Missing message definition` | ❌ **FAILURE (Runtime Bug)** |
 
 ---
 
@@ -85,9 +85,18 @@ return success
 
 ---
 
-### 4. 🔴 DeepSeek (Local LM Studio)
-* **Status**: ⚠️ **Test Invalidated — Awaiting Re-run**
-* **Notes**: The initial run was performed with an un-restored target setting and an ambiguous prompt rule (`Choose the most optimal language... (Rust, Go, Python...)`) which induced the LLM to write 5 separate hello world implementations. The system prompt in `llmCompiler.ts` has been updated to explicitly enforce building **ONE cohesive application stack**, and target persistence has been fixed.
+### 4. 🔴 DeepSeek Coder V2 Lite Instruct (Local LM Studio)
+* **Mode**: 100% Local (LM Studio on `http://localhost:1234`)
+* **Footprint**: ~16B Parameters (MoE 2.4B active params)
+* **File Topology (5 files)**:
+  * `index.html` (Dark glassmorphism dashboard UI with status pill & control buttons)
+  * `css/styles.css`
+  * `js/main.js`, `js/ipl_interpreter.js`, `js/ui_controller.js`, `js/utils.js`
+* **Architectural Approach**:
+  * Very attractive dark UI styling (`bg-[#0f1117]`, purple header `</> IPL Studio v1.0`, dark console box).
+* **Friction / Bugs Encountered**:
+  - **Runtime Execution Crash**: DeepSeek Coder V2 Lite created a custom `IPLInterpreter` class in `js/ipl_interpreter.js`, but implemented a naive line-by-line regex parser (`parseIPL(iplSpec)`) that split lines before searching for `text:` and `target:` properties. Because IPL formats `add message {` on line 1 and `text: "..."` on line 2, line 1 failed regex matching and threw a runtime error: `IPL Error: Missing message definition`.
+* **Final Assessment**: **❌ FAILURE (Runtime Parser Bug)**. Excellent UI aesthetic design, but flawed JS runtime logic resulting in execution crash.
 
 ---
 
