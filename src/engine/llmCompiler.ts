@@ -334,7 +334,7 @@ CRITICAL CODE GENERATION RULES:
    - 'options(...)' -> Target Enum / Union type
 3. Provide FULL, production-grade source code for every file. NEVER use comments like "// TODO" or "// implement here".
 4. MANDATORY FILE TAG FORMAT: Wrap EVERY generated file inside the XML tag: <file path="relative/path/to/file.ext">file content</file>. Do NOT use markdown code blocks without <file path="..."> tags!
-5. FOR HTML5 / WEB FRONTEND: Unless explicitly requested otherwise, include <script src="https://cdn.tailwindcss.com"></script> inside <head> of index.html so Tailwind CSS utility classes render out-of-the-box in standalone browsers.
+5. BROWSER STANDALONE COMPATIBILITY: Do NOT use <script type="module"> or ES6 import/export statements between browser JS files. Web browsers strictly block local ES module imports over file:// protocol due to CORS security rules. Always load JS files as standard scripts (<script src="js/file.js"></script>) in correct dependency order or attach components to window/global scope so the web app executes instantly out-of-the-box in any browser window without CORS crashes!
 6. Include config files (e.g. Cargo.toml, requirements.txt, package.json, go.mod, Makefile) so the project can be built & executed immediately.
 
 Example:
