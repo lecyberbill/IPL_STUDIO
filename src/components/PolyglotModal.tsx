@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
 import { X, Plus, Trash2, Layers, Cpu, Sparkles, Check } from 'lucide-react';
 import type { PolyglotLayer } from '../store/useIdeStore';
@@ -34,6 +34,14 @@ export const PolyglotModal: React.FC = () => {
 
   const [autoDecide, setAutoDecide] = useState(polyglotConfig.autoDecide);
   const [layers, setLayers] = useState<PolyglotLayer[]>(polyglotConfig.layers);
+
+  // Synchroniser l'état local dès que le modale s'ouvre ou que la config du store change
+  useEffect(() => {
+    if (isPolyglotModalOpen) {
+      setAutoDecide(polyglotConfig.autoDecide);
+      setLayers(polyglotConfig.layers);
+    }
+  }, [isPolyglotModalOpen, polyglotConfig]);
 
   if (!isPolyglotModalOpen) return null;
 

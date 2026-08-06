@@ -914,6 +914,7 @@ export const useIdeStore = create<IDEState>()(
         compiledCode: state.compiledCode,
         llmConfig: state.llmConfig,
         targetLang: state.targetLang,
+        polyglotConfig: state.polyglotConfig,
         customTargets: state.customTargets,
         leftSidebarWidth: state.leftSidebarWidth,
         rightSidebarWidth: state.rightSidebarWidth
@@ -927,6 +928,9 @@ export const useIdeStore = create<IDEState>()(
             }
             if (activeProj.targetLang) {
               state.targetLang = activeProj.targetLang;
+            }
+            if (activeProj.polyglotConfig) {
+              state.polyglotConfig = activeProj.polyglotConfig;
             }
             state.syntaxErrors = validateIPLCode(state.code || activeProj.code || '');
             if (activeProj.outputDir) {
