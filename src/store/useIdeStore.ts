@@ -759,29 +759,35 @@ export const useIdeStore = create<IDEState>()(
         const activeProj = projects.find(p => p.id === activeProjectId);
         set({ isCompiling: true });
 
-        const errors = validateIPLCode(code);
-        if (errors.length > 0) {
-          addLog(`Erreur de syntaxe détectée : ${errors[0].message} (Ligne ${errors[0].line})`, 'error');
+        try {
+          const errors = validateIPLCode(code);
+          if (errors.length > 0) {
+            addLog(`Erreur de syntaxe détectée : ${errors[0].message} (Ligne ${errors[0].line})`, 'error');
+          }
+
+          const { resolveIPLImports } = await import('../engine/iplGrammar');
+          const unifiedCode = resolveIPLImports(code, activeProj?.sourceFiles);
+
+          const result = await compileIPL(
+            unifiedCode, 
+            targetLang, 
+            llmConfig, 
+            (msg, type) => {
+              addLog(msg, type);
+            },
+            (streamChunkText) => {
+              set({ compiledCode: streamChunkText });
+            },
+            polyglotConfig
+          );
+
+          set({ compiledCode: result, isCompiling: false });
+          await get().writeArtifactToDisk();
+        } catch (err: any) {
+          addLog(`Erreur de compilation : ${err.message}`, 'error');
+        } finally {
+          set({ isCompiling: false });
         }
-
-        const { resolveIPLImports } = await import('../engine/iplGrammar');
-        const unifiedCode = resolveIPLImports(code, activeProj?.sourceFiles);
-
-        const result = await compileIPL(
-          unifiedCode, 
-          targetLang, 
-          llmConfig, 
-          (msg, type) => {
-            addLog(msg, type);
-          },
-          (streamChunkText) => {
-            set({ compiledCode: streamChunkText });
-          },
-          polyglotConfig
-        );
-
-        set({ compiledCode: result, isCompiling: false });
-        await get().writeArtifactToDisk();
       },
 
       requestLLMCorrection: async (userPrompt: string) => {

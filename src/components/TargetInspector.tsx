@@ -17,7 +17,8 @@ import {
   RefreshCw,
   ChevronLeft,
   ChevronRight,
-  FileText
+  FileText,
+  Settings
 } from 'lucide-react';
 
 function getLanguageFromFilename(filename?: string): string {
@@ -72,6 +73,7 @@ export const TargetInspector: React.FC = () => {
     compiledCode, 
     targetLang, 
     isCompiling, 
+    toggleSettings,
     code, 
     projects, 
     activeProjectId, 
@@ -368,6 +370,21 @@ export const TargetInspector: React.FC = () => {
                   Pass 1: Topology & Module Structure<br/>
                   Pass 2: Multi-file XML Generation & Streaming
                 </p>
+                <div className="flex items-center space-x-2 pt-2">
+                  <button
+                    onClick={() => useIdeStore.setState({ isCompiling: false })}
+                    className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-300 text-[11px] rounded transition-colors font-medium"
+                  >
+                    Annuler / Réinitialiser
+                  </button>
+                  <button
+                    onClick={toggleSettings}
+                    className="px-3 py-1 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 text-purple-300 text-[11px] rounded transition-colors font-medium flex items-center space-x-1"
+                  >
+                    <Settings size={12} />
+                    <span>Paramètres ⚙️</span>
+                  </button>
+                </div>
               </div>
             ) : (files.length > 0 || compiledCode) ? (
               <div className="w-full h-full flex flex-col overflow-hidden">
