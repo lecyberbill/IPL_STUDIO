@@ -83,6 +83,7 @@ export const TargetInspector: React.FC = () => {
 
   const [activePanelTab, setActivePanelTab] = useState<'files' | 'chat'>('files');
   const [copied, setCopied] = useState(false);
+  const [copiedPath, setCopiedPath] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isWritingDisk, setIsWritingDisk] = useState(false);
   const [isReadingDisk, setIsReadingDisk] = useState(false);
@@ -124,6 +125,14 @@ export const TargetInspector: React.FC = () => {
       navigator.clipboard.writeText(textToCopy);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleCopyPath = () => {
+    if (outputDir) {
+      navigator.clipboard.writeText(outputDir);
+      setCopiedPath(true);
+      setTimeout(() => setCopiedPath(false), 2000);
     }
   };
 
@@ -268,9 +277,17 @@ export const TargetInspector: React.FC = () => {
 
           {/* Physical Folder Location Sub-header */}
           <div className="px-3 py-1 bg-[#12141c] border-b border-[#2a2f42] flex items-center justify-between text-[10px] text-gray-400 font-mono shrink-0">
-            <div className="flex items-center space-x-1 truncate max-w-[360px]" title={outputDir}>
+            <div className="flex items-center space-x-1.5 truncate max-w-[380px]" title={outputDir}>
               <HardDrive size={12} className="text-emerald-400 shrink-0" />
               <span className="truncate">Disk path: <strong className="text-gray-300">{outputDir}</strong></span>
+              <button
+                type="button"
+                onClick={handleCopyPath}
+                className="p-1 text-gray-400 hover:text-white hover:bg-[#2a2f42] rounded transition-colors shrink-0 cursor-pointer"
+                title="Copier le chemin absolu du dossier disque"
+              >
+                {copiedPath ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+              </button>
             </div>
 
             <button
