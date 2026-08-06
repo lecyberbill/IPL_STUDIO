@@ -100,8 +100,39 @@ export interface IDEState {
 
 const DEFAULT_PROJECTS: IPLProject[] = [
   {
+    id: 'proj-typed-order',
+    name: '[Exemple] Typed E-Commerce Order Spec',
+    targetLang: 'rust',
+    updatedAt: new Date().toLocaleTimeString(),
+    code: `// IPL Project v1.0 - Typed E-Commerce Order Spec (Human Intent Types)
+add entity Order {
+  id: id,
+  customerName: text,
+  totalAmount: number,
+  isPaid: boolean,
+  createdAt: date,
+  status: options("pending", "processing", "shipped", "delivered")
+}
+
+listen event on "checkout:completed" {
+  read orderData from event {
+    where: totalAmount > 0
+  }
+
+  if (orderData.isPaid == true) {
+    set orderData.status = "processing"
+    send confirmationEmail to orderData.customerName {
+      subject: "Order Confirmation",
+      orderId: orderData.id
+    }
+  } else {
+    set orderData.status = "pending"
+  }
+}`
+  },
+  {
     id: 'proj-stresstest',
-    name: 'Enterprise System Architecture',
+    name: '[Exemple] Architecture Enterprise System',
     targetLang: 'python',
     updatedAt: new Date().toLocaleTimeString(),
     code: `// IPL v1.0 - Enterprise Multi-Services System Architecture Spec
@@ -186,39 +217,8 @@ listen event on "user:payment_completed" {
 }`
   },
   {
-    id: 'proj-typed-order',
-    name: 'Typed E-Commerce Order Spec',
-    targetLang: 'rust',
-    updatedAt: new Date().toLocaleTimeString(),
-    code: `// IPL Project v1.0 - Typed E-Commerce Order Spec (Human Intent Types)
-add entity Order {
-  id: id,
-  customerName: text,
-  totalAmount: number,
-  isPaid: boolean,
-  createdAt: date,
-  status: options("pending", "processing", "shipped", "delivered")
-}
-
-listen event on "checkout:completed" {
-  read orderData from event {
-    where: totalAmount > 0
-  }
-
-  if (orderData.isPaid == true) {
-    set orderData.status = "processing"
-    send confirmationEmail to orderData.customerName {
-      subject: "Order Confirmation",
-      orderId: orderData.id
-    }
-  } else {
-    set orderData.status = "pending"
-  }
-}`
-  },
-  {
     id: 'proj-ecommerce',
-    name: 'E-Commerce Dashboard',
+    name: '[Exemple] E-Commerce Dashboard',
     targetLang: 'python',
     updatedAt: new Date().toLocaleTimeString(),
     code: `// IPL Project v1.0 - E-Commerce Dashboard
@@ -243,7 +243,7 @@ if (totalValue > 1000) {
   },
   {
     id: 'proj-form',
-    name: 'User Registration Form',
+    name: '[Exemple] Formulaire d\'Inscription',
     targetLang: 'javascript',
     updatedAt: new Date().toLocaleTimeString(),
     code: `// IPL Project v1.0 - User Registration Form
@@ -264,7 +264,7 @@ listen event on "form:submit" {
   },
   {
     id: 'proj-hello',
-    name: 'Hello World IPL',
+    name: '[Exemple] Hello World Application',
     targetLang: 'html',
     updatedAt: new Date().toLocaleTimeString(),
     code: `// IPL Project v1.0 - Hello World
