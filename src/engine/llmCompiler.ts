@@ -265,37 +265,24 @@ export async function compileIPL(
     langInstruction = `Target language: ${targetLang.toUpperCase()}. Generate clean, production-ready code for this specific ecosystem.`;
   }
 
-  const INTENT_PHILOSOPHY = `
-CRITICAL PRODUCT INTENT & PROFESSIONAL CODEGENERATION RULES:
-1. THE INPUT SPECIFICATION IS THE USER'S DIRECT APPLICATION BUSINESS REQUIREMENTS.
-2. Build a REAL-WORLD, PRODUCTION-READY APPLICATION that directly fulfills the user's requested features.
-3. DO NOT build an "IPL demonstrator", "IPL interpreter", "IPL AST evaluator", or "IPL mapping layer".
-4. DO NOT mention "IPL", "IPL Specification", or "IPL mapping" in the generated README.md, code comments, or UI text unless explicitly requested. Treat the specification purely as business requirements for a real-world software product!
-`;
-
   // PASS 1: Topology Analysis
   onLog('Pass 1: Analyzing project topology & multi-file structure...', 'info');
-  const pass1Prompt = `SYSTEM ROLE: Senior Autonomous Software Architect.
-TASK: Analyze the following application business requirements and determine the optimal multi-file project architecture.
+  const pass1Prompt = `You are a Lead Software Architect.
 
-${INTENT_PHILOSOPHY}
-
+TARGET STACK:
 ${langInstruction}
 
-APPLICATION BUSINESS REQUIREMENTS:
+BUSINESS REQUIREMENTS (Structured Pseudo-Code):
 \`\`\`
 ${iplCode}
 \`\`\`
 
-OUTPUT INSTRUCTIONS:
-Return ONLY a raw JSON object with the project structure. No markdown formatting, no code blocks (\`\`\`json).
-Required JSON format:
+TASK:
+Return ONLY a valid raw JSON object defining the multi-file project topology:
 {
   "projectName": "my_project",
-  "targetLang": "${targetLang}",
   "files": [
-    { "relativePath": "Cargo.toml", "description": "Dependencies" },
-    { "relativePath": "src/main.rs", "description": "Main entry point" }
+    { "relativePath": "path/to/file.ext", "description": "purpose" }
   ]
 }`;
 
@@ -308,42 +295,27 @@ Required JSON format:
 
   // PASS 2: Complete Code Generation
   onLog('Pass 2: Generating full multi-file source code with XML tagging...', 'info');
-  const pass2Prompt = `SYSTEM ROLE: Senior Software Engineer & Code Generator.
-You are building a complete, runnable, production-ready multi-file application fulfilling the user's software requirements.
+  const pass2Prompt = `You are a Senior Full-Stack Software Engineer.
+Build a complete, production-ready software application that directly fulfills the business requirements described in the structured pseudo-code below.
 
-${INTENT_PHILOSOPHY}
-
+1. TARGET STACK:
 ${langInstruction}
 
-APPLICATION REQUIREMENTS:
+2. BUSINESS REQUIREMENTS (Structured Pseudo-Code):
 \`\`\`
 ${iplCode}
 \`\`\`
 
-TOPOLOGY REFERENCE:
+3. PROJECT TOPOLOGY:
 ${topologyJsonStr || 'Standard Multi-File Layout'}
 
-CRITICAL CODE GENERATION RULES:
-1. DIRECT PRODUCT FULFILLMENT: Fulfill the application's business requirements directly with clean, maintainable, production-ready code. Do NOT create IPL parsers, demonstrator layers, or IPL directive mapping tables.
-2. DETERMINISTIC TYPE MAPPING:
-   - 'text' -> Target String type (e.g., String in Rust/Java, str in Python, string in Go)
-   - 'number' -> Target Numeric type (e.g., f64/i64 in Rust, float/int in Python, float64 in Go)
-   - 'boolean' -> Target Boolean type (e.g., bool in Rust/Python/Go, boolean in Java)
-   - 'id' -> Target Unique Identifier type (e.g., Uuid in Rust, UUID/str in Python/Java, uuid.UUID in Go)
-   - 'date' -> Target DateTime type (e.g., DateTime<Utc> in Rust, datetime in Python)
-   - 'options(...)' -> Target Enum / Union type
-3. Provide FULL, production-grade source code for every file. NEVER use comments like "// TODO" or "// implement here".
-4. MANDATORY FILE TAG FORMAT: Wrap EVERY generated file inside the XML tag: <file path="relative/path/to/file.ext">file content</file>. Do NOT use markdown code blocks without <file path="..."> tags!
-5. Include config files (e.g. Cargo.toml, requirements.txt, package.json, go.mod, Makefile) so the project can be built & executed immediately.
+OUTPUT FORMAT INSTRUCTION:
+Wrap EVERY generated project file inside XML tags:
+<file path="relative/path/to/file.ext">
+... complete runnable source code ...
+</file>
 
-Example:
-<file path="main.py">
-def main():
-    print("Hello World")
-
-if __name__ == "__main__":
-    main()
-</file>`;
+Deliver clean, production-grade code directly fulfilling the requirements.`;
 
   const generatedArtifact = await callLLM(pass2Prompt, config, onLog, onStreamChunk);
   onLog('🎉 2-Pass Compilation completed successfully!', 'success');
