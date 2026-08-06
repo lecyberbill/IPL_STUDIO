@@ -163,7 +163,10 @@ export async function callLLM(
 
     onLog(`Connecting to Cloud API (temp=${temp}) (${config.model} at ${config.externalEndpoint})...`, 'info');
 
-    const response = await fetch(`${config.externalEndpoint}/v1/chat/completions`, {
+    const baseUrl = config.externalEndpoint.replace(/\/+$/, '').replace(/\/v1$/, '').replace(/\/v1\/chat\/completions$/, '');
+    const apiUrl = `${baseUrl}/v1/chat/completions`;
+
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
