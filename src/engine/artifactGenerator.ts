@@ -44,6 +44,14 @@ export function buildProjectArtifact(
   const safeName = projectName.toLowerCase().replace(/[^a-z0-9]/g, '_');
   let files: ProjectArtifactFile[] = [];
 
+  if (!compiledCode || !compiledCode.trim()) {
+    return {
+      projectName,
+      targetLang,
+      files: []
+    };
+  }
+
   // Tenter de découper le code compilé si le LLM a renvoyé des balises <file path="...">
   const parsedFiles = parseMultiFileXml(compiledCode);
   if (parsedFiles.length > 0) {
