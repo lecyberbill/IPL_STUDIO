@@ -66,6 +66,15 @@ export const ChatPanel: React.FC = () => {
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (inputPrompt.trim() && !isCompiling) {
+        handleSend(e as unknown as React.FormEvent);
+      }
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-[#12141c] text-gray-200 select-none">
       {/* Header */}
@@ -132,24 +141,31 @@ export const ChatPanel: React.FC = () => {
       </div>
 
       {/* Input Footer Form */}
-      <form onSubmit={handleSend} className="p-2.5 border-t border-[#2a2f42] bg-[#0f1117] flex items-center space-x-2 shrink-0">
-        <input
-          type="text"
-          placeholder="Ask LLM Architect a question or instruct code changes..."
-          value={inputPrompt}
-          onChange={(e) => setInputPrompt(e.target.value)}
-          disabled={isCompiling}
-          className="flex-1 bg-[#161922] border border-[#2a2f42] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 disabled:opacity-50 font-sans"
-        />
+      <form onSubmit={handleSend} className="p-2.5 border-t border-[#2a2f42] bg-[#0f1117] flex flex-col space-y-1.5 shrink-0">
+        <div className="flex items-end space-x-2">
+          <textarea
+            rows={2}
+            placeholder="Ask LLM Architect a question or instruct code changes..."
+            value={inputPrompt}
+            onChange={(e) => setInputPrompt(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={isCompiling}
+            className="flex-1 bg-[#161922] border border-[#2a2f42] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 disabled:opacity-50 font-sans resize-none min-h-[42px] max-h-[140px] scrollbar-thin select-text"
+          />
 
-        <button
-          type="submit"
-          disabled={!inputPrompt.trim() || isCompiling}
-          className="px-3.5 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-40 text-black font-bold rounded-lg text-xs transition-all shadow flex items-center space-x-1 shrink-0 select-none"
-        >
-          <Send size={13} />
-          <span>Send</span>
-        </button>
+          <button
+            type="submit"
+            disabled={!inputPrompt.trim() || isCompiling}
+            className="px-3.5 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-40 text-black font-bold rounded-lg text-xs transition-all shadow flex items-center space-x-1 shrink-0 select-none h-[42px]"
+          >
+            <Send size={13} />
+            <span>Send</span>
+          </button>
+        </div>
+        <div className="flex items-center justify-between text-[9px] text-gray-500 font-mono px-1">
+          <span>Shift+Enter = nouvelle ligne</span>
+          <span>Enter = envoyer</span>
+        </div>
       </form>
     </div>
   );
