@@ -302,7 +302,8 @@ CRITICAL CODE GENERATION RULES:
    - 'options(...)' -> Target Enum / Union type
 2. Provide FULL, production-grade source code for every file. NEVER use comments like "// TODO" or "// implement here".
 3. Format every file using the XML tag: <file path="relative/path/to/file.ext">file content</file>
-3. Include config files (e.g. Cargo.toml, requirements.txt, package.json, go.mod, Makefile) so the project can be built & executed immediately.
+4. FOR HTML5 / WEB FRONTEND: Always include <script src="https://cdn.tailwindcss.com"></script> inside <head> of index.html so Tailwind CSS utility classes render out-of-the-box in any browser without needing an offline build step.
+5. Include config files (e.g. Cargo.toml, requirements.txt, package.json, go.mod, Makefile) so the project can be built & executed immediately.
 
 Example:
 <file path="main.py">
