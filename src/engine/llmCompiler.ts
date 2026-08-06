@@ -177,19 +177,24 @@ export async function callLLM(
     const baseUrl = config.externalEndpoint.replace(/\/+$/, '').replace(/\/v1$/, '').replace(/\/v1\/chat\/completions$/, '');
     const apiUrl = `${baseUrl}/v1/chat/completions`;
 
+    const bodyObj: Record<string, any> = {
+      model: config.model,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: temp,
+      stream: true
+    };
+
+    if (seedVal !== undefined && !baseUrl.includes('googleapis')) {
+      bodyObj.seed = seedVal;
+    }
+
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: temp,
-        seed: seedVal,
-        stream: true
-      })
+      body: JSON.stringify(bodyObj)
     });
 
     if (!response.ok) {
