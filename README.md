@@ -8,20 +8,6 @@
 
 > **IPL Studio** is an AI-powered polyglot, intent-based IDE with autonomous agentic capabilities. It transforms high-level declarative specifications written in **IPL (Intent Programming Language)** into runnable, production-ready multi-file codebases (Rust, Python, Node.js, Go, C++, HTML5, Java, Kubernetes, etc.) written directly to disk.
 
-## 📊 Comparative Analysis: IPL Intent Specification vs. Standard Prompting
-
-Why use **IPL (Intent Programming Language)** instead of traditional long natural language prompts?
-
-| Metric / Evaluation Category | IPL Intent Code Specification | Standard Natural Language Prompt |
-| :--- | :--- | :--- |
-| **Input Token Consumption** | **~ 150 - 350 tokens (-65% Overhead)** | ~ 800 - 1500 tokens (High verbosity) |
-| **Architectural Precision** | **100% Deterministic (Canonical 12 Verbs)** | ~ 60 - 70% (Prone to misinterpretation) |
-| **LLM Attention & Reasoning Effort** | **Minimal (Structured AST Parse)** | High (Heavy self-attention disambiguation) |
-| **Hallucination Rate** | **< 3% (Strict entity-verb scope)** | 20 - 35% (Invented APIs / missing imports) |
-| **Multi-File Coherence** | **Exact topology mapping via Pass 1** | Inconsistent (Single monolithic dumps) |
-| **Model Cross-Reproducibility** | **Identical output across LLaMA, DeepSeek, GPT-4** | Highly variable depending on prompt |
-| **Maintenance & Refactoring Cost** | **Single-verb patch (1 line edit)** | Re-writing full 50-line prompt paragraphs |
-
 ---
 
 ## 🌟 Key Features
