@@ -33,6 +33,7 @@ return success
 | **Bonsai 27B** | Local (PrismML 1-bit) | 27B (~3.9 GB RAM) | 12 files | Modular Event-Bus (IPC), separate `state.js`, `ipl-runtime.js` | Leaked Markdown subtitles between XML tags; omitted auto-exec on page load | ✅ **SUCCESS (After Parser Fix)** |
 | **Google Gemma 4-26B (a4b)** | Local (LM Studio) | 26B (~17 GB RAM) | 7 files | Multi-card UI with embedded dark terminal (`consoleOutput.js`) | **None (0 Bug, 0 Friction)**. Included Tailwind CDN & auto-execution out-of-the-box | ⭐ **PERFECT (1st Try)** |
 | **DeepSeek Coder V2 Lite Instruct** | Local (LM Studio) | ~16B / 2.4B active | 5 files | Dark Glassmorphic Dashboard with status indicators | **Runtime Crash**: Naive line-by-line regex parser in `ipl_interpreter.js` fails on multi-line `add message {}` block -> `IPL Error: Missing message definition` | ❌ **FAILURE (Runtime Bug)** |
+| **Qwen AgentWorld 35B (a3b)** | Local (LM Studio) | 35B (~12 GB RAM) | 8 files | 2-Column Split Layout + Magenta Gradient Banner & EventBus JS | **None (0 Bug, 0 Friction)**. Included Tailwind CDN, EventBus, auto-execution & syntax-highlighted editor box | ⭐ **PERFECT (10/10 1st Try)** |
 
 ---
 
@@ -97,6 +98,23 @@ return success
 * **Friction / Bugs Encountered**:
   - **Runtime Execution Crash**: DeepSeek Coder V2 Lite created a custom `IPLInterpreter` class in `js/ipl_interpreter.js`, but implemented a naive line-by-line regex parser (`parseIPL(iplSpec)`) that split lines before searching for `text:` and `target:` properties. Because IPL formats `add message {` on line 1 and `text: "..."` on line 2, line 1 failed regex matching and threw a runtime error: `IPL Error: Missing message definition`.
 * **Final Assessment**: **❌ FAILURE (Runtime Parser Bug)**. Excellent UI aesthetic design, but flawed JS runtime logic resulting in execution crash.
+
+---
+
+### 5. 🟣 Qwen AgentWorld 35B a3b (Local LM Studio)
+* **Mode**: 100% Local (LM Studio on `http://localhost:1234`)
+* **Footprint**: ~12 GB RAM / VRAM (35 Billion Parameters optimized model)
+* **File Topology (8 files)**:
+  * `index.html` (Modern 2-column split layout + full-width magenta/pink gradient banner)
+  * `css/styles.css`
+  * `js/app.js`, `js/config.js`, `js/event_bus.js`, `js/timestamp_service.js`, `js/ui_controller.js`, `js/ipl_interpreter.js`
+  * `README.md` & `source/main.ipl`
+* **Architectural Approach**:
+  * **Masterpiece of Layout Design & UX**: Split 2-column layout showcasing the IPL source specification on the left inside a dark editor box with syntax highlighting, live terminal output on the right with color-coded cyan/green/blue log formatting, and a **gorgeous full-width magenta-to-pink gradient banner** at the bottom displaying the executed message and live timestamp (`Hello World IPL Studio v1.0 [08/06/2026, 15:01:08]`)!
+  * **Architecture EventBus JS (`js/event_bus.js`)** : Implemented a clean pub/sub event bus decoupling `timestamp_service.js`, `ui_controller.js`, and `ipl_interpreter.js`.
+* **Friction / Bugs Encountered**:
+  - **ZERO FRICTION (0 Bug, 0 Friction)**. Included Tailwind Play CDN, auto-execution on DOMContentLoaded, clean XML formatting, and zero runtime errors.
+* **Final Assessment**: **10/10 — Perfect Score (Stunning Visual Rendu)**.
 
 ---
 
