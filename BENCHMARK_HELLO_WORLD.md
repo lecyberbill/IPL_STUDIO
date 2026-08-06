@@ -10,16 +10,15 @@
 - **Target Stack**: Frontend UI: `HTML5 / CSS / JavaScript (Vanilla / Tailwind)`
 - **Sampling Temperature**: `0.0` (Greedy deterministic)
 
-### Canonical IPL Intent Specification:
+### Canonical IPL Intent Specification (v1.1 Clarified):
 ```ipl
 // IPL Project v1.0 - Hello World
 add message {
-  text: "Hello World IPL Studio v1.0",
-  target: "console"
+  text: "Hello World IPL Studio v1.0"
 }
 
 compute timestamp from system
-send message to screen
+send message + timestamp to screen
 return success
 ```
 
