@@ -32,7 +32,8 @@ return success
 | **Liquid LFM-2** | Local (LM Studio) | ~1.5B – 3B (~2 GB RAM) | 3 files | Minimalist single-card UI, direct DOM binding | Required Tailwind CDN tag in `<head>` for CSS gradient rendering | ✅ **SUCCESS** |
 | **Nvidia Nemotron 3 Nano 4B** | Local (LM Studio) | 4B (**2.84 GB RAM**) | 9 files | Header gradient blue/purple, tagged console log `[CREATED]`, `[SENT]`, `[SUCCESS]` | **None (0 Bug, 0 Friction)**. Pound-for-pound champion (2.84 GB), EventBus & Tailwind CDN included | ⭐ **PERFECT (10/10 1st Try)** |
 | **Bonsai 27B** | Local (PrismML 1-bit) | 27B (~3.9 GB RAM) | 12 files | Modular Event-Bus (IPC), separate `state.js`, `ipl-runtime.js` | Leaked Markdown subtitles between XML tags; omitted auto-exec on page load | ✅ **SUCCESS (After Parser Fix)** |
-| **Google Gemma 4-26B (a4b)** | Local (LM Studio) | 26B (~17 GB RAM) | 7 files | Multi-card UI with embedded dark terminal (`consoleOutput.js`) | **None (0 Bug, 0 Friction)**. Included Tailwind CDN & auto-execution out-of-the-box | ⭐ **PERFECT (1st Try)** |
+| **Google Gemma 4-26B (a4b)** | Local (LM Studio) | 26B (~17 GB RAM) | 7 files | Multi-card UI with embedded dark terminal (`consoleOutput.js`) | **None (0 Bug, 0 Friction)**. Included Tailwind CDN & auto-execution out-of-the-box | ⭐ **PERFECT (10/10 1st Try)** |
+| **GPT-OSS 20B** | Local (LM Studio) | 20B (12.11 GB RAM) | 8 files | Glassmorphism Neon Purple, latency benchmarking (`in 2.00ms`) & Timezone | **None (0 Bug, 0 Friction)**. Included Tailwind CDN, auto-exec & execution speed benchmarking | ⭐ **PERFECT (10/10 1st Try)** |
 | **DeepSeek Coder V2 Lite Instruct** | Local (LM Studio) | ~16B / 2.4B active | 5 files | Dark Glassmorphic Dashboard with status indicators | **Runtime Crash**: Naive line-by-line regex parser in `ipl_interpreter.js` fails on multi-line `add message {}` block -> `IPL Error: Missing message definition` | ❌ **FAILURE (Runtime Bug)** |
 | **Qwen AgentWorld 35B (a3b)** | Local (LM Studio) | 35B (~12 GB RAM) | 8 files | 2-Column Split Layout + Magenta Gradient Banner & EventBus JS | **None (0 Bug, 0 Friction)**. Included Tailwind CDN, EventBus, auto-execution & syntax-highlighted editor box | ⭐ **PERFECT (10/10 1st Try)** |
 | **Microsoft Phi-4 Reasoning Plus** | Local (LM Studio) | ~14B (~9 GB RAM) | 6 files | Clean Card UI with Timezone Resolution | **None (0 Bug, 0 Friction)**. Included Tailwind CDN, auto-exec & dynamic Timezone (`Europe/Paris`) | ⭐ **PERFECT (10/10 1st Try)** |
@@ -151,6 +152,23 @@ return success
 * **Friction / Bugs Encountered**:
   - **ZERO FRICTION (0 Bug, 0 Friction)**. Included `<script src="https://cdn.tailwindcss.com"></script>` in `<head>`, formatted clean XML tags, auto-executed on DOM load, and ran flawlessly out-of-the-box.
 * **Final Assessment**: **10/10 — Perfect Score (Best Ultra-Light Model)**.
+
+---
+
+### 8. 🟣 GPT-OSS 20B (Local LM Studio)
+* **Mode**: 100% Local (LM Studio on `http://localhost:1234`)
+* **Footprint**: **12.11 GB RAM / VRAM** (20 Billion Parameters Open Source Model)
+* **File Topology (8 files)**:
+  * `index.html` (Neon Purple Glassmorphism UI `backdrop-blur-lg`, dark translucent containers, pink/purple gradient button)
+  * `css/styles.css`
+  * `js/main.js`, `js/ipl_interpreter.js`, `js/message_service.js`, `js/success_handler.js`, `js/timestamp_service.js`, `js/ui_controller.js`
+  * `README.md` & `source/main.ipl`
+* **Architectural Approach**:
+  * **Execution Latency Benchmarking**: GPT-OSS 20B calculated and displayed the precise execution speed of the IPL script in milliseconds inside the console terminal log (`[15:10:27] Execution completed in 2.00ms`)!
+  * Combined dynamic timezone resolution (`System Timestamp: 08/06/2026, 15:10:27 (Europe/Paris)`) with a gorgeous Neon Purple Glassmorphic UI layout.
+* **Friction / Bugs Encountered**:
+  - **ZERO FRICTION (0 Bug, 0 Friction)**. Included `<script src="https://cdn.tailwindcss.com"></script>` in `<head>`, formatted clean XML tags, auto-executed on DOM load, and ran flawlessly out-of-the-box.
+* **Final Assessment**: **10/10 — Perfect Score (Latency Benchmarking & Neon Design)**.
 
 ---
 
