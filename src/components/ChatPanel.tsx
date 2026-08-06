@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
 import { Send, Bot, User, RefreshCw, FolderCheck } from 'lucide-react';
+import { MarkdownViewer } from './MarkdownViewer';
 
 export interface ChatMessage {
   id: string;
@@ -118,7 +119,7 @@ export const ChatPanel: React.FC = () => {
                 <span className="font-semibold">{msg.sender === 'user' ? 'You' : 'LLM Architect'}</span>
                 <span>{msg.timestamp}</span>
               </div>
-              <p className="whitespace-pre-wrap">{msg.text}</p>
+              <MarkdownViewer content={msg.text} />
 
               {msg.codeChanged && (
                 <div className="mt-2 pt-2 border-t border-[#2a2f42] flex items-center space-x-1.5 text-[11px] text-emerald-400 font-mono font-semibold select-none">
