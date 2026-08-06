@@ -45,7 +45,7 @@ export async function callLLM(
 ): Promise<string> {
   const temp = options?.temperature ?? 0.15;
   const seedVal = options?.seed ?? 42;
-  
+
   if (config.mode === 'local') {
     onLog(`Connecting to local Ollama (temp=${temp}) (${config.model} at ${config.localEndpoint})...`, 'info');
     const response = await fetch(`${config.localEndpoint}/api/generate`, {
@@ -159,9 +159,9 @@ export async function callLLM(
     const envVarName = config.apiKeyName || 'GEMINI_API_KEY';
     const viteEnvVarName = envVarName.startsWith('VITE_') ? envVarName : `VITE_${envVarName}`;
 
-    const apiKey = 
-      (config.customApiKey && config.customApiKey.trim()) || 
-      import.meta.env[envVarName] || 
+    const apiKey =
+      (config.customApiKey && config.customApiKey.trim()) ||
+      import.meta.env[envVarName] ||
       import.meta.env[viteEnvVarName] ||
       import.meta.env.VITE_GEMINI_API_KEY ||
       import.meta.env.VITE_DEEPSEEK_API_KEY ||
@@ -334,7 +334,7 @@ CRITICAL CODE GENERATION RULES:
    - 'options(...)' -> Target Enum / Union type
 3. Provide FULL, production-grade source code for every file. NEVER use comments like "// TODO" or "// implement here".
 4. Format every file using the XML tag: <file path="relative/path/to/file.ext">file content</file>
-5. STANDALONE & ECOSYSTEM ARCHITECTURE: Respect modern software architectures. If ES6 modules (<script type="module">) or bundlers are used, include a dev server or build script (e.g., package.json scripts / Makefile) so the application can be served cleanly. If zero-config standalone execution is targeted, ensure scripts load smoothly out-of-the-box.
+5. STANDALONE & ECOSYSTEM ARCHITECTURE: Respect modern software architectures. 
 6. Include config files (e.g. Cargo.toml, requirements.txt, package.json, go.mod, Makefile) so the project can be built & executed immediately.
 
 Example:
