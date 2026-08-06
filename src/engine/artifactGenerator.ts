@@ -111,6 +111,50 @@ export function parseMultiFileXml(rawOutput: string, existingFiles: ProjectArtif
     }
   }
 
+  // 3. FALLBACK: Si aucune balise <file> n'a été détectée, extraire les blocs de code Markdown (```lang ... ```)
+  if (filesMap.size === 0) {
+    const codeBlockRegex = /```([a-z0-9_-]*)\s*\n([\s\S]*?)```/gi;
+    let blockMatch: RegExpExecArray | null;
+    let htmlIndex = 0;
+    let cssIndex = 0;
+    let jsIndex = 0;
+
+    while ((blockMatch = codeBlockRegex.exec(rawOutput)) !== null) {
+      const lang = blockMatch[1].toLowerCase().trim();
+      const codeContent = blockMatch[2].trim();
+      if (!codeContent) continue;
+
+      // Chercher si le début du bloc contient un nom de fichier (ex: <!-- css/styles.css --> ou /* css/styles.css */ ou // js/app.js)
+      const pathCommentMatch = codeContent.match(/^(?:<!--|\/\*|\/\/|#)\s*([a-zA-Z0-9_\-./]+\.[a-zA-Z0-9]+)\s*(?:-->|\*\/)?/i);
+      let detectedPath = pathCommentMatch ? pathCommentMatch[1].trim() : '';
+
+      if (!detectedPath) {
+        if (lang === 'html') {
+          detectedPath = htmlIndex === 0 ? 'index.html' : `page_${htmlIndex + 1}.html`;
+          htmlIndex++;
+        } else if (lang === 'css') {
+          detectedPath = cssIndex === 0 ? 'css/styles.css' : `css/style_${cssIndex + 1}.css`;
+          cssIndex++;
+        } else if (lang === 'js' || lang === 'javascript' || lang === 'ts' || lang === 'typescript') {
+          detectedPath = jsIndex === 0 ? 'js/app.js' : `js/script_${jsIndex + 1}.js`;
+          jsIndex++;
+        } else if (lang === 'json') {
+          detectedPath = 'package.json';
+        } else if (lang === 'py' || lang === 'python') {
+          detectedPath = 'main.py';
+        } else if (lang === 'rs' || lang === 'rust') {
+          detectedPath = 'src/main.rs';
+        } else if (lang === 'go') {
+          detectedPath = 'main.go';
+        }
+      }
+
+      if (detectedPath) {
+        filesMap.set(detectedPath, codeContent);
+      }
+    }
+  }
+
   return Array.from(filesMap.entries()).map(([relativePath, content]) => ({ relativePath, content }));
 }
 

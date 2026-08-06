@@ -333,7 +333,7 @@ CRITICAL CODE GENERATION RULES:
    - 'date' -> Target DateTime type (e.g., DateTime<Utc> in Rust, datetime in Python)
    - 'options(...)' -> Target Enum / Union type
 3. Provide FULL, production-grade source code for every file. NEVER use comments like "// TODO" or "// implement here".
-4. Format every file using the XML tag: <file path="relative/path/to/file.ext">file content</file>
+4. MANDATORY FILE TAG FORMAT: Wrap EVERY generated file inside the XML tag: <file path="relative/path/to/file.ext">file content</file>. Do NOT use markdown code blocks without <file path="..."> tags!
 5. FOR HTML5 / WEB FRONTEND: Unless explicitly requested otherwise, include <script src="https://cdn.tailwindcss.com"></script> inside <head> of index.html so Tailwind CSS utility classes render out-of-the-box in standalone browsers.
 6. Include config files (e.g. Cargo.toml, requirements.txt, package.json, go.mod, Makefile) so the project can be built & executed immediately.
 
