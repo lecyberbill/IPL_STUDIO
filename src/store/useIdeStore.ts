@@ -18,6 +18,7 @@ export interface IPLProject {
   name: string;
   code: string;
   targetLang: TargetLanguage;
+  polyglotConfig?: PolyglotConfig;
   outputDir?: string;
   sourceFiles?: Record<string, string>;
   activeSourceFile?: string;
@@ -345,7 +346,14 @@ export const useIdeStore = create<IDEState>()(
         ]
       },
       isPolyglotModalOpen: false,
-      setPolyglotConfig: (config) => set({ polyglotConfig: config }),
+      setPolyglotConfig: (config) => set((state) => ({
+        polyglotConfig: config,
+        projects: state.projects.map(p => 
+          p.id === state.activeProjectId 
+            ? { ...p, polyglotConfig: config, updatedAt: new Date().toLocaleTimeString() } 
+            : p
+        )
+      })),
       togglePolyglotModal: () => set((state) => ({ isPolyglotModalOpen: !state.isPolyglotModalOpen })),
       llmConfig: DEFAULT_LLM_CONFIG,
       isSettingsOpen: false,
@@ -484,6 +492,13 @@ export const useIdeStore = create<IDEState>()(
             activeProjectId: targetProj.id,
             code: targetProj.code,
             targetLang: targetProj.targetLang,
+            polyglotConfig: targetProj.polyglotConfig || {
+              autoDecide: true,
+              layers: [
+                { id: 'l-1', role: 'Backend API', tech: 'Python 3 (FastAPI / Flask)' },
+                { id: 'l-2', role: 'Frontend UI', tech: 'HTML5 / JavaScript (Vanilla / Tailwind)' }
+              ]
+            },
             syntaxErrors: validateIPLCode(targetProj.code),
             compiledCode: ''
           });
