@@ -265,10 +265,20 @@ export async function compileIPL(
     langInstruction = `Target language: ${targetLang.toUpperCase()}. Generate clean, production-ready code for this specific ecosystem.`;
   }
 
+  const INTENT_PHILOSOPHY = `
+IMPORTANT INTENT PHILOSOPHY & PROFESSIONAL BEHAVIOR:
+- The IPL code below is a HIGH-LEVEL INTENT DIRECTIVE for YOU (the AI Senior Software Engineer).
+- IPL is NOT a programming language runtime to be parsed at runtime.
+- DO NOT build an IPL parser, IPL interpreter, or IPL AST evaluator in the generated application code UNLESS explicitly requested.
+- Fulfill the user's intent DIRECTLY by writing clean, elegant, production-grade application code in the target language stack.
+`;
+
   // PASS 1: Topology Analysis
   onLog('Pass 1: Analyzing project topology & multi-file structure...', 'info');
   const pass1Prompt = `SYSTEM ROLE: Senior Autonomous Software Architect.
 TASK: Analyze the following Intent Programming Language (IPL) specification and determine the optimal multi-file project architecture.
+
+${INTENT_PHILOSOPHY}
 
 ${langInstruction}
 
@@ -301,6 +311,8 @@ Required JSON format:
   const pass2Prompt = `SYSTEM ROLE: Senior Software Engineer & Code Generator.
 You are building a complete, runnable multi-file codebase based on the IPL specification and project topology.
 
+${INTENT_PHILOSOPHY}
+
 ${langInstruction}
 
 IPL SPECIFICATION:
@@ -312,15 +324,16 @@ TOPOLOGY REFERENCE:
 ${topologyJsonStr || 'Standard Multi-File Layout'}
 
 CRITICAL CODE GENERATION RULES:
-1. DETERMINISTIC INTENT TYPE MAPPING:
+1. DIRECT INTENT FULFILLMENT: Fulfill the business logic directly with professional application code. Do NOT create IPL parsers or interpreter classes.
+2. DETERMINISTIC INTENT TYPE MAPPING:
    - 'text' -> Target String type (e.g., String in Rust/Java, str in Python, string in Go)
    - 'number' -> Target Numeric type (e.g., f64/i64 in Rust, float/int in Python, float64 in Go)
    - 'boolean' -> Target Boolean type (e.g., bool in Rust/Python/Go, boolean in Java)
    - 'id' -> Target Unique Identifier type (e.g., Uuid in Rust, UUID/str in Python/Java, uuid.UUID in Go)
    - 'date' -> Target DateTime type (e.g., DateTime<Utc> in Rust, datetime in Python)
    - 'options(...)' -> Target Enum / Union type
-2. Provide FULL, production-grade source code for every file. NEVER use comments like "// TODO" or "// implement here".
-3. Format every file using the XML tag: <file path="relative/path/to/file.ext">file content</file>
+3. Provide FULL, production-grade source code for every file. NEVER use comments like "// TODO" or "// implement here".
+4. Format every file using the XML tag: <file path="relative/path/to/file.ext">file content</file>
 5. STANDALONE & ECOSYSTEM ARCHITECTURE: Respect modern software architectures. If ES6 modules (<script type="module">) or bundlers are used, include a dev server or build script (e.g., package.json scripts / Makefile) so the application can be served cleanly. If zero-config standalone execution is targeted, ensure scripts load smoothly out-of-the-box.
 6. Include config files (e.g. Cargo.toml, requirements.txt, package.json, go.mod, Makefile) so the project can be built & executed immediately.
 
