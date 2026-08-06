@@ -278,7 +278,7 @@ ${iplCode}
 \`\`\`
 
 ARCHITECTURE GUIDANCE:
-Design a natural, cohesive multi-file module layout (e.g. index.html, src/app.js, src/ui.js). Group related features logically rather than creating a separate file for every literal verb keyword!
+Design a clean, cohesive multi-file module layout with logically grouped features (e.g. index.html, src/app.js, src/ui.js).
 
 TASK:
 Return ONLY a valid raw JSON object defining the multi-file project topology:
