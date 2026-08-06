@@ -4,7 +4,22 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ---
 
-## 🚀 [v1.1.0] — 2026-08-06 (Current Release)
+## 🚀 [v1.2.0] — 2026-08-06 (Architectural Pure Intent Release)
+
+### 🌟 Compiler & Architecture Breakthroughs
+- **Structured Pseudo-Code Intent Engine**: Reframed the compiler system prompts (Pass 1 & Pass 2) to treat IPL strictly as structured pseudo-code business requirements. LLMs now generate clean, real-world production code without over-engineering fake IPL parsers, AST interpreters, or reference mapping tables.
+- **Adaptive Topology & Optional Multi-File**: Refactored Pass 1 Architect guidance to produce multi-file structures ONLY IF NEEDED based on actual business complexity, eliminating micro-file fragmentation for simple tasks.
+- **Elevated Architect Temperature (0.4)**: Configured Pass 1 (Topology Architect) to run at temperature `0.4` for creative, cohesive module grouping while keeping Pass 2 (Code Generator) deterministic (`0.15`) for bug-free code.
+- **Bulletproof Fallback Parser**: Upgraded `parseMultiFileXml` in `artifactGenerator.ts` to automatically extract Markdown codeblocks (````html ````, ````css ````, ````js ````) and detect file path comments when LLMs omit `<file path="...">` XML tags, completely eliminating `.pll` fallback issues.
+
+### 🛡️ UI & Stability Enhancements
+- **Compilation Safety Net (`try / catch / finally`)**: Wrapped `runCompilation` in a `try/finally` block guaranteeing `isCompiling` is reset to `false` even on HTTP 401/400 API errors.
+- **Compiler Overlay Control**: Added instant **Annuler / Réinitialiser** and **Paramètres ⚙️** buttons on the 2-Pass LLM Compiler spinner overlay, allowing key adjustments without page reloads.
+- **Clean Tailwind CDN Integration**: Ensured standalone HTML web applications automatically load Tailwind Play CDN unless custom build pipelines are specified.
+
+---
+
+## 📦 [v1.1.0] — 2026-08-06
 
 ### 🌟 New Features & Enhancements
 - **LM Studio Integration**: Added native support for LM Studio local streaming API (`http://localhost:1234`) with one-click mode selection in Settings.
