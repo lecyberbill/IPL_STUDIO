@@ -179,6 +179,10 @@ export const TargetInspector: React.FC = () => {
   const customTargetObj = customTargets.find(ct => ct.id === targetLang);
   const activeTargetDisplayName = customTargetObj ? customTargetObj.name : ({
     polyglot: '🌐 Polyglot (Architect\'s Choice)',
+    'python-html': '🐍 Python Backend + 🌐 HTML5/JS Frontend',
+    'node-html': '⚡ Node.js Backend + 🌐 HTML5/JS Frontend',
+    'go-html': '🐹 Go Backend + 🌐 HTML5/JS Frontend',
+    'rust-html': '🦀 Rust Backend + 🌐 HTML5/JS Frontend',
     rust: '🦀 Rust High-Performance (.rs)',
     python: '🐍 Python 3 Code (.py)',
     javascript: '⚡ JavaScript ES6 (.js)',

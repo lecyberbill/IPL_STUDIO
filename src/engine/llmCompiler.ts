@@ -233,9 +233,27 @@ export async function compileIPL(
 ): Promise<string> {
   onLog(`🚀 Launching 2-Passes LLM Compiler for target: [${targetLang.toUpperCase()}]...`, 'info');
 
-  const langInstruction = targetLang === 'polyglot'
-    ? 'Choose the most optimal language and framework (Rust, Go, Python, Node.js, C++) based on the architecture requirements.'
-    : `Target language: ${targetLang.toUpperCase()}. Generate clean, production-ready code for this specific ecosystem.`;
+  let langInstruction = '';
+  switch (targetLang) {
+    case 'polyglot':
+      langInstruction = 'Choose the most optimal language and framework (Rust, Go, Python, Node.js, C++) based on the architecture requirements.';
+      break;
+    case 'python-html':
+      langInstruction = 'Target Stack: BACKEND in Python 3 (FastAPI or Flask) + FRONTEND in HTML5/JavaScript (Vanilla/Tailwind). Provide clean, decoupled multi-file code for both backend and frontend!';
+      break;
+    case 'node-html':
+      langInstruction = 'Target Stack: BACKEND in Node.js (Express) + FRONTEND in HTML5/JavaScript (Vanilla/Tailwind). Provide clean, decoupled multi-file code for both backend and frontend!';
+      break;
+    case 'go-html':
+      langInstruction = 'Target Stack: BACKEND in Go (Gin or net/http) + FRONTEND in HTML5/JavaScript (Vanilla/Tailwind). Provide clean, decoupled multi-file code for both backend and frontend!';
+      break;
+    case 'rust-html':
+      langInstruction = 'Target Stack: BACKEND in Rust (simple Warp or Axum) + FRONTEND in HTML5/JavaScript (Vanilla/Tailwind). Keep the Rust backend simple and minimal!';
+      break;
+    default:
+      langInstruction = `Target language: ${targetLang.toUpperCase()}. Generate clean, production-ready code for this specific ecosystem.`;
+      break;
+  }
 
   // PASS 1: Topology Analysis
   onLog('Pass 1: Analyzing project topology & multi-file structure...', 'info');

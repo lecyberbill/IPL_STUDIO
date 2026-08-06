@@ -134,18 +134,33 @@ export const Navbar: React.FC = () => {
             className="bg-[#0f1117] border border-[#2a2f42] rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 cursor-pointer font-mono"
           >
             <option value="polyglot" className="bg-[#161922]">🌐 Polyglot (Architect's Choice)</option>
-            <option value="rust" className="bg-[#161922]">🦀 Rust (.rs)</option>
-            <option value="python" className="bg-[#161922]">🐍 Python 3 (.py)</option>
-            <option value="javascript" className="bg-[#161922]">⚡ JavaScript / Node (.js)</option>
-            <option value="go" className="bg-[#161922]">🐹 Go (.go)</option>
-            <option value="cpp" className="bg-[#161922]">⚙️ C++ 20 (.cpp)</option>
-            <option value="html" className="bg-[#161922]">🌐 HTML5 / CSS App (.html)</option>
-            <option value="pll" className="bg-[#161922]">🧩 PLL v2 Core (.pll)</option>
-            {customTargets.map((ct) => (
-              <option key={ct.id} value={ct.id} className="bg-[#161922]">
-                {ct.name}
-              </option>
-            ))}
+
+            <optgroup label="⚡ Full-Stack Hybrids (Backend + Frontend)" className="bg-[#161922] text-cyan-400 font-bold">
+              <option value="python-html" className="bg-[#161922] text-white">🐍 Python Backend + 🌐 HTML5/JS Frontend</option>
+              <option value="node-html" className="bg-[#161922] text-white">⚡ Node.js Backend + 🌐 HTML5/JS Frontend</option>
+              <option value="go-html" className="bg-[#161922] text-white">🐹 Go Backend + 🌐 HTML5/JS Frontend</option>
+              <option value="rust-html" className="bg-[#161922] text-white">🦀 Rust Backend + 🌐 HTML5/JS Frontend</option>
+            </optgroup>
+
+            <optgroup label="📦 Standalone Languages" className="bg-[#161922] text-gray-400 font-bold">
+              <option value="python" className="bg-[#161922] text-white">🐍 Python 3 (.py)</option>
+              <option value="javascript" className="bg-[#161922] text-white">⚡ JavaScript / Node (.js)</option>
+              <option value="go" className="bg-[#161922] text-white">🐹 Go (.go)</option>
+              <option value="rust" className="bg-[#161922] text-white">🦀 Rust (.rs)</option>
+              <option value="cpp" className="bg-[#161922] text-white">⚙️ C++ 20 (.cpp)</option>
+              <option value="html" className="bg-[#161922] text-white">🌐 HTML5 / CSS Web App (.html)</option>
+              <option value="pll" className="bg-[#161922] text-white">🧩 PLL v2 Core (.pll)</option>
+            </optgroup>
+
+            {customTargets.length > 0 && (
+              <optgroup label="🔌 Custom Targets" className="bg-[#161922] text-purple-400 font-bold">
+                {customTargets.map((ct) => (
+                  <option key={ct.id} value={ct.id} className="bg-[#161922] text-white">
+                    {ct.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </div>
       </div>
