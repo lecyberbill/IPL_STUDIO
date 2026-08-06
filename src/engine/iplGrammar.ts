@@ -25,6 +25,82 @@ export interface IPLVerb {
   example: string;
 }
 
+export interface IPLTypeDefinition {
+  id: string;
+  name: string;
+  category: 'types';
+  description: string;
+  snippet: string;
+  example: string;
+  targetMapping: string;
+}
+
+export const IPL_INTENT_TYPES: IPLTypeDefinition[] = [
+  {
+    id: 'type-text',
+    name: 'text',
+    category: 'types',
+    description: 'Human Intent Type: Text string or email',
+    snippet: 'text',
+    example: 'customerName: text',
+    targetMapping: 'String / str'
+  },
+  {
+    id: 'type-number',
+    name: 'number',
+    category: 'types',
+    description: 'Human Intent Type: Amount, price, score, or count',
+    snippet: 'number',
+    example: 'totalAmount: number',
+    targetMapping: 'f64 / float / number'
+  },
+  {
+    id: 'type-boolean',
+    name: 'boolean',
+    category: 'types',
+    description: 'Human Intent Type: True/false condition or flag',
+    snippet: 'boolean',
+    example: 'isPaid: boolean',
+    targetMapping: 'bool / boolean'
+  },
+  {
+    id: 'type-id',
+    name: 'id',
+    category: 'types',
+    description: 'Human Intent Type: Unique identifier or UUID',
+    snippet: 'id',
+    example: 'orderId: id',
+    targetMapping: 'Uuid / UUID / string'
+  },
+  {
+    id: 'type-date',
+    name: 'date',
+    category: 'types',
+    description: 'Human Intent Type: Timestamp or date',
+    snippet: 'date',
+    example: 'createdAt: date',
+    targetMapping: 'DateTime / datetime'
+  },
+  {
+    id: 'type-options',
+    name: 'options(...)',
+    category: 'types',
+    description: 'Human Intent Type: Choice list or Enum',
+    snippet: 'options("option_a", "option_b")',
+    example: 'status: options("pending", "shipped")',
+    targetMapping: 'Enum / Union'
+  },
+  {
+    id: 'type-list',
+    name: 'list',
+    category: 'types',
+    description: 'Human Intent Type: Collection or Array',
+    snippet: 'list',
+    example: 'items: list',
+    targetMapping: 'Vec<T> / List[T]'
+  }
+];
+
 export const IPL_VERBS: IPLVerb[] = [
   {
     id: 'add',

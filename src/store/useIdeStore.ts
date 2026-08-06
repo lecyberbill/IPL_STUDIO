@@ -97,6 +97,7 @@ export interface IDEState {
   
   // Native Monaco insertion API preserving Undo/Redo (Ctrl+Z) and cursor position
   insertVerbSnippet: (verb: IPLVerb) => void;
+  insertSnippetText: (snippetText: string, label?: string) => void;
 
   // Compilation & Autonomous Agent triggers
   runCompilation: () => Promise<void>;
@@ -626,6 +627,27 @@ export const useIdeStore = create<IDEState>()(
 
         editor.focus();
         get().addLog(`Brique de verbe "${verb.name}" insérée au niveau du curseur (Ctrl+Z actif)`, 'success');
+      },
+
+      insertSnippetText: (snippetText, label) => {
+        const editor = get().editorInstance;
+        if (!editor) {
+          const currentCode = get().code;
+          get().setCode(`${currentCode} ${snippetText}`);
+          get().addLog(`Type "${label || snippetText}" inséré.`, 'info');
+          return;
+        }
+
+        const selection = editor.getSelection() || new monaco.Selection(1, 1, 1, 1);
+        editor.executeEdits('ipl-type-insert', [
+          {
+            range: selection,
+            text: snippetText,
+            forceMoveMarkers: true
+          }
+        ]);
+        editor.focus();
+        get().addLog(`Type d'intention "${label || snippetText}" inséré à la position du curseur`, 'info');
       },
 
       createSourceFile: (filename: string) => {
