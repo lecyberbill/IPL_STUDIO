@@ -98,14 +98,16 @@ export const VerbPalette: React.FC = () => {
           className="w-full bg-[#161922] border border-[#2a2f42] rounded px-2.5 py-1 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-cyan-500"
         />
 
-        {/* Quick Horizontal Type Chips Bar */}
-        <div className="flex items-center space-x-1 overflow-x-auto scrollbar-none py-0.5">
-          <span className="text-[9px] text-gray-500 font-semibold uppercase shrink-0 mr-1">Types:</span>
+        {/* Quick Responsive Type Chips Bar (Flex Wrap) */}
+        <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-[#0b0d13] rounded border border-[#2a2f42]/80">
+          <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider shrink-0 mr-1 flex items-center">
+            <Type size={11} className="mr-1 text-cyan-400" /> Types:
+          </span>
           {IPL_INTENT_TYPES.map((t) => (
             <button
               key={t.id}
               onClick={() => insertSnippetText(t.snippet, t.name)}
-              className="px-1.5 py-0.5 bg-[#161922] hover:bg-cyan-500/20 hover:text-cyan-300 border border-[#2a2f42] hover:border-cyan-500/40 rounded text-[10px] font-mono text-cyan-400 shrink-0 transition-colors"
+              className="px-1.5 py-0.5 bg-[#161922] hover:bg-cyan-500/25 hover:text-cyan-300 border border-[#2a2f42] hover:border-cyan-500/50 rounded text-[10px] font-mono text-cyan-400 transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-xs"
               title={`${t.description} (Target: ${t.targetMapping})`}
             >
               {t.name}
@@ -113,8 +115,8 @@ export const VerbPalette: React.FC = () => {
           ))}
         </div>
 
-        {/* Category Badges */}
-        <div className="flex items-center justify-between text-[10px] pt-1">
+        {/* Category Badges (Flex Wrap) */}
+        <div className="flex flex-wrap items-center gap-1 text-[10px] pt-1">
           {['all', 'verbs', 'types', 'data', 'action', 'control', 'flow'].map((cat) => (
             <button
               key={cat}
@@ -122,7 +124,7 @@ export const VerbPalette: React.FC = () => {
               className={`px-1.5 py-0.5 rounded capitalize transition-colors ${
                 filterCategory === cat
                   ? 'bg-cyan-500/20 text-cyan-300 font-semibold border border-cyan-500/30'
-                  : 'text-gray-400 hover:text-gray-200'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-[#161922]'
               }`}
             >
               {cat}
