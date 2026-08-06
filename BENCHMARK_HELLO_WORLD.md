@@ -31,12 +31,13 @@ return success
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Liquid LFM-2** | Local (LM Studio) | ~1.5B – 3B (~2 GB RAM) | 3 files | Minimalist single-card UI, direct DOM binding | Required Tailwind CDN tag in `<head>` for CSS gradient rendering | ✅ **SUCCESS** |
 | **Nvidia Nemotron 3 Nano 4B** | Local (LM Studio) | 4B (**2.84 GB RAM**) | 9 files | Header gradient blue/purple, tagged console log `[CREATED]`, `[SENT]`, `[SUCCESS]` | **None (0 Bug, 0 Friction)**. Pound-for-pound champion (2.84 GB), EventBus & Tailwind CDN included | ⭐ **PERFECT (10/10 1st Try)** |
+| **GPT-OSS 20B** | Local (LM Studio) | 20B (12.11 GB RAM) | 8 files | Glassmorphism Neon Purple, latency benchmarking (`in 2.00ms`) & Timezone | **None (0 Bug, 0 Friction)**. Included Tailwind CDN, auto-exec & execution speed benchmarking | ⭐ **PERFECT (10/10 1st Try)** |
 | **Bonsai 27B** | Local (PrismML 1-bit) | 27B (~3.9 GB RAM) | 12 files | Modular Event-Bus (IPC), separate `state.js`, `ipl-runtime.js` | Leaked Markdown subtitles between XML tags; omitted auto-exec on page load | ✅ **SUCCESS (After Parser Fix)** |
 | **Google Gemma 4-26B (a4b)** | Local (LM Studio) | 26B (~17 GB RAM) | 7 files | Multi-card UI with embedded dark terminal (`consoleOutput.js`) | **None (0 Bug, 0 Friction)**. Included Tailwind CDN & auto-execution out-of-the-box | ⭐ **PERFECT (10/10 1st Try)** |
-| **GPT-OSS 20B** | Local (LM Studio) | 20B (12.11 GB RAM) | 8 files | Glassmorphism Neon Purple, latency benchmarking (`in 2.00ms`) & Timezone | **None (0 Bug, 0 Friction)**. Included Tailwind CDN, auto-exec & execution speed benchmarking | ⭐ **PERFECT (10/10 1st Try)** |
 | **DeepSeek Coder V2 Lite Instruct** | Local (LM Studio) | ~16B / 2.4B active | 5 files | Dark Glassmorphic Dashboard with status indicators | **Runtime Crash**: Naive line-by-line regex parser in `ipl_interpreter.js` fails on multi-line `add message {}` block -> `IPL Error: Missing message definition` | ❌ **FAILURE (Runtime Bug)** |
 | **Qwen AgentWorld 35B (a3b)** | Local (LM Studio) | 35B (~12 GB RAM) | 8 files | 2-Column Split Layout + Magenta Gradient Banner & EventBus JS | **None (0 Bug, 0 Friction)**. Included Tailwind CDN, EventBus, auto-execution & syntax-highlighted editor box | ⭐ **PERFECT (10/10 1st Try)** |
 | **Microsoft Phi-4 Reasoning Plus** | Local (LM Studio) | ~14B (~9 GB RAM) | 6 files | Clean Card UI with Timezone Resolution | **None (0 Bug, 0 Friction)**. Included Tailwind CDN, auto-exec & dynamic Timezone (`Europe/Paris`) | ⭐ **PERFECT (10/10 1st Try)** |
+| **DeepSeek Flash 4** | Cloud API | API Cloud | 6 files | White card UI with blue gradient & status placeholders | **CORS Execution Blocking**: Used ES6 modules (`<script type="module">` & `import`). Browsers block local ES imports over `file://` protocol, freezing page on `Loading...` | ❌ **FAILURE (ES Module / CORS)** |
 
 ---
 
@@ -169,6 +170,22 @@ return success
 * **Friction / Bugs Encountered**:
   - **ZERO FRICTION (0 Bug, 0 Friction)**. Included `<script src="https://cdn.tailwindcss.com"></script>` in `<head>`, formatted clean XML tags, auto-executed on DOM load, and ran flawlessly out-of-the-box.
 * **Final Assessment**: **10/10 — Perfect Score (Latency Benchmarking & Neon Design)**.
+
+---
+
+### 9. ☁️ DeepSeek Flash 4 (Cloud API)
+* **Mode**: Cloud API
+* **File Topology (6 files)**:
+  * `index.html` (Clean white card layout with blue/indigo background gradient)
+  * `css/styles.css`
+  * `js/init.js`, `js/app.js`, `js/console.js`, `js/message.js`, `js/timestamp.js`
+* **Architectural Approach**:
+  * Modern modular ES6 Class architecture split across 5 script files (`init.js`, `app.js`, `console.js`, `message.js`, `timestamp.js`).
+* **Friction / Bugs Encountered**:
+  - **Bloqué par les Sécurités CORS des Navigateurs (ES6 Modules sur `file://`)** : DeepSeek Flash 4 a utilisé des modules ES6 (`<script type="module" src="js/init.js">` dans `index.html` et `import { HelloWorldApp } from './app.js'` dans `init.js`).
+  - Lorsque `index.html` est ouvert directement depuis le système de fichiers (`file:///D:/...`), tous les moteurs de navigateurs web (Chrome, Edge, Firefox) bloquent par sécurité les requêtes d'import de modules locaux avec une erreur CORS (`origin null`). 
+  - Résultat : Le script principal s'interrompt immédiatement avant la 1ère ligne de code, laissant l'application figée indéfiniment sur `Loading...` et `Computing...` !
+* **Final Assessment**: **❌ ÉCHEC (Fichiers ES Module inopérants sur protocole `file://`)**.
 
 ---
 
