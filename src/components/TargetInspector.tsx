@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Editor from '@monaco-editor/react';
 import { useIdeStore } from '../store/useIdeStore';
 import { buildProjectArtifact, downloadProjectZip } from '../engine/artifactGenerator';
 import { ChatPanel } from './ChatPanel';
@@ -15,6 +16,53 @@ import {
   MessageSquare,
   RefreshCw
 } from 'lucide-react';
+
+function getLanguageFromFilename(filename?: string): string {
+  if (!filename) return 'plaintext';
+  const ext = filename.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'js':
+    case 'jsx':
+    case 'mjs':
+      return 'javascript';
+    case 'ts':
+    case 'tsx':
+      return 'typescript';
+    case 'py':
+      return 'python';
+    case 'rs':
+      return 'rust';
+    case 'go':
+      return 'go';
+    case 'cpp':
+    case 'c':
+    case 'h':
+    case 'hpp':
+      return 'cpp';
+    case 'html':
+    case 'htm':
+      return 'html';
+    case 'css':
+      return 'css';
+    case 'json':
+      return 'json';
+    case 'yaml':
+    case 'yml':
+      return 'yaml';
+    case 'md':
+      return 'markdown';
+    case 'bat':
+    case 'cmd':
+      return 'bat';
+    case 'sh':
+    case 'bash':
+      return 'shell';
+    case 'ipl':
+      return 'ipl';
+    default:
+      return 'plaintext';
+  }
+}
 
 export const TargetInspector: React.FC = () => {
   const { 
@@ -261,9 +309,25 @@ export const TargetInspector: React.FC = () => {
                   <span>📄 Active File: <strong className="text-white">{currentFile?.relativePath}</strong></span>
                   <span>{currentFile?.content ? currentFile.content.length : 0} characters</span>
                 </div>
-                <pre className="flex-1 min-h-0 p-4 overflow-auto font-mono text-xs text-gray-200 leading-relaxed select-text whitespace-pre-wrap bg-[#0b0d13]">
-                  <code>{currentFile?.content || compiledCode}</code>
-                </pre>
+                <div className="flex-1 min-h-0 bg-[#0b0d13]">
+                  <Editor
+                    height="100%"
+                    language={getLanguageFromFilename(currentFile?.relativePath || '')}
+                    value={currentFile?.content || compiledCode || ''}
+                    theme="vs-dark"
+                    options={{
+                      readOnly: true,
+                      minimap: { enabled: false },
+                      scrollBeyondLastLine: false,
+                      fontSize: 12,
+                      lineNumbers: 'on',
+                      automaticLayout: true,
+                      folding: true,
+                      renderWhitespace: 'selection',
+                      fontFamily: "'Fira Code', 'Cascadia Code', Consolas, monospace"
+                    }}
+                  />
+                </div>
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center p-6 text-center text-gray-500">
