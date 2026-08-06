@@ -1,6 +1,71 @@
 import React, { useState } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
-import { Settings, X, Server, Key, ShieldCheck, Plus, Trash2, Code2, Cpu } from 'lucide-react';
+import { Settings, X, Server, Key, ShieldCheck, Plus, Trash2, Code2, Cpu, RefreshCw } from 'lucide-react';
+
+interface ProviderPreset {
+  id: string;
+  name: string;
+  endpoint: string;
+  apiKeyName: string;
+  models: string[];
+}
+
+const CLOUD_PROVIDERS: ProviderPreset[] = [
+  {
+    id: 'google-gemini',
+    name: '✨ Google Gemini API',
+    endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    apiKeyName: 'GEMINI_API_KEY',
+    models: ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
+  },
+  {
+    id: 'deepseek',
+    name: '🐳 DeepSeek Cloud',
+    endpoint: 'https://api.deepseek.com',
+    apiKeyName: 'DEEPSEEK_API_KEY',
+    models: ['deepseek-chat', 'deepseek-reasoner']
+  },
+  {
+    id: 'openai',
+    name: '⚡ OpenAI Cloud',
+    endpoint: 'https://api.openai.com',
+    apiKeyName: 'OPENAI_API_KEY',
+    models: ['gpt-4o', 'gpt-4o-mini', 'o1-preview', 'o3-mini']
+  },
+  {
+    id: 'openrouter',
+    name: '🌐 OpenRouter (Multi-Models)',
+    endpoint: 'https://openrouter.ai/api/v1',
+    apiKeyName: 'OPENROUTER_API_KEY',
+    models: [
+      'google/gemini-2.0-flash-lite-001',
+      'deepseek/deepseek-chat',
+      'anthropic/claude-3.5-sonnet',
+      'meta-llama/llama-3.3-70b-instruct'
+    ]
+  },
+  {
+    id: 'groq',
+    name: '🚀 Groq Cloud (Ultra-Fast)',
+    endpoint: 'https://api.groq.com/openai',
+    apiKeyName: 'GROQ_API_KEY',
+    models: ['llama-3.3-70b-versatile', 'mixtral-8x7b-32768', 'gemma2-9b-it']
+  },
+  {
+    id: 'mistral',
+    name: '🇫🇷 Mistral AI',
+    endpoint: 'https://api.mistral.ai',
+    apiKeyName: 'MISTRAL_API_KEY',
+    models: ['mistral-large-latest', 'mistral-small-latest', 'codestral-latest']
+  },
+  {
+    id: 'custom',
+    name: '⚙️ Mode Manuel / Endpoint Personnalisé',
+    endpoint: '',
+    apiKeyName: '',
+    models: []
+  }
+];
 
 export const SettingsModal: React.FC = () => {
   const { 
@@ -19,7 +84,59 @@ export const SettingsModal: React.FC = () => {
   const [newTargetPrompt, setNewTargetPrompt] = useState('');
   const [isAddingTarget, setIsAddingTarget] = useState(false);
 
+  const [selectedProviderId, setSelectedProviderId] = useState<string>(() => {
+    const matched = CLOUD_PROVIDERS.find(p => p.endpoint && llmConfig.externalEndpoint?.includes(p.endpoint.replace('https://', '')));
+    return matched ? matched.id : 'custom';
+  });
+
+  const [liveFetchedModels, setLiveFetchedModels] = useState<string[]>([]);
+  const [isFetchingModels, setIsFetchingModels] = useState(false);
+
   if (!isSettingsOpen) return null;
+
+  const currentProvider = CLOUD_PROVIDERS.find(p => p.id === selectedProviderId) || CLOUD_PROVIDERS[CLOUD_PROVIDERS.length - 1];
+
+  const handleSelectProvider = (providerId: string) => {
+    setSelectedProviderId(providerId);
+    const provider = CLOUD_PROVIDERS.find(p => p.id === providerId);
+    if (provider && provider.id !== 'custom') {
+      setLLMConfig({
+        externalEndpoint: provider.endpoint,
+        apiKeyName: provider.apiKeyName,
+        model: provider.models[0] || llmConfig.model
+      });
+    }
+  };
+
+  const handleFetchLiveModels = async () => {
+    const apiKey = llmConfig.customApiKey || (import.meta.env[llmConfig.apiKeyName] as string);
+    const endpoint = llmConfig.externalEndpoint;
+    if (!endpoint) return;
+
+    setIsFetchingModels(true);
+    try {
+      const baseUrl = endpoint.replace(/\/+$/, '').replace(/\/v1$/, '').replace(/\/v1\/chat\/completions$/, '');
+      const response = await fetch(`${baseUrl}/v1/models`, {
+        headers: apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const modelList = (data.data || data.models || []).map((m: any) => m.id || m.name).filter(Boolean);
+        if (modelList.length > 0) {
+          setLiveFetchedModels(modelList);
+          addLog(`Récupéré ${modelList.length} modèle(s) en direct depuis ${baseUrl} !`, 'success');
+        } else {
+          addLog(`Aucun modèle renvoyé par l'endpoint ${baseUrl}.`, 'warn');
+        }
+      } else {
+        addLog(`Erreur ${response.status} lors de la récupération des modèles depuis ${baseUrl}`, 'warn');
+      }
+    } catch (err: any) {
+      addLog(`Impossible de contacter ${endpoint}: ${err.message}`, 'error');
+    } finally {
+      setIsFetchingModels(false);
+    }
+  };
 
   const handleAddTarget = (e: React.FormEvent) => {
     e.preventDefault();
@@ -170,52 +287,124 @@ export const SettingsModal: React.FC = () => {
           )}
 
           {llmConfig.mode === 'external' && (
-            <div className="space-y-3 bg-[#0f1117] p-3.5 rounded-lg border border-[#2a2f42]">
+            <div className="space-y-3.5 bg-[#0f1117] p-4 rounded-lg border border-purple-500/30">
+              {/* 1. Choix du Fournisseur Cloud (Prédéterminé ou Manuel) */}
               <div>
-                <label className="block font-medium text-gray-300 mb-1">Remote API Endpoint (OpenAI / DeepSeek Compatible)</label>
+                <label className="block font-medium text-purple-300 mb-1">
+                  Fournisseur Cloud API (Adresse pré-configurée)
+                </label>
+                <select
+                  value={selectedProviderId}
+                  onChange={(e) => handleSelectProvider(e.target.value)}
+                  className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500 cursor-pointer font-mono"
+                >
+                  {CLOUD_PROVIDERS.map((provider) => (
+                    <option key={provider.id} value={provider.id} className="bg-[#161922] text-white">
+                      {provider.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 2. Endpoint Remote URL (Rempli automatiquement ou Manuel) */}
+              <div>
+                <label className="block font-medium text-gray-300 mb-1">
+                  Remote API Endpoint (URL Serveur)
+                </label>
                 <input
                   type="text"
                   value={llmConfig.externalEndpoint}
-                  onChange={(e) => setLLMConfig({ externalEndpoint: e.target.value })}
-                  className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-purple-300 focus:outline-none focus:border-purple-500"
-                  placeholder="https://api.deepseek.com"
+                  onChange={(e) => {
+                    setLLMConfig({ externalEndpoint: e.target.value });
+                    if (selectedProviderId !== 'custom') setSelectedProviderId('custom');
+                  }}
+                  className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-purple-300 focus:outline-none focus:border-purple-500 text-xs"
+                  placeholder="https://generativelanguage.googleapis.com/v1beta/openai"
                 />
               </div>
 
+              {/* 3. Choix du Modèle (Dropdown + Option Manuelle + Récupération en direct) */}
               <div>
-                <label className="block font-medium text-gray-300 mb-1">Model Name</label>
-                <input
-                  type="text"
-                  value={llmConfig.model}
-                  onChange={(e) => setLLMConfig({ model: e.target.value })}
-                  className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-white focus:outline-none focus:border-purple-500"
-                  placeholder="deepseek-chat"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-medium text-gray-300">Modèle Cible</label>
+                  <button
+                    type="button"
+                    onClick={handleFetchLiveModels}
+                    disabled={isFetchingModels}
+                    className="flex items-center space-x-1 text-[10px] text-cyan-400 hover:text-cyan-300 disabled:opacity-50 transition-colors"
+                    title="Interroger l'endpoint /v1/models pour charger la liste disponible"
+                  >
+                    <RefreshCw size={11} className={isFetchingModels ? 'animate-spin' : ''} />
+                    <span>{isFetchingModels ? 'Chargement...' : 'Récupérer modèles en direct'}</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {/* Select prédéfini / récupéré */}
+                  <select
+                    value={llmConfig.model}
+                    onChange={(e) => setLLMConfig({ model: e.target.value })}
+                    className="bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-xs text-white focus:outline-none focus:border-purple-500 cursor-pointer"
+                  >
+                    <optgroup label="📋 Modèles Recommandés" className="bg-[#161922] text-gray-400 font-bold">
+                      {(currentProvider.models.length > 0 ? currentProvider.models : [llmConfig.model]).map((m) => (
+                        <option key={m} value={m} className="bg-[#161922] text-white">
+                          {m}
+                        </option>
+                      ))}
+                    </optgroup>
+
+                    {liveFetchedModels.length > 0 && (
+                      <optgroup label="🌐 Modèles Découverts en Direct" className="bg-[#161922] text-cyan-400 font-bold">
+                        {liveFetchedModels.map((lm) => (
+                          <option key={lm} value={lm} className="bg-[#161922] text-white">
+                            {lm}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+
+                  {/* Champ d'entrée manuel libre */}
+                  <input
+                    type="text"
+                    value={llmConfig.model}
+                    onChange={(e) => setLLMConfig({ model: e.target.value })}
+                    className="bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-xs text-white focus:outline-none focus:border-purple-500"
+                    placeholder="Saisissez un modèle personnalisé..."
+                  />
+                </div>
               </div>
 
+              {/* 4. Clé d'API Directe */}
               <div>
-                <label className="block font-medium text-gray-300 mb-1">Direct API Key (Optionnel — Collez directement votre clé ici)</label>
+                <label className="block font-medium text-gray-300 mb-1">
+                  Clé d'API Directe (Optionnel — Collez directement votre clé ici)
+                </label>
                 <input
                   type="password"
                   value={llmConfig.customApiKey || ''}
                   onChange={(e) => setLLMConfig({ customApiKey: e.target.value })}
-                  className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-cyan-300 focus:outline-none focus:border-purple-500"
+                  className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-cyan-300 focus:outline-none focus:border-purple-500 text-xs"
                   placeholder="AIzaSy... ou sk-..."
                 />
               </div>
 
+              {/* 5. Variable d'Environnement */}
               <div>
-                <label className="block font-medium text-gray-300 mb-1">Environment Variable Name (ex: VITE_GEMINI_API_KEY)</label>
+                <label className="block font-medium text-gray-300 mb-1">
+                  Nom de Variable d'Environnement (ex: GEMINI_API_KEY)
+                </label>
                 <input
                   type="text"
                   value={llmConfig.apiKeyName}
                   onChange={(e) => setLLMConfig({ apiKeyName: e.target.value })}
-                  className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-amber-300 focus:outline-none focus:border-purple-500"
-                  placeholder="VITE_GEMINI_API_KEY"
+                  className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-amber-300 focus:outline-none focus:border-purple-500 text-xs"
+                  placeholder="GEMINI_API_KEY"
                 />
                 <div className="mt-1.5 flex items-start space-x-1.5 text-[10px] text-amber-400/90 leading-relaxed">
                   <ShieldCheck size={14} className="shrink-0 mt-0.5" />
-                  <span>Saisissez votre clé directement ci-dessus OU préfixez vos variables .env par <code>VITE_</code> (ex: <code>VITE_GEMINI_API_KEY</code>).</span>
+                  <span>Saisissez votre clé directement ci-dessus OU définissez votre variable dans votre fichier <code>.env</code>.</span>
                 </div>
               </div>
             </div>
