@@ -77,7 +77,8 @@ export const TargetInspector: React.FC = () => {
     activeProjectId, 
     writeArtifactToDisk,
     readArtifactFromDisk,
-    customTargets
+    customTargets,
+    rightSidebarWidth
   } = useIdeStore();
 
   const [activePanelTab, setActivePanelTab] = useState<'files' | 'chat'>('files');
@@ -179,7 +180,10 @@ export const TargetInspector: React.FC = () => {
   }[targetLang] || targetLang.toUpperCase());
 
   return (
-    <aside className="w-[480px] bg-[#161922] border-l border-[#2a2f42] flex flex-col h-full select-none">
+    <aside 
+      style={{ width: `${rightSidebarWidth}px` }} 
+      className="bg-[#161922] border-l border-[#2a2f42] flex flex-col h-full select-none shrink-0"
+    >
       {/* Panel Header Tabs */}
       <div className="h-10 border-b border-[#2a2f42] px-3 flex items-center justify-between shrink-0 bg-[#0f1117]">
         <div className="flex items-center space-x-1">

@@ -61,6 +61,12 @@ export interface IDEState {
   isProjectModalOpen: boolean;
   isGitModalOpen: boolean;
 
+  // Layout & Resizing
+  leftSidebarWidth: number;
+  rightSidebarWidth: number;
+  setLeftSidebarWidth: (width: number) => void;
+  setRightSidebarWidth: (width: number) => void;
+
   // Actions
   setCode: (newCode: string) => void;
   setTargetLang: (lang: TargetLanguage) => void;
@@ -317,6 +323,12 @@ export const useIdeStore = create<IDEState>()(
       isSettingsOpen: false,
       isProjectModalOpen: false,
       isGitModalOpen: false,
+
+      leftSidebarWidth: 280,
+      rightSidebarWidth: 520,
+
+      setLeftSidebarWidth: (w) => set({ leftSidebarWidth: Math.max(160, Math.min(650, w)) }),
+      setRightSidebarWidth: (w) => set({ rightSidebarWidth: Math.max(260, Math.min(950, w)) }),
 
       addCustomTarget: (newTarget) => {
         const id = newTarget.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
@@ -837,7 +849,9 @@ export const useIdeStore = create<IDEState>()(
         compiledCode: state.compiledCode,
         llmConfig: state.llmConfig,
         targetLang: state.targetLang,
-        customTargets: state.customTargets
+        customTargets: state.customTargets,
+        leftSidebarWidth: state.leftSidebarWidth,
+        rightSidebarWidth: state.rightSidebarWidth
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {

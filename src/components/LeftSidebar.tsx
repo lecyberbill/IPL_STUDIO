@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
 import { VerbPalette } from './VerbPalette';
 import { SourceFileTree } from './SourceFileTree';
+import { useIdeStore } from '../store/useIdeStore';
 import { Layers, FolderGit2 } from 'lucide-react';
 
 export const LeftSidebar: React.FC = () => {
+  const { leftSidebarWidth } = useIdeStore();
   const [activeTab, setActiveTab] = useState<'verbs' | 'sources'>('verbs');
 
   return (
-    <aside className="w-64 bg-[#161922] border-r border-[#2a2f42] flex flex-col h-full select-none shrink-0">
+    <aside 
+      style={{ width: `${leftSidebarWidth}px` }} 
+      className="bg-[#161922] border-r border-[#2a2f42] flex flex-col h-full select-none shrink-0"
+    >
       {/* Header Tabs */}
       <div className="h-10 border-b border-[#2a2f42] px-2 flex items-center justify-between bg-[#0f1117] shrink-0">
         <div className="flex items-center space-x-1 w-full">
