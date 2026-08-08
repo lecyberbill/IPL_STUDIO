@@ -41,11 +41,86 @@ export function treeToIPLCode(nodes: IPLBlockNode[], indentLevel = 0): string {
   }).join('\n\n');
 }
 
+// ---------------------------------------------------------------------------
+// Block-tree mutation helpers (Phase 6 reorder / move-by-drag)
+// ---------------------------------------------------------------------------
+
+function findNode(nodes: IPLBlockNode[], id: string): IPLBlockNode | undefined {
+  for (const n of nodes) {
+    if (n.id === id) return n;
+    const found = findNode(n.children, id);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+function isDescendant(nodes: IPLBlockNode[], ancestorId: string, candidateId: string): boolean {
+  const node = findNode(nodes, ancestorId);
+  if (!node) return false;
+  return !!findNode(node.children, candidateId);
+}
+
+function removeNode(nodes: IPLBlockNode[], id: string): { nodes: IPLBlockNode[]; removed: IPLBlockNode | null } {
+  let removed: IPLBlockNode | null = null;
+  const prune = (list: IPLBlockNode[]): IPLBlockNode[] => {
+    const out: IPLBlockNode[] = [];
+    for (const n of list) {
+      if (n.id === id) { removed = n; continue; }
+      out.push({ ...n, children: prune(n.children) });
+    }
+    return out;
+  };
+  return { nodes: prune(nodes), removed };
+}
+
+function insertRelative(
+  nodes: IPLBlockNode[],
+  targetId: string,
+  newNode: IPLBlockNode,
+  position: 'before' | 'after'
+): IPLBlockNode[] {
+  const ins = (list: IPLBlockNode[]): IPLBlockNode[] => {
+    const out: IPLBlockNode[] = [];
+    for (const n of list) {
+      if (n.id === targetId) {
+        if (position === 'before') out.push(newNode, n);
+        else out.push(n, newNode);
+      } else {
+        out.push({ ...n, children: ins(n.children) });
+      }
+    }
+    return out;
+  };
+  return ins(nodes);
+}
+
+function appendTo(nodes: IPLBlockNode[], containerId: string, newNode: IPLBlockNode): IPLBlockNode[] {
+  return nodes.map(n => {
+    if (n.id === containerId) return { ...n, children: [...n.children, newNode] };
+    return { ...n, children: appendTo(n.children, containerId, newNode) };
+  });
+}
+
+function createNodeFromSnippet(snippet: string, prefix = ''): IPLBlockNode {
+  const firstLine = snippet.split('\n')[0].replace(/\{$/, '').trim();
+  const firstWord = firstLine.split(' ')[0];
+  const foundVerb = IPL_VERBS.find(v => v.name === firstWord);
+  return {
+    id: `${prefix}node-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+    verbName: foundVerb?.name,
+    category: foundVerb?.category || 'action',
+    headerText: firstLine,
+    children: []
+  };
+}
+
 export const BlockViewEditor: React.FC = () => {
   const { code, setCode, setEditorViewMode, addLog } = useIdeStore();
   const [tree, setTree] = useState<IPLBlockNode[]>(() => parseIPLToTree(code));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState<string>('');
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ id: string; position: 'before' | 'after' } | null>(null);
 
   // Phase 6 — semantic state (declared / produced / unknown) derived from the
   // reference index, refreshed whenever the tree or source changes.
@@ -56,6 +131,74 @@ export const BlockViewEditor: React.FC = () => {
     setTree(newTree);
     const newIPLCode = treeToIPLCode(newTree);
     setCode(newIPLCode);
+  };
+
+  // Drag & drop reorder: pick a block up, drop it before/after another block
+  // or into a container's nest zone. Palette snippets (no block id) insert as
+  // new blocks at the drop position.
+  const handleBlockDragStart = (e: React.DragEvent, id: string) => {
+    e.dataTransfer.setData('application/x-ipl-block-id', id);
+    e.dataTransfer.effectAllowed = 'move';
+    setDragId(id);
+  };
+
+  const handleBlockDragEnd = () => {
+    setDragId(null);
+    setDropTarget(null);
+  };
+
+  const handleReorderDrop = (e: React.DragEvent, targetId: string, position: 'before' | 'after') => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragId(null);
+    setDropTarget(null);
+
+    const blockId = e.dataTransfer.getData('application/x-ipl-block-id');
+    if (blockId) {
+      if (blockId === targetId || isDescendant(tree, blockId, targetId)) return;
+      const { nodes, removed } = removeNode(tree, blockId);
+      if (!removed) return;
+      const updated = insertRelative(nodes, targetId, removed, position);
+      updateTreeAndCode(updated);
+      addLog(`Block "${removed.verbName || 'action'}" moved.`, 'success');
+      return;
+    }
+
+    const snippet = e.dataTransfer.getData('text/plain');
+    if (snippet) {
+      const newNode = createNodeFromSnippet(snippet, 'node-drop-');
+      const updated = insertRelative(tree, targetId, newNode, position);
+      updateTreeAndCode(updated);
+      addLog(`Block dropped from the palette.`, 'success');
+    }
+  };
+
+  // Drop directly on a container block's drop zone (palette snippet OR existing
+  // block nested into the container).
+  const handleDropOnContainer = (e: React.DragEvent, parentId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragId(null);
+    setDropTarget(null);
+
+    const blockId = e.dataTransfer.getData('application/x-ipl-block-id');
+    if (blockId) {
+      if (blockId === parentId || isDescendant(tree, blockId, parentId)) return;
+      const { nodes, removed } = removeNode(tree, blockId);
+      if (!removed) return;
+      const updated = appendTo(nodes, parentId, removed);
+      updateTreeAndCode(updated);
+      addLog(`Block "${removed.verbName || 'action'}" nested inside the container.`, 'success');
+      return;
+    }
+
+    const snippet = e.dataTransfer.getData('text/plain');
+    if (snippet) {
+      const newNode = createNodeFromSnippet(snippet, 'node-drop-');
+      const updated = appendTo(tree, parentId, newNode);
+      updateTreeAndCode(updated);
+      addLog(`Block dropped and nested successfully!`, 'success');
+    }
   };
 
   // Add a nested sub-block inside a parent block
@@ -122,43 +265,6 @@ export const BlockViewEditor: React.FC = () => {
     setEditingId(null);
   };
 
-  // Drop directly on a container block's drop zone
-  const handleDropOnContainer = (e: React.DragEvent, parentId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const snippet = e.dataTransfer.getData('text/plain');
-    if (snippet) {
-      const firstLine = snippet.split('\n')[0].replace(/\{$/, '').trim();
-      const firstWord = firstLine.split(' ')[0];
-      const foundVerb = IPL_VERBS.find(v => v.name === firstWord);
-
-      const newNode: IPLBlockNode = {
-        id: `node-drop-${Date.now()}`,
-        verbName: foundVerb?.name,
-        category: foundVerb?.category || 'action',
-        headerText: firstLine,
-        children: []
-      };
-
-      const addRecursive = (nodes: IPLBlockNode[]): IPLBlockNode[] => {
-        return nodes.map(node => {
-          if (node.id === parentId) {
-            return { ...node, children: [...node.children, newNode] };
-          }
-          if (node.children.length > 0) {
-            return { ...node, children: addRecursive(node.children) };
-          }
-          return node;
-        });
-      };
-
-      const updated = addRecursive(tree);
-      updateTreeAndCode(updated);
-      addLog(`Block dropped and nested successfully!`, 'success');
-    }
-  };
-
   // Atelier Dark block colors by category
   const categoryStyles: Record<string, { bg: string, border: string, text: string, accent: string }> = {
     data: { bg: 'bg-sky-950/40', border: 'border-sky-500/50', text: 'text-sky-300', accent: 'bg-sky-500' },
@@ -181,12 +287,42 @@ export const BlockViewEditor: React.FC = () => {
     const isEditing = editingId === node.id;
     const isContainer = node.category === 'control' || node.verbName === 'for' || node.verbName === 'if' || node.verbName === 'try' || node.verbName === 'listen' || node.children.length > 0;
 
-    return (
-      <div 
-        key={node.id}
-        className={`relative my-2 rounded-xl border ${style.border} ${style.bg} p-3 transition-all duration-150 shadow-lg`}
+    const barClass = (position: 'before' | 'after') =>
+      `h-1.5 rounded-md transition-all border ${
+        dropTarget && dropTarget.id === node.id && dropTarget.position === position
+          ? 'bg-cyan-500/70 border-cyan-400'
+          : dragId
+            ? 'bg-cyan-500/15 border-cyan-500/30'
+            : 'bg-transparent border-transparent'
+      }`;
+
+    const dropBar = (position: 'before' | 'after') => (
+      <div
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDropTarget({ id: node.id, position }); }}
+        onDragLeave={() => {
+          if (dropTarget?.id === node.id && dropTarget.position === position) setDropTarget(null);
+        }}
+        onDrop={(e) => handleReorderDrop(e, node.id, position)}
+        className={barClass(position)}
         style={{ marginLeft: `${depth * 14}px` }}
-      >
+        title={dragId ? 'Drop here to reorder' : undefined}
+      />
+    );
+
+    return (
+      <React.Fragment key={node.id}>
+        {dropBar('before')}
+        <div
+          draggable={!isEditing}
+          onDragStart={(e) => handleBlockDragStart(e, node.id)}
+          onDragEnd={handleBlockDragEnd}
+          className={`relative my-2 rounded-xl border ${style.border} ${style.bg} p-3 transition-all duration-150 shadow-lg ${
+            dragId === node.id ? 'opacity-40 border-dashed' : ''
+          } ${dragId && dragId !== node.id ? 'cursor-grab active:cursor-grabbing' : ''}`}
+          style={{ marginLeft: `${depth * 14}px` }}
+          title={dragId && dragId !== node.id ? 'Drop a block here to reorder' : undefined}
+        >
         {/* Block Header */}
         <div className="flex items-center justify-between font-mono text-xs">
           <div className="flex items-center space-x-2.5 flex-1 pr-2">
@@ -267,7 +403,7 @@ export const BlockViewEditor: React.FC = () => {
             >
               <div className="flex items-center space-x-2">
                 <CornerDownRight size={14} className="text-cyan-400 group-hover/drop:translate-x-0.5 transition-transform" />
-                <span className="font-mono text-[11px]">📥 Drag & drop a block from the left panel HERE to nest it</span>
+                <span className="font-mono text-[11px]">📥 Drag & drop a block (or a palette verb) HERE to nest it</span>
               </div>
 
               <button
@@ -281,7 +417,9 @@ export const BlockViewEditor: React.FC = () => {
             </div>
           </div>
         )}
-      </div>
+        </div>
+        {dropBar('after')}
+      </React.Fragment>
     );
   };
 

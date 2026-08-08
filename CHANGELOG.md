@@ -68,6 +68,9 @@ All notable changes to **IPL Studio** are documented in this file.
 - **Two new editor-actionable quick-fixes**: missing `=` in `set` ("Insert \" = \"") and unknown intent type ("Replace X with text"). The unknown-intent-type fix is flagged `auto: false` — actionable in the editor/panel but **never** auto-applied by the deterministic pre-generation repair (lossy guess).
 - **18 new tests** (`iplRefs.test.ts` 16: index, resolution, reference extraction, statement names, annotation; `iplQuickFix.test.ts` +2: missing-`=` auto-fix, intent-type non-auto) → now **81 tests across 7 suites**.
 
+### 🧲 AST Block Reorder (drag & drop)
+- Existing blocks in the visual editor are now **draggable**: pick a block up and drop it on the thin **reorder bars** (appear between blocks during a drag) to move it **before/after** any other block, including across containers. Dropping onto a container's dashed nest zone **nests** the block inside it (cycle-guarded). Palette verbs can also be dropped onto the reorder bars to insert a new block at that position. The dragged block dims while in flight; targets highlight cyan on hover.
+
 ### 🌍 Internationalization (French → English)
 - Translated all remaining French UI strings, comments, tutorials (`iplTutorialLessons.ts` fully rewritten), artifact content, and config comments to English.
 

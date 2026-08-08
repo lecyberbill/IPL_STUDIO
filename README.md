@@ -69,6 +69,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the complete list of release notes, version
 - **Contextual Autocomplete**: Smart suggestions for IPL verbs, intent types, and declared project symbols.
 - **Diagnostics Panel**: bottom-panel tab with severity filter, jump-to-line, and one-click application of every advisory quick-fix.
 - **Semantic block tree**: visual editor badges each block `declared` / `produced` / `unknown`.
+- **Block reorder by drag**: drag any block onto the between-block bars to move it before/after others (or onto a container's nest zone to nest it); palette verbs insert as new blocks at the drop position.
 
 ---
 
