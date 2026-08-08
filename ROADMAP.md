@@ -22,10 +22,11 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 | **M3 — Semantic Verification** | `iplSemantics.ts`: duplicate declarations, unknown intent types, unprotected I/O in `listen`, unknown `set` targets — all advisory, merged into `validateIPLCode`. | `97fb072` — cross-reference checks |
 | **T1 — Test Suite** | Vitest (38 tests) covering parser, semantics, and grammar signature. `npm test`. | `932f0a6` — first test infrastructure |
 | **M0 — Foundations** | French→English i18n sweep, absolute output paths outside the workspace, terminology rename (compiler → generator). | `2a44877` / `bbddc33` / `9a0cf16` |
+| **Phase 4 — Benchmark Harness** | `scripts/run-benchmark.ts` + `npm run bench`: real 2-Pass e2e vs `deepseek-chat` (60% first-try PASS, 0 FAIL), mock mode for CI, Markdown reports with latency/tokens/files. | `088337e` — harness; real-endpoint run validated |
 
 ---
 
-## 🟡 Phase 4 — Automated Benchmark Harness & Quality Gates *(in progress)*
+## ✅ Phase 4 — Automated Benchmark Harness & Quality Gates *(done)*
 
 **Objective**: Prove the 2-Pass engine end-to-end against real LLM endpoints and quantify "first-try" success.
 
@@ -37,10 +38,10 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 
 **Acceptance criteria**:
 - [x] `npm run bench -- --mode mock` passes on a clean checkout without any LLM/network.
-- [ ] `npm run bench` produces a report for a real configured endpoint.
+- [x] `npm run bench` produces a report for a real configured endpoint.
 - [x] Report records per-pass latency, approx. tokens, file count, and first-try status.
 
-**Status**: 🟡 in progress (Phase 4a: harness done; awaiting a real-endpoint run).
+**Status**: 🟢 done (`088337e` + real-endpoint run `deepseek-chat`: 60% first-try PASS / 0 FAIL; WARNs only from missing local Python and a `node-hello` entry-point miss). The `:qg` CI quality-gate is deferred and folded into Phase 10's scorecard.
 
 ---
 

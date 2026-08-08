@@ -40,6 +40,7 @@ All notable changes to **IPL Studio** are documented in this file.
   - ES-module usage (`<script type="module">`) always FAILs `html` targets (the documented CORS/`file://` failure mode).
 - **Node-compatible engine**: `artifactGenerator.ts` now imports the browser-only `file-saver` lazily inside `downloadProjectZip`, so the parser + artifact pipeline run under plain Node (benchmarks/CLI tooling).
 - **Prompt builders exported** from `llmGenerator.ts` (`buildLangInstruction`, `buildPass1Prompt`, `buildPass2Prompt`) enabling per-pass measurement in the harness.
+- **Real-endpoint validation** against `deepseek-chat`: first real run **60% first-try PASS, 0 FAIL** (WARNs only from missing local Python and a `node-hello` entry-point miss). Phase 4 acceptance criteria met.
 
 ### 🌍 Internationalization (French → English)
 - Translated all remaining French UI strings, comments, tutorials (`iplTutorialLessons.ts` fully rewritten), artifact content, and config comments to English.
