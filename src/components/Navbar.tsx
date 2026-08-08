@@ -1,6 +1,6 @@
 import React from 'react';
 import { useIdeStore } from '../store/useIdeStore';
-import type { TargetLanguage } from '../engine/llmCompiler';
+import type { TargetLanguage } from '../engine/llmGenerator';
 import { 
   Play, 
   Settings, 
@@ -19,8 +19,8 @@ export const Navbar: React.FC = () => {
   const { 
     targetLang, 
     setTargetLang, 
-    runCompilation, 
-    isCompiling, 
+    runGeneration, 
+    isGenerating, 
     editorViewMode, 
     setEditorViewMode,
     toggleSettings,
@@ -172,7 +172,7 @@ export const Navbar: React.FC = () => {
         </div>
       </div>
 
-      {/* Right Actions: Git, Export, Compile & Settings */}
+      {/* Right Actions: Git, Export, Generate & Settings */}
       <div className="flex items-center space-x-3">
         <button
           onClick={toggleGitModal}
@@ -209,14 +209,14 @@ export const Navbar: React.FC = () => {
           <Settings size={16} />
         </button>
 
-        {/* Compile Button */}
+        {/* Generate Button */}
         <button
-          onClick={runCompilation}
-          disabled={isCompiling}
+          onClick={runGeneration}
+          disabled={isGenerating}
           className="flex items-center space-x-2 px-4 py-1.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 text-black font-bold rounded-lg text-xs transition-all shadow-lg shadow-cyan-500/20 active:scale-95"
         >
-          <Play size={14} className="fill-black" />
-          <span>{isCompiling ? 'Compiling...' : 'Compile (Ctrl+Enter)'}</span>
+          <Play size={14} className="fill-current" />
+          <span>{isGenerating ? 'Generating...' : 'Generate (Ctrl+Enter)'}</span>
         </button>
       </div>
     </header>

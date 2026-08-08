@@ -12,7 +12,7 @@ export interface ChatMessage {
 }
 
 export const ChatPanel: React.FC = () => {
-  const { requestLLMCorrection, isCompiling, addLog } = useIdeStore();
+  const { requestLLMCorrection, isGenerating, addLog } = useIdeStore();
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
@@ -26,11 +26,11 @@ export const ChatPanel: React.FC = () => {
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isCompiling]);
+  }, [messages, isGenerating]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputPrompt.trim() || isCompiling) return;
+    if (!inputPrompt.trim() || isGenerating) return;
 
     const userText = inputPrompt.trim();
     const userMsg: ChatMessage = {
@@ -70,7 +70,7 @@ export const ChatPanel: React.FC = () => {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (inputPrompt.trim() && !isCompiling) {
+      if (inputPrompt.trim() && !isGenerating) {
         handleSend(e as unknown as React.FormEvent);
       }
     }
@@ -131,7 +131,7 @@ export const ChatPanel: React.FC = () => {
           </div>
         ))}
 
-        {isCompiling && (
+        {isGenerating && (
           <div className="flex items-center space-x-2 p-3 bg-[#161922] border border-[#2a2f42] rounded-xl text-cyan-400 text-xs animate-pulse select-none">
             <RefreshCw size={14} className="animate-spin" />
             <span>LLM Architect is thinking...</span>
@@ -150,13 +150,13 @@ export const ChatPanel: React.FC = () => {
             value={inputPrompt}
             onChange={(e) => setInputPrompt(e.target.value)}
             onKeyDown={handleKeyDown}
-            disabled={isCompiling}
+            disabled={isGenerating}
             className="flex-1 bg-[#161922] border border-[#2a2f42] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 disabled:opacity-50 font-sans resize-none min-h-[42px] max-h-[140px] scrollbar-thin select-text"
           />
 
           <button
             type="submit"
-            disabled={!inputPrompt.trim() || isCompiling}
+            disabled={!inputPrompt.trim() || isGenerating}
             className="px-3.5 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-40 text-black font-bold rounded-lg text-xs transition-all shadow flex items-center space-x-1 shrink-0 select-none h-[42px]"
           >
             <Send size={13} />

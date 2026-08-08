@@ -142,7 +142,7 @@ When acting as an IPL AI Architect:
 
 ---
 
-## 🛠️ 5. Instructions for LLM Compilers & Code Generators (Building Target Apps)
+## 🛠️ 5. Instructions for LLM Code Generators (Building Target Apps)
 
 When consuming IPL code to generate target application software (HTML/JS, Python, Rust, Go, C++, etc.):
 1. **Treat IPL as Structured Pseudo-Code**: Recognize IPL as high-level business requirements describing the intended application behavior.

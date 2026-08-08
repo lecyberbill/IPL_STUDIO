@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import type { TargetLanguage } from './llmCompiler';
+import type { TargetLanguage } from './llmGenerator';
 
 export interface ProjectArtifactFile {
   relativePath: string;
@@ -168,13 +168,13 @@ export function parseMultiFileXml(rawOutput: string, existingFiles: ProjectArtif
 export function buildProjectArtifact(
   projectName: string,
   targetLang: TargetLanguage,
-  compiledCode: string,
+  generatedCode: string,
   iplCode: string
 ): ProjectArtifact {
   const safeName = projectName.toLowerCase().replace(/[^a-z0-9]/g, '_');
   let files: ProjectArtifactFile[] = [];
 
-  if (!compiledCode || !compiledCode.trim()) {
+  if (!generatedCode || !generatedCode.trim()) {
     return {
       projectName,
       targetLang,
@@ -182,8 +182,8 @@ export function buildProjectArtifact(
     };
   }
 
-  // Tenter de découper le code compilé si le LLM a renvoyé des balises <file path="...">
-  const parsedFiles = parseMultiFileXml(compiledCode);
+  // Tenter de découper le code généré si le LLM a renvoyé des balises <file path="...">
+  const parsedFiles = parseMultiFileXml(generatedCode);
   if (parsedFiles.length > 0) {
     files = parsedFiles;
   }
@@ -197,7 +197,7 @@ export function buildProjectArtifact(
       });
       files.push({
         relativePath: 'src/main.rs',
-        content: compiledCode
+        content: generatedCode
       });
       files.push({
         relativePath: 'README.md',
@@ -210,7 +210,7 @@ export function buildProjectArtifact(
     } else if (targetLang === 'python') {
       files.push({
         relativePath: 'main.py',
-        content: compiledCode
+        content: generatedCode
       });
       files.push({
         relativePath: 'requirements.txt',
@@ -238,7 +238,7 @@ export function buildProjectArtifact(
       });
       files.push({
         relativePath: 'index.js',
-        content: compiledCode
+        content: generatedCode
       });
       files.push({
         relativePath: 'README.md',
@@ -251,7 +251,7 @@ export function buildProjectArtifact(
       });
       files.push({
         relativePath: 'main.go',
-        content: compiledCode
+        content: generatedCode
       });
       files.push({
         relativePath: 'README.md',
@@ -264,7 +264,7 @@ export function buildProjectArtifact(
       });
       files.push({
         relativePath: 'main.cpp',
-        content: compiledCode
+        content: generatedCode
       });
       files.push({
         relativePath: 'README.md',
@@ -273,7 +273,7 @@ export function buildProjectArtifact(
     } else if (targetLang === 'html') {
       files.push({
         relativePath: 'index.html',
-        content: compiledCode
+        content: generatedCode
       });
       files.push({
         relativePath: 'README.md',
@@ -282,7 +282,7 @@ export function buildProjectArtifact(
     } else {
       files.push({
         relativePath: 'main.pll',
-        content: compiledCode
+        content: generatedCode
       });
       files.push({
         relativePath: 'README.md',
@@ -312,10 +312,10 @@ export function buildProjectArtifact(
 export async function downloadProjectZip(
   projectName: string,
   targetLang: TargetLanguage,
-  compiledCode: string,
+  generatedCode: string,
   iplCode: string
 ): Promise<void> {
-  const artifact = buildProjectArtifact(projectName, targetLang, compiledCode, iplCode);
+  const artifact = buildProjectArtifact(projectName, targetLang, generatedCode, iplCode);
   const zip = new JSZip();
 
   const folderName = `${projectName.toLowerCase().replace(/\s+/g, '_')}_${targetLang}`;

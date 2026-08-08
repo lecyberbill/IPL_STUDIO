@@ -71,9 +71,9 @@ function getLanguageFromFilename(filename?: string): string {
 
 export const TargetInspector: React.FC = () => {
   const { 
-    compiledCode, 
+    generatedCode, 
     targetLang, 
-    isCompiling, 
+    isGenerating, 
     toggleSettings,
     code, 
     projects, 
@@ -109,21 +109,21 @@ export const TargetInspector: React.FC = () => {
   const artifact = buildProjectArtifact(
     activeProject?.name || 'ipl_project',
     targetLang,
-    compiledCode,
+    generatedCode,
     code
   );
 
   const files = artifact.files;
-  const currentFile = files.find(f => f.relativePath === selectedFilePath) || files[0] || { relativePath: 'code.txt', content: compiledCode };
+  const currentFile = files.find(f => f.relativePath === selectedFilePath) || files[0] || { relativePath: 'code.txt', content: generatedCode };
 
   useEffect(() => {
     if (files.length > 0 && (!selectedFilePath || !files.some(f => f.relativePath === selectedFilePath))) {
       setSelectedFilePath(files[0].relativePath);
     }
-  }, [compiledCode, targetLang, files]);
+  }, [generatedCode, targetLang, files]);
 
   const handleCopy = () => {
-    const textToCopy = currentFile ? currentFile.content : compiledCode;
+    const textToCopy = currentFile ? currentFile.content : generatedCode;
     if (textToCopy) {
       navigator.clipboard.writeText(textToCopy);
       setCopied(true);
@@ -140,13 +140,13 @@ export const TargetInspector: React.FC = () => {
   };
 
   const handleExportZip = async () => {
-    if (!compiledCode) return;
+    if (!generatedCode) return;
     setIsExporting(true);
     try {
       await downloadProjectZip(
         activeProject?.name || 'ipl_project',
         targetLang,
-        compiledCode,
+        generatedCode,
         code
       );
     } catch (e) {
@@ -157,7 +157,7 @@ export const TargetInspector: React.FC = () => {
   };
 
   const handleWriteDisk = async () => {
-    if (!compiledCode) return;
+    if (!generatedCode) return;
     setIsWritingDisk(true);
     try {
       await writeArtifactToDisk();
@@ -233,7 +233,7 @@ export const TargetInspector: React.FC = () => {
             <>
               <button
                 onClick={handleWriteDisk}
-                disabled={isWritingDisk || !compiledCode}
+                disabled={isWritingDisk || !generatedCode}
                 className="flex items-center space-x-1 px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-black font-bold rounded text-[11px] transition-all shadow"
                 title="Write files to disk output folder"
               >
@@ -256,7 +256,7 @@ export const TargetInspector: React.FC = () => {
           {activePanelTab === 'files' && (
             <button
               onClick={handleCopy}
-              disabled={!compiledCode}
+              disabled={!generatedCode}
               className="p-1 text-gray-400 hover:text-white hover:bg-[#2a2f42] rounded transition-colors disabled:opacity-40"
               title="Copy active file content"
             >
@@ -278,7 +278,7 @@ export const TargetInspector: React.FC = () => {
               <span>{activeTargetDisplayName}</span>
             </div>
             <span className="text-gray-500">
-              {isCompiling ? 'Generating code...' : files.length > 0 ? `${files.length} file(s)` : 'Idle'}
+              {isGenerating ? 'Generating code...' : files.length > 0 ? `${files.length} file(s)` : 'Idle'}
             </span>
           </div>
 
@@ -361,11 +361,11 @@ export const TargetInspector: React.FC = () => {
 
           {/* Code Viewer Area */}
           <div className="flex-1 min-h-0 overflow-hidden relative">
-            {isCompiling ? (
+            {isGenerating ? (
               <div className="h-full flex flex-col items-center justify-center p-6 text-center space-y-3 bg-[#0f1117]/80 backdrop-blur-xs">
                 <div className="w-10 h-10 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
                 <div className="font-semibold text-cyan-300 text-xs tracking-wider">
-                  2-PASS LLM COMPILER IN PROGRESS...
+                  2-PASS LLM CODE GENERATOR IN PROGRESS...
                 </div>
                 <p className="text-[11px] text-gray-400 max-w-xs leading-relaxed">
                   Pass 1: Topology & Module Structure<br/>
@@ -373,7 +373,7 @@ export const TargetInspector: React.FC = () => {
                 </p>
                 <div className="flex items-center space-x-2 pt-2">
                   <button
-                    onClick={() => useIdeStore.setState({ isCompiling: false })}
+                    onClick={() => useIdeStore.setState({ isGenerating: false })}
                     className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-300 text-[11px] rounded transition-colors font-medium"
                   >
                     Annuler / Réinitialiser
@@ -387,7 +387,7 @@ export const TargetInspector: React.FC = () => {
                   </button>
                 </div>
               </div>
-            ) : (files.length > 0 || compiledCode) ? (
+            ) : (files.length > 0 || generatedCode) ? (
               <div className="w-full h-full flex flex-col overflow-hidden">
                 <div className="px-3 py-1.5 bg-[#0f1117]/90 text-[10px] font-mono text-cyan-300 border-b border-[#2a2f42] flex items-center justify-between shrink-0">
                   <div className="flex items-center space-x-2 min-w-0 flex-1 pr-2">
@@ -415,7 +415,7 @@ export const TargetInspector: React.FC = () => {
                   <Editor
                     height="100%"
                     language={getLanguageFromFilename(currentFile?.relativePath || '')}
-                    value={currentFile?.content || compiledCode || ''}
+                    value={currentFile?.content || generatedCode || ''}
                     theme="vs-dark"
                     options={{
                       readOnly: true,
@@ -436,7 +436,7 @@ export const TargetInspector: React.FC = () => {
                 <Code size={36} className="text-gray-600 mb-2" />
                 <p className="font-semibold text-xs text-gray-400">No project generated yet.</p>
                 <p className="text-[11px] max-w-xs mt-1 text-gray-500">
-                  Click <strong className="text-cyan-400">Compile (Ctrl+Enter)</strong> in the top navbar to synthesize your IPL specification into code.
+                  Click <strong className="text-cyan-400">Generate (Ctrl+Enter)</strong> in the top navbar to synthesize your IPL specification into code.
                 </p>
               </div>
             )}

@@ -15,7 +15,7 @@ import { useIdeStore } from './store/useIdeStore';
 export const App: React.FC = () => {
   const { 
     editorViewMode, 
-    runCompilation, 
+    runGeneration, 
     isGitModalOpen, 
     toggleGitModal,
     isTutorialOpen,
@@ -54,18 +54,18 @@ export const App: React.FC = () => {
     };
   }, [isResizingLeft, isResizingRight, setLeftSidebarWidth, setRightSidebarWidth]);
 
-  // Écouteur global du raccourci clavier Ctrl + Entrée (ou Cmd + Entrée) pour lancer la compilation
+  // Écouteur global du raccourci clavier Ctrl + Entrée (ou Cmd + Entrée) pour lancer la génération
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
-        runCompilation();
+        runGeneration();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [runCompilation]);
+  }, [runGeneration]);
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0f1117] text-gray-100 overflow-hidden font-sans select-none">

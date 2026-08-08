@@ -34,7 +34,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the complete list of release notes, version
 - **7 Human Intent Types**: Constrained type declarations (`text`, `number`, `boolean`, `id`, `date`, `options(...)`, `list`).
 - Monarch syntax highlighting powered by **Monaco Editor** and visual AST block representation.
 
-### 🌐 2. Polyglot 2-Pass LLM Compiler Engine
+### 🌐 2. Polyglot 2-Pass LLM Code Generator Engine
 - **Pass 1 (Architect)**: Analyzes domain intent and designs multi-file project topology in JSON.
 - **Pass 2 (Generator)**: Synthesizes complete XML-tagged source code files with real-time streaming (LM Studio / Ollama / Cloud APIs).
 - **Bi-Directional Disk Sync**: Physical file materialization (`IDE ➔ Disk`) and pull synchronization (`Disk ➔ IDE`).
@@ -67,7 +67,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the complete list of release notes, version
 ```mermaid
 flowchart TD
     A[Monaco Code / AST Blocks] -->|Write Intent DSL| B[resolveIPLImports Preprocessor]
-    B -->|Unified IPL Code| C[2-Pass LLM Compiler]
+    B -->|Unified IPL Code| C[2-Pass LLM Code Generator]
     C -->|Pass 1 JSON Topology| D[LLM Architect / LM Studio / Ollama / DeepSeek]
     D -->|Pass 2 XML Files| E[Disk Writer /api/write-artifact]
     E -->|Write Files| F[Physical Directory ./output/project]
@@ -131,7 +131,7 @@ IPL_STUDIO/
 ├── output/                   # Physical disk target folder for generated projects
 ├── src/
 │   ├── components/           # UI components (Monaco, Terminal, Git, Chat, Inspector, etc.)
-│   ├── engine/               # LLM Compiler engine, IPL Grammar, Artifact Generator
+│   ├── engine/               # LLM Code Generator engine, IPL Grammar, Artifact Generator
 │   ├── store/                # Zustand global store (IDE State, Layout Persistence)
 │   ├── App.tsx               # Main IDE Layout
 │   └── main.tsx              # React Entrypoint

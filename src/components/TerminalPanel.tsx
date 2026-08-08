@@ -200,7 +200,7 @@ export const TerminalPanel: React.FC = () => {
             onClick={handleAgentAutoFix}
             disabled={isRunning}
             className="flex items-center space-x-1 px-2.5 py-0.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-40 text-white font-bold rounded text-[11px] transition-all shadow"
-            title="Trigger autonomous self-healing agent to auto-debug & fix compiler/runtime errors"
+            title="Trigger autonomous self-healing agent to auto-debug & fix build/runtime errors"
           >
             {isRunning ? <RefreshCw size={12} className="animate-spin text-white" /> : <Bot size={12} />}
             <span>🤖 Auto-Fix (Agent)</span>

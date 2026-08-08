@@ -1,5 +1,5 @@
 /**
- * Moteur de Compilation LLM Polyglotte 2-Passes
+ * Moteur de Génération LLM Polyglotte 2-Passes
  * Transforme les déclarations d'intentions IPL en applications multi-fichiers complètes.
  */
 
@@ -241,9 +241,9 @@ export async function callLLM(
 }
 
 /**
- * Compiles IPL Intent code into a production-ready multi-file application (Two-Pass LLM Compiler)
+ * Generates a production-ready multi-file application from IPL Intent code (Two-Pass LLM Code Generator)
  */
-export async function compileIPL(
+export async function generateIPL(
   iplCode: string,
   targetLang: TargetLanguage,
   config: LLMConfig,
@@ -251,7 +251,7 @@ export async function compileIPL(
   onStreamChunk?: (accumulatedText: string) => void,
   polyglotConfig?: { autoDecide: boolean; layers: Array<{ role: string; tech: string }> }
 ): Promise<string> {
-  onLog(`🚀 Launching 2-Passes LLM Compiler for target: [${targetLang.toUpperCase()}]...`, 'info');
+  onLog(`🚀 Lancement du moteur de génération LLM 2-Passes pour la cible : [${targetLang.toUpperCase()}]...`, 'info');
 
   let langInstruction = '';
   if (targetLang === 'polyglot') {
@@ -321,7 +321,7 @@ Wrap EVERY generated project file inside XML tags:
 Deliver clean, production-grade code directly fulfilling the requirements.`;
 
   const generatedArtifact = await callLLM(pass2Prompt, config, onLog, onStreamChunk);
-  onLog('🎉 2-Pass Compilation completed successfully!', 'success');
+  onLog('🎉 Génération 2-Passes terminée avec succès !', 'success');
   return generatedArtifact;
 }
 

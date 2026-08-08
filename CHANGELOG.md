@@ -4,6 +4,16 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ---
 
+## 🚧 [Unreleased] — Terminology Alignment
+
+### 🏷️ Terminology Rename (Compiler → Generator)
+- **`compiler` / `compilation` → `generator` / `generation`**: IPL is not a formal language compiler but an intent-to-code **generation engine** driven by LLMs. All identifiers, logs, UI labels, and docs now use the **Generator / Generation** vocabulary:
+  - `compileIPL` → `generateIPL`, `llmCompiler.ts` → `llmGenerator.ts`
+  - `compiledCode` → `generatedCode`, `isCompiling` → `isGenerating`, `runCompilation` → `runGeneration`
+  - README and `IPL_AGENT_GUIDE.md` updated to "LLM Code Generator Engine" / "LLM Code Generators".
+
+---
+
 ## 🚀 [v1.2.0] — 2026-08-06 (Architectural Pure Intent Release)
 
 ### 🌟 Compiler & Architecture Breakthroughs

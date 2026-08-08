@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import * as monaco from 'monaco-editor';
-import type { TargetLanguage, LLMConfig } from '../engine/llmCompiler';
-import { DEFAULT_LLM_CONFIG, compileIPL } from '../engine/llmCompiler';
+import type { TargetLanguage, LLMConfig } from '../engine/llmGenerator';
+import { DEFAULT_LLM_CONFIG, generateIPL } from '../engine/llmGenerator';
 import type { SyntaxErrorItem, IPLVerb } from '../engine/iplGrammar';
 import { validateIPLCode } from '../engine/iplGrammar';
 import { defaultOutputDir } from '../engine/paths';
@@ -48,8 +48,8 @@ export interface IDEState {
   // Code & Editor state
   code: string;
   targetLang: TargetLanguage;
-  compiledCode: string;
-  isCompiling: boolean;
+  generatedCode: string;
+  isGenerating: boolean;
   editorViewMode: 'text' | 'blocks';
   syntaxErrors: SyntaxErrorItem[];
 
@@ -120,8 +120,8 @@ export interface IDEState {
   insertVerbSnippet: (verb: IPLVerb) => void;
   insertSnippetText: (snippetText: string, label?: string) => void;
 
-  // Compilation & Autonomous Agent triggers
-  runCompilation: () => Promise<void>;
+  // Génération & Autonomous Agent triggers
+  runGeneration: () => Promise<void>;
   requestLLMCorrection: (userPrompt: string) => Promise<{ textReply: string; codeChanged: boolean }>;
   autoDebugAndFix: (customCmd?: string) => Promise<boolean>;
 }
@@ -314,8 +314,8 @@ export const useIdeStore = create<IDEState>()(
       activeProjectId: 'proj-typed-order',
       code: DEFAULT_PROJECTS[0].code,
       targetLang: DEFAULT_PROJECTS[0].targetLang,
-      compiledCode: '',
-      isCompiling: false,
+      generatedCode: '',
+      isGenerating: false,
       editorViewMode: 'text',
       syntaxErrors: validateIPLCode(DEFAULT_PROJECTS[0].code),
       editorInstance: null,
@@ -374,7 +374,7 @@ export const useIdeStore = create<IDEState>()(
         const id = newTarget.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
         const customObj: CustomTarget = { id, ...newTarget };
         set((state) => ({ customTargets: [...state.customTargets, customObj] }));
-        get().addLog(`Nouvelle cible de compilation créée : "${newTarget.name}"`, 'success');
+        get().addLog(`Nouvelle cible de génération créée : "${newTarget.name}"`, 'success');
       },
 
       deleteCustomTarget: (id: string) => {
@@ -403,7 +403,7 @@ export const useIdeStore = create<IDEState>()(
         );
 
         set({ targetLang, projects: updatedProjects });
-        get().addLog(`Cible de compilation du projet changée vers: ${targetLang.toUpperCase()}`, 'info');
+        get().addLog(`Cible de génération du projet changée vers: ${targetLang.toUpperCase()}`, 'info');
       },
 
       setEditorViewMode: (editorViewMode) => set({ editorViewMode }),
@@ -451,7 +451,7 @@ export const useIdeStore = create<IDEState>()(
           code: newProject.code,
           targetLang: newProject.targetLang,
           syntaxErrors: validateIPLCode(newProject.code),
-          compiledCode: ''
+          generatedCode: ''
         }));
 
         get().addLog(`Projet "${newProject.name}" créé et activé.`, 'success');
@@ -483,7 +483,7 @@ export const useIdeStore = create<IDEState>()(
           code: newCode,
           targetLang: newTarget,
           syntaxErrors: validateIPLCode(newCode),
-          compiledCode: ''
+          generatedCode: ''
         });
 
         get().addLog(`Projet "${projectToDelete?.name || id}" supprimé.`, 'info');
@@ -504,7 +504,7 @@ export const useIdeStore = create<IDEState>()(
               ]
             },
             syntaxErrors: validateIPLCode(targetProj.code),
-            compiledCode: ''
+            generatedCode: ''
           });
           get().addLog(`Basculé vers le projet "${targetProj.name}".`, 'info');
           if (targetProj.outputDir) {
@@ -533,7 +533,7 @@ export const useIdeStore = create<IDEState>()(
       },
 
       writeArtifactToDisk: async (id?: string) => {
-        const { projects, activeProjectId, compiledCode, code, targetLang, addLog } = get();
+        const { projects, activeProjectId, generatedCode, code, targetLang, addLog } = get();
         const proj = projects.find(p => p.id === (id || activeProjectId));
         if (!proj) return false;
 
@@ -541,14 +541,14 @@ export const useIdeStore = create<IDEState>()(
           ? proj.outputDir.trim()
           : defaultOutputDir(proj.name);
 
-        if (!compiledCode) {
-          addLog(`Impossible de matérialiser : le projet n'a pas encore été compilé.`, 'warn');
+        if (!generatedCode) {
+          addLog(`Impossible de matérialiser : le projet n'a pas encore été généré.`, 'warn');
           return false;
         }
 
         try {
           const { buildProjectArtifact } = await import('../engine/artifactGenerator');
-          const artifact = buildProjectArtifact(proj.name, targetLang, compiledCode, code);
+          const artifact = buildProjectArtifact(proj.name, targetLang, generatedCode, code);
 
           const response = await fetch('/api/write-artifact', {
             method: 'POST',
@@ -595,14 +595,14 @@ export const useIdeStore = create<IDEState>()(
             const diskFiles: Array<{ relativePath: string; content: string }> = data.files || [];
             
             if (diskFiles.length === 0) {
-              set({ compiledCode: '' });
+              set({ generatedCode: '' });
               addLog(`[Disque] Synchro disque : Le dossier "${data.targetDir}" est vide.`, 'warn');
               return true;
             }
 
-            const xmlCompiledCode = diskFiles.map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`).join('\n\n');
+            const xmlGeneratedCode = diskFiles.map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`).join('\n\n');
             
-            set({ compiledCode: xmlCompiledCode });
+            set({ generatedCode: xmlGeneratedCode });
             addLog(`[Disque] Synchro depuis le disque réussie ! ${diskFiles.length} fichier(s) scannés et mis à jour depuis "${data.targetDir}" 🔄`, 'success');
             return true;
           } else {
@@ -758,10 +758,10 @@ export const useIdeStore = create<IDEState>()(
         get().addLog(`Fichier source "${filename}" supprimé.`, 'info');
       },
 
-      runCompilation: async () => {
+      runGeneration: async () => {
         const { code, targetLang, llmConfig, polyglotConfig, addLog, projects, activeProjectId } = get();
         const activeProj = projects.find(p => p.id === activeProjectId);
-        set({ isCompiling: true });
+        set({ isGenerating: true });
 
         try {
           const errors = validateIPLCode(code);
@@ -772,7 +772,7 @@ export const useIdeStore = create<IDEState>()(
           const { resolveIPLImports } = await import('../engine/iplGrammar');
           const unifiedCode = resolveIPLImports(code, activeProj?.sourceFiles);
 
-          const result = await compileIPL(
+          const result = await generateIPL(
             unifiedCode, 
             targetLang, 
             llmConfig, 
@@ -780,31 +780,31 @@ export const useIdeStore = create<IDEState>()(
               addLog(msg, type);
             },
             (streamChunkText) => {
-              set({ compiledCode: streamChunkText });
+              set({ generatedCode: streamChunkText });
             },
             polyglotConfig
           );
 
-          set({ compiledCode: result, isCompiling: false });
+          set({ generatedCode: result, isGenerating: false });
           await get().writeArtifactToDisk();
         } catch (err: any) {
-          addLog(`Erreur de compilation : ${err.message}`, 'error');
+          addLog(`Erreur de génération : ${err.message}`, 'error');
         } finally {
-          set({ isCompiling: false });
+          set({ isGenerating: false });
         }
       },
 
       requestLLMCorrection: async (userPrompt: string) => {
-        const { compiledCode, targetLang, llmConfig, addLog } = get();
+        const { generatedCode, targetLang, llmConfig, addLog } = get();
         if (!userPrompt.trim()) return { textReply: '', codeChanged: false };
 
-        set({ isCompiling: true });
+        set({ isGenerating: true });
         try {
-          const { refineIPLArtifact } = await import('../engine/llmCompiler');
+          const { refineIPLArtifact } = await import('../engine/llmGenerator');
           const { parseMultiFileXml } = await import('../engine/artifactGenerator');
 
           const rawResult = await refineIPLArtifact(
-            compiledCode || '',
+            generatedCode || '',
             userPrompt.trim(),
             targetLang,
             llmConfig,
@@ -812,7 +812,7 @@ export const useIdeStore = create<IDEState>()(
           );
 
           // Extraire l'état actuel des fichiers
-          const existingFiles = parseMultiFileXml(compiledCode || '');
+          const existingFiles = parseMultiFileXml(generatedCode || '');
           // Fusionner et appliquer les modifications ciblées (<patch>) et nouveaux fichiers (<file>)
           const updatedFiles = parseMultiFileXml(rawResult, existingFiles);
 
@@ -823,7 +823,7 @@ export const useIdeStore = create<IDEState>()(
             // Reconstruire l'artifact XML propre avec <file path="..."> pour chaque fichier
             const newXmlCode = updatedFiles.map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`).join('\n\n');
 
-            set({ compiledCode: newXmlCode, isCompiling: false });
+            set({ generatedCode: newXmlCode, isGenerating: false });
             await get().writeArtifactToDisk();
 
             // Nettoyer la réponse textuelle du chat en retirant les balises <file> et <patch>
@@ -838,7 +838,7 @@ export const useIdeStore = create<IDEState>()(
             };
           } else {
             // Réponse uniquement conversationnelle - NE PAS écraser les fichiers du projet !
-            set({ isCompiling: false });
+            set({ isGenerating: false });
             return {
               textReply: rawResult.trim() || 'Je suis prêt à vous aider avec votre projet IPL.',
               codeChanged: false
@@ -846,7 +846,7 @@ export const useIdeStore = create<IDEState>()(
           }
         } catch (err: any) {
           addLog(`Erreur Chat LLM: ${err.message}`, 'error');
-          set({ isCompiling: false });
+          set({ isGenerating: false });
           return {
             textReply: `Erreur: ${err.message}`,
             codeChanged: false
@@ -907,35 +907,35 @@ export const useIdeStore = create<IDEState>()(
 
           addLog(`[Agent Codeur 🤖] ⚠️ Erreur détectée dans la console. Analyse du stacktrace et réparation en cours...`, 'warn');
           
-          set({ isCompiling: true });
+          set({ isGenerating: true });
           try {
-            const { refineIPLArtifact } = await import('../engine/llmCompiler');
+            const { refineIPLArtifact } = await import('../engine/llmGenerator');
             const promptCorrection = `LE CODE A ÉCHOUÉ À L'EXÉCUTION TERMINAL AVEC L'ERREUR SUIVANTE. ANALYSE ET CORRIGE LES FICHIERS POUR QUE LE SCRIPT S'EXÉCUTE SANS ERREUR :\n\nConsole Log Output:\n${outputLog.substring(0, 2000)}`;
             
             const fixedResult = await refineIPLArtifact(
-              get().compiledCode || '',
+              get().generatedCode || '',
               promptCorrection,
               targetLang,
               llmConfig,
               (msg, type) => addLog(msg, type),
-              (streamChunkText) => set({ compiledCode: streamChunkText })
+              (streamChunkText) => set({ generatedCode: streamChunkText })
             );
 
             const { parseMultiFileXml } = await import('../engine/artifactGenerator');
-            const existingFiles = parseMultiFileXml(get().compiledCode || '');
+            const existingFiles = parseMultiFileXml(get().generatedCode || '');
             const updatedFiles = parseMultiFileXml(fixedResult, existingFiles);
 
             if (updatedFiles.length > 0) {
               const cleanXmlCode = updatedFiles.map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`).join('\n\n');
-              set({ compiledCode: cleanXmlCode, isCompiling: false });
+              set({ generatedCode: cleanXmlCode, isGenerating: false });
             } else {
-              set({ compiledCode: fixedResult, isCompiling: false });
+              set({ generatedCode: fixedResult, isGenerating: false });
             }
 
             await writeArtifactToDisk();
           } catch (err: any) {
             addLog(`Échec de l'auto-réparation LLM: ${err.message}`, 'error');
-            set({ isCompiling: false });
+            set({ isGenerating: false });
             return false;
           }
         }
@@ -951,7 +951,7 @@ export const useIdeStore = create<IDEState>()(
         projects: state.projects,
         activeProjectId: state.activeProjectId,
         code: state.code,
-        compiledCode: state.compiledCode,
+        generatedCode: state.generatedCode,
         llmConfig: state.llmConfig,
         targetLang: state.targetLang,
         polyglotConfig: state.polyglotConfig,

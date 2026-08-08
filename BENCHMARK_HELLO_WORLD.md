@@ -200,7 +200,7 @@ return success
   * Architecture classe propre (`IPLRuntime` dans `src/engine.js`).
 * **Friction / Bugs Encountered**:
   - **Bloqué par les Sécurités CORS (ES6 Modules sur `file://`)** : Gemini Flash Lite a généré un script avec `<script type="module" src="src/app.js"></script>` et `import { IPLRuntime } from './engine.js'`. Les navigateurs bloquent les imports de modules locaux sur `file://`, laissant l'interface bloquée sur `Initializing...`.
-  - **Solution Système Appliquée** : Règle anti-ES6 Module injectée dans le compilateur IPL pour interdire l'usage de `<script type="module">` et forcer des scripts JS autonomes sans serveur HTTP !
+  - **Solution Système Appliquée** : Règle anti-ES6 Module injectée dans le générateur IPL pour interdire l'usage de `<script type="module">` et forcer des scripts JS autonomes sans serveur HTTP !
 * **Final Assessment**: **❌ ÉCHEC (Fix Prompt Système Injecté)**.
 
 ---

@@ -10,7 +10,7 @@ interface GitDiffModalProps {
 }
 
 export const GitDiffModal: React.FC<GitDiffModalProps> = ({ isOpen, onClose }) => {
-  const { projects, activeProjectId, compiledCode, addLog } = useIdeStore();
+  const { projects, activeProjectId, generatedCode, addLog } = useIdeStore();
   const [gitStatus, setGitStatus] = useState<string>('');
   const [gitDiffRaw, setGitDiffRaw] = useState<string>('');
   const [commitMessage, setCommitMessage] = useState<string>('feat: Update IPL project generated code');
@@ -139,7 +139,7 @@ export const GitDiffModal: React.FC<GitDiffModalProps> = ({ isOpen, onClose }) =
               <div className="flex-1 overflow-hidden">
                 <DiffEditor
                   original={activeProj?.code || '// Original specification'}
-                  modified={compiledCode || '// Modified generated artifact'}
+                  modified={generatedCode || '// Modified generated artifact'}
                   language="ipl"
                   theme="vs-dark"
                   options={{

@@ -410,7 +410,7 @@ export const SettingsModal: React.FC = () => {
             </div>
           )}
 
-          {/* Section: Custom Extensible Compilation Targets */}
+          {/* Section: Custom Extensible Generation Targets */}
           <div className="pt-2 border-t border-[#2a2f42]">
             <div className="flex items-center justify-between mb-3">
               <label className="block text-cyan-400 font-semibold uppercase text-[10px] tracking-wider flex items-center space-x-1">
