@@ -17,6 +17,14 @@ All notable changes to **IPL Studio** are documented in this file.
 - **Monarch `typeKeywords` generated from `IPL_INTENT_TYPES`** — syntax highlighting stays in sync with the grammar data.
 - **`scripts/gen-agent-guide.ts` + `npm run doc:guide`**: Regenerates the verb/type tables of `IPL_AGENT_GUIDE.md` from `iplCore.ts` (marker-delimited blocks), eliminating copy-paste drift between the agent guide and the engine.
 
+### 🔍 Semantic Verification (Milestone 3)
+- **`src/engine/iplSemantics.ts`**: Advisory cross-reference analyzer on top of the typed AST, merged into `validateIPLCode` so every store call site, Monaco marker, and the "Advisory Check(s)" badge pick it up automatically. All checks are `info`/`warning` only — generation is never blocked:
+  - **Duplicate declarations** (`warning`): top-level `add entity` / `add module` / `add view` reusing the same name.
+  - **Unknown intent type** (`info`): bare-identifier field types in `add entity` / `add module` outside the 7 types (e.g. `age: integer`).
+  - **Unprotected I/O in listeners** (`info`): `read` / `search` / `send` / `remove` / `compute` inside a `listen` body without an enclosing `try/catch`.
+  - **Unknown set target** (`info`): `set <name>.field = ...` where `<name>` is never declared or produced anywhere in the spec.
+- **Parser**: `add view <Name>` is now a first-class declaration kind (`entityKind: 'view'`) so the guide's canonical `add view` syntax parses with the correct name.
+
 ### 🌍 Internationalization (French → English)
 - Translated all remaining French UI strings, comments, tutorials (`iplTutorialLessons.ts` fully rewritten), artifact content, and config comments to English.
 

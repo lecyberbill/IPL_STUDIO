@@ -360,7 +360,7 @@ export interface IPLStatement {
   raw: string;
   header: string;
   name?: string;
-  entityKind?: 'entity' | 'module';
+  entityKind?: 'entity' | 'module' | 'view';
   target?: IPLExpr;
   source?: IPLExpr;
   payload?: IPLExpr;
@@ -884,7 +884,7 @@ class IPLParserImpl {
 
     let i = 0;
     const kindTok = header[i];
-    if (kindTok?.type === 'ident' && (kindTok.value === 'entity' || kindTok.value === 'module')) {
+    if (kindTok?.type === 'ident' && (kindTok.value === 'entity' || kindTok.value === 'module' || kindTok.value === 'view')) {
       stmt.entityKind = kindTok.value;
       i++;
     }

@@ -8,13 +8,16 @@
  */
 
 import { IPL_VERBS, IPL_INTENT_TYPES } from './iplCore.ts';
+import { validateIPLCode as validateIPLSyntax } from './iplParser.ts';
+import { analyzeIPLSemantics } from './iplSemantics.ts';
+import type { SyntaxErrorItem } from './iplParser.ts';
 
 // Re-export the core data model (verbs + intent types) for backwards compatibility.
 export { IPL_VERBS, IPL_INTENT_TYPES, renderVerbTable, renderIntentTypeTable, grammarSignatureText } from './iplCore.ts';
 export type { IPLVerb, IPLTypeDefinition } from './iplCore.ts';
 
 // Re-export the parser and its types for backwards compatibility.
-export { validateIPLCode, parseIPL, parseIPLToTree } from './iplParser.ts';
+export { parseIPL, parseIPLToTree } from './iplParser.ts';
 export type {
   SyntaxErrorItem,
   IPLDiagnostic,
@@ -28,6 +31,18 @@ export type {
   IPLProgram,
   IPLParseResult
 } from './iplParser.ts';
+
+export { analyzeIPLSemantics, analyzeIPLProgram } from './iplSemantics.ts';
+
+/**
+ * Full advisory validation: syntactic checks from the parser PLUS semantic
+ * cross-reference checks (duplicates, unknown intent types, unprotected I/O,
+ * unknown set targets). Every diagnostic is `info` or `warning` — never
+ * blocks generation.
+ */
+export function validateIPLCode(code: string): SyntaxErrorItem[] {
+  return [...validateIPLSyntax(code), ...analyzeIPLSemantics(code)];
+}
 
 /**
  * Recursively resolves `import "file.ipl"` directives in IPL source code

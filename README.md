@@ -34,6 +34,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the complete list of release notes, version
 - **7 Human Intent Types**: Constrained type declarations (`text`, `number`, `boolean`, `id`, `date`, `options(...)`, `list`).
 - Monarch syntax highlighting powered by **Monaco Editor** and visual AST block representation.
 - **Typed AST Parser**: `parseIPLToTree` / `validateIPLCode` produce line-indexed, advisory-only diagnostics ("rails, not walls") — generation is never blocked, and the LLM remains the final interpreter of ambiguity.
+- **Semantic Verification**: `src/engine/iplSemantics.ts` cross-references the AST for duplicates, unknown intent types, unprotected `listen` I/O, and unknown `set` targets — all surfaced as `info`/`warning` squiggles and quick advisory checks.
 - **Single-Source-of-Truth Grammar**: `src/engine/iplCore.ts` defines the verbs + intent types; the same `grammarSignatureText()` is embedded in the Pass 1 / Pass 2 prompts and regenerates `IPL_AGENT_GUIDE.md` via `npm run doc:guide`, so the vocabulary can never drift.
 
 ### 🌐 2. Polyglot 2-Pass LLM Code Generator Engine
