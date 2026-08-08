@@ -7,10 +7,10 @@
  * both so existing imports keep working unchanged.
  */
 
-import { IPL_VERBS } from './iplCore.ts';
+import { IPL_VERBS, IPL_INTENT_TYPES } from './iplCore.ts';
 
 // Re-export the core data model (verbs + intent types) for backwards compatibility.
-export { IPL_VERBS, IPL_INTENT_TYPES } from './iplCore.ts';
+export { IPL_VERBS, IPL_INTENT_TYPES, renderVerbTable, renderIntentTypeTable, grammarSignatureText } from './iplCore.ts';
 export type { IPLVerb, IPLTypeDefinition } from './iplCore.ts';
 
 // Re-export the parser and its types for backwards compatibility.
@@ -49,7 +49,8 @@ export const IPL_LANGUAGE_DEFINITION = {
   keywords: IPL_VERBS.map(v => v.name),
 
   typeKeywords: [
-    'text', 'number', 'boolean', 'id', 'date', 'options', 'list', 'entity', 'module', 'string', 'array', 'object'
+    ...IPL_INTENT_TYPES.map(t => t.name.replace(/\(.*\)$/, '')),
+    'entity', 'module', 'string', 'array', 'object'
   ],
 
   operators: [

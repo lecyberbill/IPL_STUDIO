@@ -90,6 +90,46 @@ export const IPL_INTENT_TYPES: IPLTypeDefinition[] = [
   }
 ];
 
+/**
+ * Renders the 12 canonical verbs as a Markdown table.
+ * Shared by the LLM prompts and the regenerated IPL_AGENT_GUIDE.md.
+ */
+export function renderVerbTable(verbs: IPLVerb[] = IPL_VERBS): string {
+  const header = '| Verb | Category | Purpose & Description | Syntax Example |';
+  const separator = '| :--- | :--- | :--- | :--- |';
+  const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  const rows = verbs.map((v) => `| \`${v.name}\` | ${capitalize(v.category)} | ${v.description} | \`${v.example}\` |`);
+  return [header, separator, ...rows].join('\n');
+}
+
+/**
+ * Renders the 7 human intent types as a Markdown table.
+ * Shared by the LLM prompts and the regenerated IPL_AGENT_GUIDE.md.
+ */
+export function renderIntentTypeTable(types: IPLTypeDefinition[] = IPL_INTENT_TYPES): string {
+  const header = '| Type | Description | Target Mapping | Example |';
+  const separator = '| :--- | :--- | :--- | :--- |';
+  const rows = types.map((t) => `| \`${t.name}\` | ${t.description.replace(/^Human Intent Type:\s*/i, '')} | ${t.targetMapping} | \`${t.example}\` |`);
+  return [header, separator, ...rows].join('\n');
+}
+
+/**
+ * Canonical grammar signature (verbs + intent types) generated from the
+ * single source of truth. Embedded in the Pass 1 / Pass 2 LLM prompts and
+ * in IPL_AGENT_GUIDE.md so the language vocabulary never drifts.
+ */
+export function grammarSignatureText(): string {
+  return [
+    'The 12 Canonical Action Verbs',
+    '',
+    renderVerbTable(),
+    '',
+    'The 7 Human Intent Types',
+    '',
+    renderIntentTypeTable()
+  ].join('\n');
+}
+
 export const IPL_VERBS: IPLVerb[] = [
   {
     id: 'add',

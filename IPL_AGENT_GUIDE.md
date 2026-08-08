@@ -15,20 +15,22 @@ You are an expert **IPL (Intent Programming Language) Architect**. Your goal is 
 
 IPL relies on exactly **12 canonical action verbs**. Never use unauthorized verb keywords.
 
+<!-- IPL_SIGNATURE:VERBS -->
 | Verb | Category | Purpose & Description | Syntax Example |
 | :--- | :--- | :--- | :--- |
-| `add` | Data | Declares entities, views, modules, or services | `add entity User { ... }` / `add view Dashboard { ... }` |
-| `read` | Data | Reads or queries data from inputs/services | `read user from userService { where: id == req.id }` |
-| `set` | Data | Mutates or updates field values | `set user.status = "ACTIVE"` |
-| `remove` | Data | Deletes or removes records | `remove item from cart` |
-| `search` | Data | Queries collections with parameters | `search products from catalog { query: term }` |
-| `send` | Action | Dispatches notifications, updates, or logs | `send update to uiCard { data: result }` |
-| `listen` | Action | Declares event listeners and handlers | `listen event on "user:login" { ... }` |
-| `compute` | Action | Calculates formulas and computed metrics | `compute index from report { score: temp - (hum * 0.1) }` |
-| `if` | Control | Conditional branching logic | `if (score > 80) { ... } else { ... }` |
-| `for` | Flow | Iterates over lists or collections | `for item in cart.items { ... }` |
-| `try` | Flow | Error handling and exception capture | `try { ... } catch (err) { ... }` |
-| `return` | Flow | Returns structured response payloads | `return { status: "SUCCESS", data: result }` |
+| `add` | Data | Adds an item, entity, or module with optional human intent types (text, number, boolean, id, date, options) | `add entity User { id: id, email: text, age: number, isActive: boolean }` |
+| `read` | Data | Reads or extracts data from database, API, or local store | `read profile from users { where: id == currentUser }` |
+| `set` | Data | Sets or updates a property, state, or variable value | `set theme = "dark"` |
+| `remove` | Data | Deletes a record, state item, or visual component | `remove session from activeSessions { where: expired == true }` |
+| `search` | Data | Searches or filters entities based on search criteria | `search products in catalog { matching: searchKeyword }` |
+| `send` | Action | Sends a network request, notification, event, or email | `send email to user { subject: "Welcome", body: "Hello Alice" }` |
+| `listen` | Action | Listens for incoming webhooks, user clicks, or system events | `listen event on "paymentReceived" { action: "fulfillOrder" }` |
+| `compute` | Action | Executes a calculation, algorithm, or data transformation | `compute finalPrice { formula: price * 1.20 }` |
+| `if` | Control | Conditional branching control flow based on boolean expressions | `if status == "success" { return true }` |
+| `for` | Flow | Loops over a collection or list of items | `for order in activeOrders { send receipt to order.customer }` |
+| `try` | Control | Executes a block with error handling and fallback logic | `try { send payload } catch err { set status = "failed" }` |
+| `return` | Flow | Returns a result or exits the execution block | `return { status: 200, data: user }` |
+<!-- IPL_SIGNATURE:VERBS_END -->
 
 ---
 
@@ -36,13 +38,17 @@ IPL relies on exactly **12 canonical action verbs**. Never use unauthorized verb
 
 When declaring fields inside `add entity`, use the **7 constrained Human Intent Types** to ensure 100% deterministic code generation across target languages:
 
-1. `text`: Strings, names, descriptions, or emails (*maps to `String` / `str`*).
-2. `number`: Floats, integers, prices, counts, or scores (*maps to `f64` / `float` / `number`*).
-3. `boolean`: True/false flags (*maps to `bool` / `boolean`*).
-4. `id`: Unique identifiers or UUIDs (*maps to `Uuid` / `UUID` / `string`*).
-5. `date`: Timestamps or dates (*maps to `DateTime` / `datetime`*).
-6. `options("val1", "val2", ...)`: Constrained enum/choice lists (*maps to `Enum` / `Union`*).
-7. `list`: Array of elements or collection (*maps to `Vec<T>` / `List[T]`*).
+<!-- IPL_SIGNATURE:TYPES -->
+| Type | Description | Target Mapping | Example |
+| :--- | :--- | :--- | :--- |
+| `text` | Text string or email | String / str | `customerName: text` |
+| `number` | Amount, price, score, or count | f64 / float / number | `totalAmount: number` |
+| `boolean` | True/false condition or flag | bool / boolean | `isPaid: boolean` |
+| `id` | Unique identifier or UUID | Uuid / UUID / string | `orderId: id` |
+| `date` | Timestamp or date | DateTime / datetime | `createdAt: date` |
+| `options(...)` | Choice list or Enum | Enum / Union | `status: options("pending", "shipped")` |
+| `list` | Collection or Array | Vec<T> / List[T] | `items: list` |
+<!-- IPL_SIGNATURE:TYPES_END -->
 
 ---
 

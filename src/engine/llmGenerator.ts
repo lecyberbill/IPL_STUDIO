@@ -3,6 +3,8 @@
  * Transforms IPL intent declarations into complete multi-file applications.
  */
 
+import { grammarSignatureText } from './iplCore.ts';
+
 export interface LLMConfig {
   mode: 'local' | 'lmstudio' | 'external';
   localEndpoint: string;
@@ -277,6 +279,9 @@ BUSINESS REQUIREMENTS (Structured Pseudo-Code):
 ${iplCode}
 \`\`\`
 
+IPL GRAMMAR SIGNATURE (authorized verbs & intent types — the spec above uses ONLY these):
+${grammarSignatureText()}
+
 ARCHITECTURE GUIDANCE:
 Design a clean, cohesive application architecture. Use multi-file organization ONLY IF NEEDED for complexity, grouping related features logically (e.g. index.html, src/app.js). Avoid unnecessary file fragmentation for simple tasks.
 
@@ -309,7 +314,10 @@ ${langInstruction}
 ${iplCode}
 \`\`\`
 
-3. PROJECT TOPOLOGY:
+3. IPL GRAMMAR SIGNATURE (authorized verbs & intent types used in the spec above):
+${grammarSignatureText()}
+
+4. PROJECT TOPOLOGY:
 ${topologyJsonStr || 'Standard Multi-File Layout'}
 
 OUTPUT FORMAT INSTRUCTION:

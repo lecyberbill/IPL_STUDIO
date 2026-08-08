@@ -4,7 +4,24 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ---
 
-## 🚧 [Unreleased] — Terminology Alignment
+## 🚧 [Unreleased]
+
+### 🧠 Typed IPL Parser & Advisory Diagnostics (Milestone 1)
+- **Typed AST Parser (`src/engine/iplParser.ts`)**: Full recursive-descent parser producing `IPLBlockNode` trees with block metadata (`verb`, `target`, `declarationType`, `properties`, `children`). Exposed as `parseIPLToTree`, `treeToIPLCode` (source-preserving round-trip), `validateIPLCode`, and a line-indexed `syntaxErrors` report.
+- **Rails, not walls**: Diagnostic errors are `info | warning` severity only; generation is never blocked. Advisory checks flag `listen event` payloads without `try/catch`, views without `add entity`, and unused verbs — the LLM remains the final interpreter of ambiguity.
+- **Data-driven grammar core (`src/engine/iplCore.ts`)**: `IPL_VERBS` (12 verbs) and `IPL_INTENT_TYPES` (7 intent types) are the single source of truth consumed by the parser, Monarch highlighting, and Monaco `IPL_LANGUAGE_DEFINITION`.
+- **Monaco/IDE integration**: IPL syntax highlighting via `IPL_LANGUAGE_DEFINITION`, block-tree viewer with collapsible AST nodes, and inline diagnostics bound to the Monaco error markers.
+
+### 📐 Data-Driven Grammar Signature (Milestone 2)
+- **`grammarSignatureText()`** in `src/engine/iplCore.ts` renders the 12 canonical verbs + 7 intent types into a canonical grammar signature embedded in the **Pass 1 & Pass 2 LLM prompts**, so the LLM vocabulary can never drift from the parser and the editor.
+- **Monarch `typeKeywords` generated from `IPL_INTENT_TYPES`** — syntax highlighting stays in sync with the grammar data.
+- **`scripts/gen-agent-guide.ts` + `npm run doc:guide`**: Regenerates the verb/type tables of `IPL_AGENT_GUIDE.md` from `iplCore.ts` (marker-delimited blocks), eliminating copy-paste drift between the agent guide and the engine.
+
+### 🌍 Internationalization (French → English)
+- Translated all remaining French UI strings, comments, tutorials (`iplTutorialLessons.ts` fully rewritten), artifact content, and config comments to English.
+
+### 📁 Projects Outside the Workspace
+- Absolute output paths now allow creating projects anywhere on the machine. Relative paths remain sandboxed inside the workspace, and traversal outside it is rejected with a clear error. `ProjectModal` explains both behaviors.
 
 ### 🏷️ Terminology Rename (Compiler → Generator)
 - **`compiler` / `compilation` → `generator` / `generation`**: IPL is not a formal language compiler but an intent-to-code **generation engine** driven by LLMs. All identifiers, logs, UI labels, and docs now use the **Generator / Generation** vocabulary:

@@ -1,9 +1,9 @@
 # ⚡ IPL Studio v1.0 — Intent Programming Language IDE & Autonomous Agent
 
-[![Vite](https://img.shields.io/badge/Vite-5.x-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
-[![React](https://img.shields.io/badge/React-18.x-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-3.x-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![Vite](https://img.shields.io/badge/Vite-8.x-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![React](https://img.shields.io/badge/React-19.x-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-4.x-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Changelog](https://img.shields.io/badge/Release_Notes-v1.2.0-blue.svg?style=for-the-badge)](CHANGELOG.md)
 [![LLM Agent Guide](https://img.shields.io/badge/Agent_Prompt-IPL_Guide-purple.svg?style=for-the-badge)](IPL_AGENT_GUIDE.md)
 [![Benchmark Suite](https://img.shields.io/badge/Benchmark-Hello_World-orange.svg?style=for-the-badge)](BENCHMARK_HELLO_WORLD.md)
@@ -33,6 +33,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the complete list of release notes, version
 - **12 Action Verbs**: Declarative domain operations (`add`, `read`, `set`, `remove`, `search`, `send`, `listen`, `compute`, `if`, `for`, `try`, `return`).
 - **7 Human Intent Types**: Constrained type declarations (`text`, `number`, `boolean`, `id`, `date`, `options(...)`, `list`).
 - Monarch syntax highlighting powered by **Monaco Editor** and visual AST block representation.
+- **Typed AST Parser**: `parseIPLToTree` / `validateIPLCode` produce line-indexed, advisory-only diagnostics ("rails, not walls") — generation is never blocked, and the LLM remains the final interpreter of ambiguity.
+- **Single-Source-of-Truth Grammar**: `src/engine/iplCore.ts` defines the verbs + intent types; the same `grammarSignatureText()` is embedded in the Pass 1 / Pass 2 prompts and regenerates `IPL_AGENT_GUIDE.md` via `npm run doc:guide`, so the vocabulary can never drift.
 
 ### 🌐 2. Polyglot 2-Pass LLM Code Generator Engine
 - **Pass 1 (Architect)**: Analyzes domain intent and designs multi-file project topology in JSON.
@@ -129,13 +131,14 @@ IPL Studio supports three execution modes configurable in the Settings modal (`�
 ```text
 IPL_STUDIO/
 ├── output/                   # Physical disk target folder for generated projects
+├── scripts/                  # Dev utilities (gen-agent-guide.ts → npm run doc:guide)
 ├── src/
 │   ├── components/           # UI components (Monaco, Terminal, Git, Chat, Inspector, etc.)
-│   ├── engine/               # LLM Code Generator engine, IPL Grammar, Artifact Generator
+│   ├── engine/               # LLM Code Generator engine, IPL Grammar, typed parser, Artifact Generator
 │   ├── store/                # Zustand global store (IDE State, Layout Persistence)
 │   ├── App.tsx               # Main IDE Layout
 │   └── main.tsx              # React Entrypoint
-├── vite.config.ts            # Vite config & API Middlewares (/api/run-command, /api/read-disk)
+├── vite.config.ts            # Vite config & API Middlewares (/api/run-command, /api/read-disk, /api/write-artifact)
 ├── CHANGELOG.md              # Detailed release notes and version history
 ├── package.json
 └── README.md
