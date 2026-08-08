@@ -386,6 +386,11 @@ USER REQUEST:
 "${userCorrectionPrompt}"
 
 CRITICAL OUTPUT INSTRUCTIONS:
+0. IF the request or the error is AMBIGUOUS and you cannot confidently determine the fix
+   (multiple plausible interpretations, missing information, conflicting constraints):
+   DO NOT guess. Reply with EXACTLY one line starting with:
+   NEED_CLARIFICATION: <your precise, one-line question>
+   and emit NO <file> or <patch> tags in that case.
 1. IF the user is asking to modify specific lines, fix bugs, or update existing files:
    - OPTION A (Targeted Line Patching - Preferred for line edits):
      <patch path="relative/path/to/file.ext">
@@ -407,4 +412,17 @@ CRITICAL OUTPUT INSTRUCTIONS:
    - DO NOT output any <file> or <patch> tags if no code was modified.`;
 
   return await callLLM(prompt, config, onLog, onStreamChunk, { temperature: 0.0 });
+}
+
+/**
+ * Detects the NEED_CLARIFICATION contract in a refineIPLArtifact response.
+ * Returns the user-facing question, or null when the model fixed the code
+ * (or answered conversationally) without requesting a precision.
+ */
+export function extractClarificationRequest(output: string): string | null {
+  // Only consider the text before any <file>/<patch> tag: if the model emitted
+  // code changes it is not in "ask for precision" mode.
+  const beforeTags = output.split(/<file\b|<patch\b/i)[0];
+  const m = beforeTags.match(/NEED_CLARIFICATION\s*:\s*([^\n<]{1,300})/i);
+  return m && m[1].trim() ? m[1].trim() : null;
 }

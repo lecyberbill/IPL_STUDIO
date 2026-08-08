@@ -47,6 +47,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the complete list of release notes, version
 - **Error Detection & Diagnostics**: Captures terminal stderr output (`Traceback`, non-zero exit codes).
 - **Auto-Fixing**: Analyzes stacktraces via AI, refactors affected files, and re-executes tests automatically (up to 3 repair passes).
 - **Deterministic pre-repair first**: LLM-independent fixes (ES-module strip, Tailwind CDN) are applied before any LLM repair call is spent — measured in the benchmark as **repairs-to-success**.
+- **NEED_CLARIFICATION loop**: if the LLM cannot fix confidently without a precision, it asks (`NEED_CLARIFICATION: <question>`), the terminal shows a prompt, you answer, and the agent re-repairs with your precision and verifies by re-running — it never guesses.
 
 ### 🖥️ 4. Embedded Terminal (`xterm.js`) & Runner
 - Integrated `xterm.js` terminal runner for `cargo run`, `python main.py`, `node index.js`, `go run main.go`, etc.

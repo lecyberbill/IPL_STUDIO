@@ -24,7 +24,7 @@ import { readFileSync, mkdirSync, writeFileSync, readdirSync, rmSync, existsSync
 import { resolve as pathResolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { parseMultiFileXml } from '../src/engine/artifactGenerator.ts';
-import { callLLM, buildPass1Prompt, buildPass2Prompt, refineIPLArtifact, DEFAULT_LLM_CONFIG } from '../src/engine/llmGenerator.ts';
+import { callLLM, buildPass1Prompt, buildPass2Prompt, refineIPLArtifact, extractClarificationRequest, DEFAULT_LLM_CONFIG } from '../src/engine/llmGenerator.ts';
 import type { LLMConfig, TargetLanguage } from '../src/engine/llmGenerator.ts';
 import { applyDeterministicRepairs } from '../src/engine/deterministicRepair.ts';
 import type { DeterministicRepair } from '../src/engine/deterministicRepair.ts';
@@ -592,6 +592,20 @@ async function repairAndVerify(
           args.timeoutPerPassMs,
           `repair pass ${pass}`
         );
+
+        // The model cannot fix confidently without a precision. In the harness
+        // there is no user to answer — record it honestly instead of guessing.
+        const clarification = extractClarificationRequest(fixed);
+        if (clarification) {
+          repairDetails.push(`pass ${pass} [llm]: NEED_CLARIFICATION — ${clarification}`);
+          return {
+            v: { status: 'WARN', detail: `clarification requested by model: ${clarification}` },
+            repairsToSuccess: -1,
+            repairDetails,
+            firstTryStatus: firstTry.status
+          };
+        }
+
         const existingFiles = parseMultiFileXml(existingXml);
         const updated = parseMultiFileXml(fixed, existingFiles);
         if (updated.length > 0) {

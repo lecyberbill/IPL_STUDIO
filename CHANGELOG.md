@@ -51,7 +51,8 @@ All notable changes to **IPL Studio** are documented in this file.
 - **`output/benchmark/history.json` + Trend section**: every run is persisted (last 50 kept); the report compares each spec's first-try PASS% against the previous runs for this model with ▲/▼ regression markers.
 - **Pre-generation IPL quick-fixes (`src/engine/iplQuickFix.ts`)**: before a spec reaches the model, fixable diagnostics (unterminated string, unclosed block) are applied deterministically on a copy — the model receives clean input while the user's editor buffer is never modified; unresolved advisories still pass through (rails, not walls). Wired into `runGeneration`.
 - **`autoDebugAndFix` upgrade**: the in-IDE self-healing loop now runs deterministic pre-repair *before* spending an LLM repair call.
-- **`vitest.config.ts`**: test discovery restricted to `src/**/*.test.ts` so benchmark artifacts in `output/` (e.g. a generated `test/greeter.test.js`) never leak into the suite. Now **49 tests across 5 suites**.
+- **`NEED_CLARIFICATION` interactive loop**: when the LLM cannot fix confidently without a precision it replies `NEED_CLARIFICATION: <question>` (never guesses). The agent pauses, surfaces the question in the terminal prompt, waits for the user's answer, then re-runs the LLM repair with that precision and verifies by re-executing the command — looping up to 3 clarification rounds. In the benchmark, a clarification request is recorded honestly (WARN + `clarification requested by model`, no guessed repair).
+- **`vitest.config.ts`**: test discovery restricted to `src/**/*.test.ts` so benchmark artifacts in `output/` (e.g. a generated `test/greeter.test.js`) never leak into the suite. Now **54 tests across 6 suites**.
 
 ### 🌍 Internationalization (French → English)
 - Translated all remaining French UI strings, comments, tutorials (`iplTutorialLessons.ts` fully rewritten), artifact content, and config comments to English.

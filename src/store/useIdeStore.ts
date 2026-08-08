@@ -124,6 +124,11 @@ export interface IDEState {
   runGeneration: () => Promise<void>;
   requestLLMCorrection: (userPrompt: string) => Promise<{ textReply: string; codeChanged: boolean }>;
   autoDebugAndFix: (customCmd?: string) => Promise<boolean>;
+  /** Set when the self-healing loop paused because the LLM asked a precision. */
+  pendingClarification: { question: string; errorLog: string; cmdToRun: string; attempt: number } | null;
+  /** User answers the pending clarification; the agent resumes repair and re-runs. */
+  answerClarification: (answer: string) => Promise<boolean>;
+  clearPendingClarification: () => void;
 }
 
 const DEFAULT_PROJECTS: IPLProject[] = [
@@ -316,6 +321,7 @@ export const useIdeStore = create<IDEState>()(
       targetLang: DEFAULT_PROJECTS[0].targetLang,
       generatedCode: '',
       isGenerating: false,
+      pendingClarification: null,
       editorViewMode: 'text',
       syntaxErrors: validateIPLCode(DEFAULT_PROJECTS[0].code),
       editorInstance: null,
@@ -940,7 +946,7 @@ export const useIdeStore = create<IDEState>()(
             }
 
             // 2. Deterministic repair didn't apply — spend an LLM repair call.
-            const { refineIPLArtifact } = await import('../engine/llmGenerator');
+            const { refineIPLArtifact, extractClarificationRequest } = await import('../engine/llmGenerator');
             const promptCorrection = `THE CODE FAILED TO EXECUTE IN THE TERMINAL WITH THE FOLLOWING ERROR. ANALYZE AND FIX THE FILES SO THE SCRIPT RUNS WITHOUT ERROR:\n\nConsole Log Output:\n${outputLog.substring(0, 2000)}`;
             
             const fixedResult = await refineIPLArtifact(
@@ -951,6 +957,20 @@ export const useIdeStore = create<IDEState>()(
               (msg, type) => addLog(msg, type),
               (streamChunkText) => set({ generatedCode: streamChunkText })
             );
+
+            // 2b. The LLM cannot fix confidently without a precision. Pause the
+            //     loop, surface the question, and wait for the user's answer.
+            //     NEVER guess (rails, not walls — the LLM is the interpreter).
+            const clarification = extractClarificationRequest(fixedResult);
+            if (clarification) {
+              set({
+                isGenerating: false,
+                pendingClarification: { question: clarification, errorLog: outputLog.substring(0, 2000), cmdToRun, attempt }
+              });
+              addLog(`[Coding Agent 🤖] ❓ NEED_CLARIFICATION — ${clarification}`, 'warn');
+              addLog('Please answer in the terminal input (or the chat) so the agent can repair accurately.', 'info');
+              return false;
+            }
 
             const existingFiles = parseMultiFileXml(get().generatedCode || '');
             const updatedFiles = parseMultiFileXml(fixedResult, existingFiles);
@@ -972,7 +992,89 @@ export const useIdeStore = create<IDEState>()(
 
         addLog(`[Autonomous Agent 🤖] Completed 3 self-healing repair passes. Inspect the terminal log.`, 'warn');
         return false;
-      }
+      },
+
+      answerClarification: async (answer: string) => {
+        const { projects, activeProjectId, targetLang, llmConfig, addLog, writeArtifactToDisk, pendingClarification } = get();
+        if (!pendingClarification) return false;
+        const { question, errorLog, cmdToRun, attempt } = pendingClarification;
+        const activeProj = projects.find(p => p.id === activeProjectId);
+        const outputDir = activeProj?.outputDir || defaultOutputDir(activeProj?.name || 'my_project');
+        const nextAttempt = attempt + 1;
+
+        addLog(`[Coding Agent 🤖] Answer received: "${answer}". Re-analyzing and repairing...`, 'info');
+        set({ isGenerating: true });
+
+        try {
+          const { refineIPLArtifact, extractClarificationRequest } = await import('../engine/llmGenerator');
+          const { parseMultiFileXml } = await import('../engine/artifactGenerator');
+
+          const promptCorrection = `THE CODE FAILED TO EXECUTE IN THE TERMINAL WITH THE FOLLOWING ERROR. ANALYZE AND FIX THE FILES SO THE SCRIPT RUNS WITHOUT ERROR.\n\nConsole Log Output:\n${errorLog}\n\nYou asked for a clarification:\n"${question}"\n\nUSER PRECISION (use it to decide the fix):\n"${answer}"`;
+
+          const fixedResult = await refineIPLArtifact(
+            get().generatedCode || '',
+            promptCorrection,
+            targetLang,
+            llmConfig,
+            (msg, type) => addLog(msg, type),
+            (streamChunkText) => set({ generatedCode: streamChunkText })
+          );
+
+          // The model may still be unsure — ask again instead of guessing.
+          const clarification = extractClarificationRequest(fixedResult);
+          if (clarification) {
+            set({ isGenerating: false, pendingClarification: { question: clarification, errorLog, cmdToRun, attempt: nextAttempt } });
+            addLog(`[Coding Agent 🤖] ❓ NEED_CLARIFICATION (round ${nextAttempt}) — ${clarification}`, 'warn');
+            return false;
+          }
+
+          const existingFiles = parseMultiFileXml(get().generatedCode || '');
+          const updatedFiles = parseMultiFileXml(fixedResult, existingFiles);
+          if (updatedFiles.length > 0) {
+            const cleanXmlCode = updatedFiles.map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`).join('\n\n');
+            set({ generatedCode: cleanXmlCode, isGenerating: false });
+          } else {
+            set({ generatedCode: fixedResult, isGenerating: false });
+          }
+          await writeArtifactToDisk();
+          set({ pendingClarification: null });
+
+          // Re-run the command to confirm the fix.
+          addLog(`[Coding Agent 🤖] Re-running "${cmdToRun}" to verify...`, 'info');
+          let outputLog = '';
+          try {
+            const response = await fetch('/api/run-command', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ command: cmdToRun, cwd: outputDir })
+            });
+            outputLog = await response.text();
+          } catch (err: any) {
+            outputLog = err.message;
+          }
+
+          const exitCodeMatch = outputLog.match(/\[Exit code:\s*(-?\d+)\]/i);
+          const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : null;
+          const hasError = exitCode !== null
+            ? exitCode !== 0
+            : /Traceback \(most recent call last\)|panic!|error:|Error:|Exception|SyntaxError|NameError|ReferenceError|TypeError|ImportError|command not found|is not recognized|cannot find|ENOENT|fatal:|exit code\s*[1-9]|terminé avec le code [1-9]/i.test(outputLog);
+
+          if (!hasError) {
+            addLog(`[Coding Agent 🤖] 🎉 Execution succeeded after your clarification!`, 'success');
+            return true;
+          }
+
+          // Still failing — hand back to the repair loop with the new error.
+          addLog(`[Coding Agent 🤖] ⚠️ Still failing after clarification. Launching another repair pass...`, 'warn');
+          return await get().autoDebugAndFix(cmdToRun);
+        } catch (err: any) {
+          addLog(`LLM self-repair failed after clarification: ${err.message}`, 'error');
+          set({ isGenerating: false, pendingClarification: null });
+          return false;
+        }
+      },
+
+      clearPendingClarification: () => set({ pendingClarification: null }),
     }),
     {
       name: 'ipl-studio-store-v6',

@@ -12,8 +12,9 @@ export const TerminalPanel: React.FC = () => {
   const fitAddonRef = useRef<FitAddon | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [commandInput, setCommandInput] = useState('');
+  const [clarificationInput, setClarificationInput] = useState('');
 
-  const { projects, activeProjectId, targetLang, writeArtifactToDisk, autoDebugAndFix, addLog } = useIdeStore();
+  const { projects, activeProjectId, targetLang, writeArtifactToDisk, autoDebugAndFix, answerClarification, pendingClarification, addLog } = useIdeStore();
   const activeProject = projects.find(p => p.id === activeProjectId);
   const outputDir = activeProject?.outputDir || defaultOutputDir(activeProject?.name || 'my_project');
 
@@ -159,6 +160,16 @@ export const TerminalPanel: React.FC = () => {
     xtermInstance.current?.clear();
   };
 
+  const handleAnswerClarification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const answer = clarificationInput.trim();
+    if (!answer || !pendingClarification || isRunning) return;
+    setClarificationInput('');
+    setIsRunning(true);
+    await answerClarification(answer);
+    setIsRunning(false);
+  };
+
   return (
     <div className="flex flex-col h-full bg-[#0f1117] text-white select-none">
       {/* Terminal Toolbar */}
@@ -215,6 +226,32 @@ export const TerminalPanel: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Clarification prompt — the agent paused because the LLM needs a precision */}
+      {pendingClarification && (
+        <div className="px-3 py-2 border-b border-[#2a2f42] bg-[#141a26]">
+          <div className="text-[11px] text-amber-300 font-semibold mb-1 flex items-center gap-1">
+            <Bot size={12} /> ❓ Agent needs a precision (round {pendingClarification.attempt})
+          </div>
+          <div className="text-[11px] text-gray-300 mb-2">{pendingClarification.question}</div>
+          <form onSubmit={handleAnswerClarification} className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Answer the agent to unblock the repair..."
+              value={clarificationInput}
+              onChange={(e) => setClarificationInput(e.target.value)}
+              className="flex-1 bg-[#0f1117] border border-amber-500/40 rounded px-2 py-1 font-mono text-[11px] text-amber-200 focus:outline-none focus:border-amber-400"
+            />
+            <button
+              type="submit"
+              disabled={isRunning}
+              className="px-3 py-1 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 disabled:opacity-40 text-black font-bold rounded text-[11px] transition-all shadow"
+            >
+              {isRunning ? 'Repairing...' : 'Send'}
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* Xterm Render Area */}
       <div className="flex-1 p-2 overflow-hidden bg-[#0f1117]">
