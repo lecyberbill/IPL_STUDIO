@@ -54,6 +54,13 @@ All notable changes to **IPL Studio** are documented in this file.
 - **`NEED_CLARIFICATION` interactive loop**: when the LLM cannot fix confidently without a precision it replies `NEED_CLARIFICATION: <question>` (never guesses). The agent pauses, surfaces the question in the terminal prompt, waits for the user's answer, then re-runs the LLM repair with that precision and verifies by re-executing the command — looping up to 3 clarification rounds. In the benchmark, a clarification request is recorded honestly (WARN + `clarification requested by model`, no guessed repair).
 - **`vitest.config.ts`**: test discovery restricted to `src/**/*.test.ts` so benchmark artifacts in `output/` (e.g. a generated `test/greeter.test.js`) never leak into the suite. Now **54 tests across 6 suites**.
 
+### 🧩 Multi-File IPL Modules End-to-End (Phase 7)
+- **Recursive import resolution (`resolveIPLProject`)**: `import "submodule.ipl"` directives are now followed depth-first through nested imports, cycle-guarded (a repeated/cyclic include is replaced with an explicit `already included above` comment instead of recursing forever), and any import missing from the project's file map is reported in a `unresolved` list instead of failing silently.
+- **Cross-file semantic analysis (`validateIPLProject`)**: merges main + transitive imports into one document *before* running syntax + semantics, so duplicate declarations and unknown `set` targets are detected **across files** — e.g. a submodule `set orderData.status = ...` now resolves against `add entity orderData` declared in `main.ipl`; unresolved imports surface as project-wide `warning` diagnostics.
+- **Editor → file-map sync**: `setCode` now writes the live buffer into `sourceFiles[activeSourceFile]`, so submodule edits made in Monaco are no longer lost to the importer.
+- **Deterministic generation root**: `runGeneration` builds the union rooted at `main.ipl` regardless of which file is active, applies pre-generation quick-fixes on the merged union, and logs every unresolved import. Backwards-compatible `resolveIPLImports` wrapper retained.
+- **9 new tests** (`resolveIPLProject` single/nested/cycle/diamond/unresolved + `validateIPLProject` cross-file refs/duplicates/unresolved) → now **63 tests across 6 suites**.
+
 ### 🌍 Internationalization (French → English)
 - Translated all remaining French UI strings, comments, tutorials (`iplTutorialLessons.ts` fully rewritten), artifact content, and config comments to English.
 

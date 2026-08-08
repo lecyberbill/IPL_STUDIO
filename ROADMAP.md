@@ -90,8 +90,10 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 - Preserve per-file editor editing while generating from the union.
 
 **Acceptance criteria**:
-- [ ] Semantic checks span imported files (duplicate/unknown refs across files detected).
-- [ ] Generation consumes the resolved union deterministically.
+- [x] Semantic checks span imported files (duplicate/unknown refs across files detected).
+- [x] Generation consumes the resolved union deterministically.
+
+**Status**: 🟢 done — `resolveIPLProject` (recursive, cycle-guarded, unresolved-import reporting) replaces the single-level regex; `validateIPLProject` merges main + transitive imports before running syntax + semantics so duplicates and unknown refs are caught across files; `setCode` syncs the live editor buffer into `sourceFiles[activeSourceFile]`; `runGeneration` seeds the union from `main.ipl` regardless of the active file and logs unresolved imports.
 
 ---
 

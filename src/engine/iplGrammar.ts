@@ -44,17 +44,76 @@ export function validateIPLCode(code: string): SyntaxErrorItem[] {
   return [...validateIPLSyntax(code), ...analyzeIPLSemantics(code)];
 }
 
+export interface IPLParsedProject {
+  /** Merged union of main + transitive imports (deterministic, cycle-guarded). */
+  code: string;
+  /** Import paths that could not be resolved against the provided file map. */
+  unresolved: { file: string; importedFrom: string }[];
+}
+
 /**
- * Recursively resolves `import "file.ipl"` directives in IPL source code
+ * Phase 7 — recursively resolves `import "file.ipl"` directives in IPL source
+ * code, following nested imports depth-first, guarding against cycles, and
+ * reporting any import that cannot be resolved. Unresolved imports are kept
+ * verbatim in the output (deterministic) but listed in `unresolved` so callers
+ * can surface a diagnostic instead of failing silently.
  */
-export function resolveIPLImports(mainCode: string, sourceFiles: Record<string, string> = {}): string {
+export function resolveIPLProject(
+  mainCode: string,
+  sourceFiles: Record<string, string> = {},
+  rootFileName?: string
+): IPLParsedProject {
+  const unresolved: { file: string; importedFrom: string }[] = [];
+  const visited = new Set<string>();
+  if (rootFileName) visited.add(rootFileName);
+
   const importRegex = /import\s+["']([^"']+)["'];?/g;
-  return mainCode.replace(importRegex, (match, importedFile) => {
-    if (sourceFiles[importedFile]) {
-      return `// --- Imported from ${importedFile} ---\n${sourceFiles[importedFile]}\n`;
-    }
-    return match;
-  });
+
+  function resolve(code: string, fromFile: string | null): string {
+    return code.replace(importRegex, (match, importedFile) => {
+      if (visited.has(importedFile)) {
+        return `// --- ${importedFile} already included above ---`;
+      }
+      visited.add(importedFile);
+      const importedCode = sourceFiles[importedFile];
+      if (importedCode === undefined) {
+        unresolved.push({ file: importedFile, importedFrom: fromFile ?? '<main>' });
+        return match;
+      }
+      return `// --- Imported from ${importedFile} ---\n${resolve(importedCode, importedFile)}\n`;
+    });
+  }
+
+  return { code: resolve(mainCode, null), unresolved };
+}
+
+/** Backwards-compatible single-file resolver (returns only the merged text). */
+export function resolveIPLImports(mainCode: string, sourceFiles: Record<string, string> = {}): string {
+  return resolveIPLProject(mainCode, sourceFiles).code;
+}
+
+/**
+ * Phase 7 — project-wide advisory validation. Merges main + transitive imports
+ * into one document before running syntax + semantic checks, so duplicate
+ * declarations and unknown references are detected ACROSS files, not just
+ * inside a single file. Unresolved imports surface as warning diagnostics.
+ */
+export function validateIPLProject(
+  mainCode: string,
+  sourceFiles: Record<string, string> = {},
+  rootFileName?: string
+): SyntaxErrorItem[] {
+  const { code, unresolved } = resolveIPLProject(mainCode, sourceFiles, rootFileName);
+  const diags = validateIPLCode(code);
+  for (const u of unresolved) {
+    diags.push({
+      line: 1,
+      column: 1,
+      severity: 'warning',
+      message: `Unresolved import "${u.file}" (imported from ${u.importedFrom}) — module will not contribute to the build.`
+    });
+  }
+  return diags;
 }
 
 export const IPL_LANGUAGE_DEFINITION = {

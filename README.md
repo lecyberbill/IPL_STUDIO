@@ -60,6 +60,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the complete list of release notes, version
 ### 📂 6. Multi-File `.ipl` Source Tree & Import Preprocessor
 - Organize complex IPL specifications into multiple `.ipl` files (`main.ipl`, `models.ipl`, `events.ipl`).
 - Transparent import resolution: `import "submodule.ipl";`.
+- Imports are resolved **recursively** (nested modules) with cycle protection; unresolved imports are surfaced as warnings instead of failing silently.
+- Semantic checks run on the **merged project** (`validateIPLProject`): duplicate declarations and unknown references are detected across files, and the generated app reflects every module. Edits made in the editor stay in sync with the file map, and generation is always rooted at `main.ipl` deterministically.
 
 ### 🧠 7. Semantic Language Server (LSP) Features
 - **Go to Definition ($F12$ / Ctrl+Click)**: Instantly jump to declared symbols and entity lines in Monaco.

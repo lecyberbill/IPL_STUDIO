@@ -391,13 +391,23 @@ export const useIdeStore = create<IDEState>()(
       setCode: (newCode: string) => {
         const errors = validateIPLCode(newCode);
         const { activeProjectId, projects } = get();
+        const activeProj = projects.find(p => p.id === activeProjectId);
         
-        // Update the active project's code in the projects list
-        const updatedProjects = projects.map(p => 
-          p.id === activeProjectId 
-            ? { ...p, code: newCode, updatedAt: new Date().toLocaleTimeString() }
-            : p
-        );
+        // Update the active project's code in the projects list, and keep the
+        // per-file map in sync so imported modules reflect the live editor
+        // buffer (Phase 7: sourceFiles[activeSourceFile] must track edits).
+        const updatedProjects = projects.map(p => {
+          if (p.id !== activeProjectId) return p;
+          const patch: { code: string; updatedAt: string; sourceFiles?: Record<string, string> } = {
+            code: newCode,
+            updatedAt: new Date().toLocaleTimeString()
+          };
+          if (activeProj?.sourceFiles) {
+            const activeFile = activeProj.activeSourceFile || 'main.ipl';
+            patch.sourceFiles = { ...activeProj.sourceFiles, [activeFile]: newCode };
+          }
+          return { ...p, ...patch };
+        });
 
         set({ code: newCode, syntaxErrors: errors, projects: updatedProjects });
       },
@@ -770,16 +780,35 @@ export const useIdeStore = create<IDEState>()(
         set({ isGenerating: true });
 
         try {
-          const errors = validateIPLCode(code);
-          if (errors.length > 0) {
-            addLog(`Advisory IPL check: ${errors[0].message} (line ${errors[0].line}). Generation continues.`, 'warn');
+          // Phase 7: build the project union deterministically, rooted at
+          // main.ipl, regardless of which file is active in the editor. The
+          // active editor buffer is authoritative for its own file.
+          const baseFiles = activeProj?.sourceFiles ? { ...activeProj.sourceFiles } : undefined;
+          if (baseFiles) {
+            const activeFile = activeProj?.activeSourceFile || 'main.ipl';
+            baseFiles[activeFile] = code;
+            if (!baseFiles['main.ipl']) baseFiles['main.ipl'] = code;
+          }
+          const projectRoot = baseFiles?.['main.ipl'] ?? code;
+
+          const { resolveIPLProject, validateIPLProject } = await import('../engine/iplGrammar');
+          const project = resolveIPLProject(projectRoot, baseFiles, 'main.ipl');
+
+          // Cross-file advisory checks: duplicate declarations and unknown
+          // references are now detected across imported modules.
+          const projectErrors = validateIPLProject(projectRoot, baseFiles, 'main.ipl');
+          if (projectErrors.length > 0) {
+            addLog(`Project-wide IPL check: ${projectErrors.length} diagnostic(s) across merged modules (first: ${projectErrors[0].message}).`, 'warn');
+          }
+          for (const u of project.unresolved) {
+            addLog(`Unresolved import "${u.file}" (from ${u.importedFrom}): module will not contribute to the build.`, 'warn');
           }
 
           // Pre-generation repair: apply fixable diagnostics (unterminated
-          // string, unclosed block) on a copy of the code so the model receives
-          // clean input. The user's editor buffer is never modified.
+          // string, unclosed block) on a copy of the merged union so the model
+          // receives clean input. The user's editor buffer is never modified.
           const { applyIPLQuickFixes } = await import('../engine/iplQuickFix');
-          const preRepair = applyIPLQuickFixes(code);
+          const preRepair = applyIPLQuickFixes(project.code);
           let unifiedCode = preRepair.code;
           if (preRepair.applied.length > 0) {
             addLog(`Pre-generation repair: ${preRepair.applied.length} fix(es) applied deterministically (${preRepair.applied.map(a => a.fixLabel).join(', ')}). Editor untouched.`, 'success');
@@ -787,9 +816,6 @@ export const useIdeStore = create<IDEState>()(
           if (preRepair.remaining.length > 0) {
             addLog(`Still ${preRepair.remaining.length} diagnostic(s) unresolved before generation (advisory only).`, 'warn');
           }
-
-          const { resolveIPLImports } = await import('../engine/iplGrammar');
-          unifiedCode = resolveIPLImports(unifiedCode, activeProj?.sourceFiles);
 
           const result = await generateIPL(
             unifiedCode, 
