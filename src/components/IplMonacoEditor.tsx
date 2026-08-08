@@ -188,10 +188,10 @@ export const IplMonacoEditor: React.FC = () => {
           base: 'vs-dark',
           inherit: true,
           rules: [
-            { token: 'keyword', foreground: '38bdf8', fontStyle: 'bold' }, // verbes IPL cyan
-            { token: 'type', foreground: 'c084fc' }, // types violet
-            { token: 'string', foreground: '34d399' }, // chaînes vert
-            { token: 'number', foreground: 'fbbf24' }, // nombres ambre
+            { token: 'keyword', foreground: '38bdf8', fontStyle: 'bold' }, // IPL verbs cyan
+            { token: 'type', foreground: 'c084fc' }, // types purple
+            { token: 'string', foreground: '34d399' }, // strings green
+            { token: 'number', foreground: 'fbbf24' }, // numbers amber
             { token: 'delimiter', foreground: '9ca3af' },
             { token: 'comment', foreground: '6b7280', fontStyle: 'italic' }
           ],

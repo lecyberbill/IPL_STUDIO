@@ -10,14 +10,14 @@ const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
 /**
- * Racine de l'espace de travail : tous les chemins d'écriture / d'exécution
- * sont cloisonnés à l'intérieur de cette racine pour limiter l'impact en cas
- * d'exposition accidentelle du serveur de dev.
+ * Workspace root: all write / execution paths are sandboxed
+ * inside this root to limit impact in case the dev server
+ * is accidentally exposed.
  */
 const WORKSPACE_ROOT = process.cwd();
 
 /**
- * Vérifie qu'un chemin résolu reste bien à l'intérieur de l'espace de travail.
+ * Verifies a resolved path stays inside the workspace.
  */
 function isWithinWorkspace(resolvedPath: string): boolean {
   const relative = path.relative(WORKSPACE_ROOT, resolvedPath);
@@ -25,16 +25,16 @@ function isWithinWorkspace(resolvedPath: string): boolean {
 }
 
 /**
- * Middleware Vite serveur pour matérialiser physiquement les artefacts générés, exécuter des commandes et gérer Git
- * ⚠️ Endpoints uniquement disponibles en mode développement (configureServer n'est pas actif en production).
+ * Vite server middleware to physically materialize generated artifacts, run commands and manage Git
+ * ⚠️ Endpoints only available in development mode (configureServer is not active in production).
  */
 function artifactDiskWriterPlugin() {
   return {
     name: 'artifact-disk-writer-plugin',
     configureServer(server: any) {
       server.config.logger.warn(
-        '[Security] Dev-only endpoints /api/write-artifact, /api/read-disk, /api/run-command et /api/git/* sont actifs. '
-        + 'N\'exposez JAMAIS ce serveur de développement sur un réseau non fiable.'
+        '[Security] Dev-only endpoints /api/write-artifact, /api/read-disk, /api/run-command and /api/git/* are active. '
+        + 'NEVER expose this development server to an untrusted network.'
       );
       server.middlewares.use(async (req: any, res: any, next: any) => {
         if (req.url === '/api/write-artifact' && req.method === 'POST') {
@@ -47,7 +47,7 @@ function artifactDiskWriterPlugin() {
               if (!outputDir || !Array.isArray(files)) {
                 res.statusCode = 400;
                 res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ error: 'Paramètres outputDir et files requis' }));
+                res.end(JSON.stringify({ error: 'outputDir and files parameters are required' }));
                 return;
               }
 
@@ -59,7 +59,7 @@ function artifactDiskWriterPlugin() {
                 res.statusCode = 403;
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify({
-                  error: 'outputDir doit rester à l\'intérieur de l\'espace de travail du projet.'
+                  error: 'outputDir must stay inside the project workspace.'
                 }));
                 return;
               }
@@ -70,7 +70,7 @@ function artifactDiskWriterPlugin() {
               files.forEach((file: { relativePath: string; content: string }) => {
                 const fullPath = path.join(resolvedDir, file.relativePath);
                 if (!isWithinWorkspace(fullPath)) {
-                  throw new Error(`Fichier "${file.relativePath}" sort de l'espace de travail, écriture refusée.`);
+                  throw new Error(`File "${file.relativePath}" escapes the workspace, write refused.`);
                 }
                 const parentDir = path.dirname(fullPath);
                 fs.mkdirSync(parentDir, { recursive: true });
@@ -101,7 +101,7 @@ function artifactDiskWriterPlugin() {
               if (!outputDir) {
                 res.statusCode = 400;
                 res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ error: 'Paramètre outputDir requis' }));
+                res.end(JSON.stringify({ error: 'outputDir parameter is required' }));
                 return;
               }
 
@@ -113,7 +113,7 @@ function artifactDiskWriterPlugin() {
                 res.statusCode = 403;
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify({
-                  error: 'outputDir doit rester à l\'intérieur de l\'espace de travail du projet.'
+                  error: 'outputDir must stay inside the project workspace.'
                 }));
                 return;
               }
@@ -173,7 +173,7 @@ function artifactDiskWriterPlugin() {
               if (!command) {
                 res.statusCode = 400;
                 res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ error: 'Command est requise' }));
+                res.end(JSON.stringify({ error: 'Command is required' }));
                 return;
               }
 
@@ -185,7 +185,7 @@ function artifactDiskWriterPlugin() {
                 res.statusCode = 403;
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify({
-                  error: 'Le répertoire de travail (cwd) doit rester à l\'intérieur de l\'espace de travail du projet.'
+                  error: 'The working directory (cwd) must stay inside the project workspace.'
                 }));
                 return;
               }
@@ -207,12 +207,12 @@ function artifactDiskWriterPlugin() {
               });
 
               proc.on('close', (code) => {
-                res.write(`\n[Exit code: ${code}] - Processus terminé\n`);
+                res.write(`\n[Exit code: ${code}] - Process finished\n`);
                 res.end();
               });
 
               proc.on('error', (err) => {
-                res.write(`\n[Erreur d'exécution: ${err.message}]\n`);
+                res.write(`\n[Execution error: ${err.message}]\n`);
                 res.end();
               });
             } catch (err: any) {
@@ -229,23 +229,23 @@ function artifactDiskWriterPlugin() {
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({
               branch: branch.trim(),
-              statusText: status.trim() || 'Rien à commiter, la copie de travail est propre.'
+              statusText: status.trim() || 'Nothing to commit, working tree clean.'
             }));
           } catch (err: any) {
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ branch: 'main', statusText: 'Dépôt Git local prêt.' }));
+            res.end(JSON.stringify({ branch: 'main', statusText: 'Local Git repository ready.' }));
           }
         } else if (req.url === '/api/git/diff' && req.method === 'GET') {
           try {
             const { stdout: diff } = await execAsync('git diff', { cwd: process.cwd() });
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ diffText: diff || 'Aucune différence Git détectée.' }));
+            res.end(JSON.stringify({ diffText: diff || 'No Git differences detected.' }));
           } catch (err: any) {
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ diffText: 'Dépôt Git non initialisé ou aucune modification.' }));
+            res.end(JSON.stringify({ diffText: 'Git repository not initialized or no changes.' }));
           }
         } else if (req.url === '/api/git/commit' && req.method === 'POST') {
           let body = '';
@@ -279,8 +279,8 @@ function artifactDiskWriterPlugin() {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
-  // Ne jamais exposer de variables d'environnement non préfixées VITE_ côté client.
-  // Les clés API utilisées par l'application doivent être préfixées VITE_ (standard Vite).
+  // Never expose non-VITE_ prefixed environment variables to the client.
+  // API keys used by the app must be prefixed VITE_ (Vite standard).
   const combinedEnvs: Record<string, string> = {};
 
   Object.keys(process.env).forEach(key => {

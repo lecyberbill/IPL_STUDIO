@@ -1,8 +1,8 @@
 /**
- * Gestion centralisée des chemins d'output des projets.
- * Utilise des chemins relatifs à l'espace de travail pour rester portable
- * d'une machine à l'autre (le middleware Vite résout les chemins relatifs
- * par rapport à la racine du projet).
+ * Centralized management of project output paths.
+ * Uses paths relative to the workspace to stay portable
+ * across machines (the Vite middleware resolves relative paths
+ * relative to the project root).
  */
 
 export const DEFAULT_OUTPUT_BASE = 'output';

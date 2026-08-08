@@ -24,17 +24,17 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ language, value }) => {
           type="button"
           onClick={handleCopy}
           className="flex items-center space-x-1 text-gray-400 hover:text-white transition-colors cursor-pointer"
-          title="Copier le code"
+          title="Copy code"
         >
           {copied ? (
             <>
               <Check size={11} className="text-emerald-400" />
-              <span className="text-emerald-400">Copié</span>
+              <span className="text-emerald-400">Copied</span>
             </>
           ) : (
             <>
               <Copy size={11} />
-              <span>Copier</span>
+              <span>Copy</span>
             </>
           )}
         </button>

@@ -291,7 +291,7 @@ export const TargetInspector: React.FC = () => {
                 type="button"
                 onClick={handleCopyPath}
                 className="p-1 text-gray-400 hover:text-white hover:bg-[#2a2f42] rounded transition-colors shrink-0 cursor-pointer"
-                title="Copier le chemin absolu du dossier disque"
+                title="Copy absolute disk folder path"
               >
                 {copiedPath ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
               </button>
@@ -301,7 +301,7 @@ export const TargetInspector: React.FC = () => {
               onClick={handleReadDisk}
               disabled={isReadingDisk}
               className="text-cyan-400 hover:text-cyan-300 hover:underline flex items-center space-x-1 shrink-0 disabled:opacity-50 font-semibold"
-              title="Resynchroniser l'IDE depuis les fichiers réels du disque (Pull)"
+              title="Resync the IDE from real files on disk (Pull)"
             >
               <RefreshCw size={11} className={isReadingDisk ? 'animate-spin' : ''} />
               <span>{isReadingDisk ? 'Syncing...' : 'Sync Disk'}</span>
@@ -376,14 +376,14 @@ export const TargetInspector: React.FC = () => {
                     onClick={() => useIdeStore.setState({ isGenerating: false })}
                     className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-300 text-[11px] rounded transition-colors font-medium"
                   >
-                    Annuler / Réinitialiser
+                    Cancel / Reset
                   </button>
                   <button
                     onClick={toggleSettings}
                     className="px-3 py-1 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 text-purple-300 text-[11px] rounded transition-colors font-medium flex items-center space-x-1"
                   >
                     <Settings size={12} />
-                    <span>Paramètres ⚙️</span>
+                    <span>Settings ⚙️</span>
                   </button>
                 </div>
               </div>
@@ -397,7 +397,7 @@ export const TargetInspector: React.FC = () => {
                         value={currentFile?.relativePath || ''}
                         onChange={(e) => setSelectedFilePath(e.target.value)}
                         className="bg-[#161922] text-cyan-300 font-mono text-[11px] border border-[#2a2f42] rounded px-2 py-0.5 focus:outline-none focus:border-cyan-500 cursor-pointer truncate max-w-[320px]"
-                        title="Sélectionner n'importe quel fichier de la liste complète"
+                        title="Select any file from the full list"
                       >
                         {files.map((f, idx) => (
                           <option key={f.relativePath} value={f.relativePath} className="bg-[#161922] text-white font-mono">

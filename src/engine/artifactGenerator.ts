@@ -14,7 +14,7 @@ export interface ProjectArtifact {
 }
 
 /**
- * Applique un bloc de modification ciblé SEARCH/REPLACE sur un contenu de fichier existant
+ * Applies a targeted SEARCH/REPLACE patch block onto an existing file's content
  */
 export function applyPatchToContent(originalContent: string, patchBlock: string): string {
   const searchReplaceRegex = /<<<<<<<\s*SEARCH\s*\n([\s\S]*?)\n=======\s*\n([\s\S]*?)\n>>>>>>>\s*REPLACE/gi;
@@ -38,18 +38,18 @@ export function applyPatchToContent(originalContent: string, patchBlock: string)
 }
 
 /**
- * Extrait de façon ultra-robuste les fichiers empaquetés sous forme de balises <file path="...">
- * ou applique les modifications ciblées de lignes par balises <patch path="...">
+ * Ultra-robustly extracts files packed as <file path="..."> tags
+ * or applies targeted line patches via <patch path="..."> tags
  */
 export function parseMultiFileXml(rawOutput: string, existingFiles: ProjectArtifactFile[] = []): ProjectArtifactFile[] {
   const filesMap = new Map<string, string>();
 
-  // Conserver les fichiers existants si fournis
+  // Keep existing files if provided
   for (const ef of existingFiles) {
     filesMap.set(ef.relativePath, ef.content);
   }
 
-  // 1. Extraire et appliquer les modifications ciblées de lignes par balises <patch path="...">
+  // 1. Extract and apply targeted line patches via <patch path="..."> tags
   const patchHeaderRegex = /<patch\s+path=["']([^"']+)["']\s*>/gi;
   let patchMatch: RegExpExecArray | null;
   const patchMatches: Array<{ path: string; startIndex: number; headerLength: number }> = [];
@@ -80,7 +80,7 @@ export function parseMultiFileXml(rawOutput: string, existingFiles: ProjectArtif
     }
   }
 
-  // 2. Extraire les fichiers complets sous forme de balises <file path="...">
+  // 2. Extract full files as <file path="..."> tags
   const fileHeaderRegex = /<file\s+path=["']([^"']+)["']\s*>/gi;
   let match: RegExpExecArray | null;
   const matches: Array<{ path: string; startIndex: number; headerLength: number }> = [];
@@ -100,13 +100,13 @@ export function parseMultiFileXml(rawOutput: string, existingFiles: ProjectArtif
 
     let rawContent = rawOutput.substring(contentStart, contentEnd);
     
-    // Si une balise fermante </file> est présente, tronquer le contenu exactement à la balise
+    // If a closing </file> tag is present, truncate the content exactly at the tag
     const closeTagIndex = rawContent.indexOf('</file>');
     if (closeTagIndex !== -1) {
       rawContent = rawContent.substring(0, closeTagIndex);
     }
     
-    // Nettoyer les blocs de code markdown s'ils existent à la fin
+    // Clean up trailing markdown code fences if any
     rawContent = rawContent.replace(/```\s*$/i, '');
 
     const cleanContent = rawContent.trim();
@@ -115,7 +115,7 @@ export function parseMultiFileXml(rawOutput: string, existingFiles: ProjectArtif
     }
   }
 
-  // 3. FALLBACK: Si aucune balise <file> n'a été détectée, extraire les blocs de code Markdown (```lang ... ```)
+  // 3. FALLBACK: If no <file> tags were detected, extract Markdown code blocks (```lang ... ```)
   if (filesMap.size === 0) {
     const codeBlockRegex = /```([a-z0-9_-]*)\s*\n([\s\S]*?)```/gi;
     let blockMatch: RegExpExecArray | null;
@@ -128,7 +128,7 @@ export function parseMultiFileXml(rawOutput: string, existingFiles: ProjectArtif
       const codeContent = blockMatch[2].trim();
       if (!codeContent) continue;
 
-      // Chercher si le début du bloc contient un nom de fichier (ex: <!-- css/styles.css --> ou /* css/styles.css */ ou // js/app.js)
+      // Look for a filename at the start of the block (e.g. <!-- css/styles.css --> or /* css/styles.css */ or // js/app.js)
       const pathCommentMatch = codeContent.match(/^(?:<!--|\/\*|\/\/|#)\s*([a-zA-Z0-9_\-./]+\.[a-zA-Z0-9]+)\s*(?:-->|\*\/)?/i);
       let detectedPath = pathCommentMatch ? pathCommentMatch[1].trim() : '';
 
@@ -163,7 +163,7 @@ export function parseMultiFileXml(rawOutput: string, existingFiles: ProjectArtif
 }
 
 /**
- * Moteur de Génération d'Artefacts de Projets complets prêts à l'emploi (Multi-Fichiers & Arborescence)
+ * Full ready-to-use multi-file project artifact generator (Multi-Files & Folder Tree)
  */
 export function buildProjectArtifact(
   projectName: string,
@@ -182,13 +182,13 @@ export function buildProjectArtifact(
     };
   }
 
-  // Tenter de découper le code généré si le LLM a renvoyé des balises <file path="...">
+  // Try to split generated code if the LLM returned <file path="..."> tags
   const parsedFiles = parseMultiFileXml(generatedCode);
   if (parsedFiles.length > 0) {
     files = parsedFiles;
   }
 
-  // Si aucun bloc <file> n'a été trouvé, construire la structure canonique par défaut
+  // If no <file> blocks found, build the default canonical structure
   if (files.length === 0) {
     if (targetLang === 'rust') {
       files.push({
@@ -201,7 +201,7 @@ export function buildProjectArtifact(
       });
       files.push({
         relativePath: 'README.md',
-        content: `# Projet Rust - ${projectName}\n\nArtefact généré par **IPL Studio v1.0**.\n\n## Exécution\n\`\`\`bash\ncargo run\n\`\`\`\n`
+        content: `# Rust Project - ${projectName}\n\nArtifact generated by **IPL Studio v1.0**.\n\n## Run\n\`\`\`bash\ncargo run\n\`\`\`\n`
       });
       files.push({
         relativePath: 'run.bat',
@@ -214,11 +214,11 @@ export function buildProjectArtifact(
       });
       files.push({
         relativePath: 'requirements.txt',
-        content: `# Dépendances générées pour ${projectName}\nasyncio\nrequests\n`
+        content: `# Dependencies generated for ${projectName}\nasyncio\nrequests\n`
       });
       files.push({
         relativePath: 'README.md',
-        content: `# Projet Python - ${projectName}\n\nArtefact généré par **IPL Studio v1.0**.\n\n## Exécution\n\`\`\`bash\npython main.py\n\`\`\`\n`
+        content: `# Python Project - ${projectName}\n\nArtifact generated by **IPL Studio v1.0**.\n\n## Run\n\`\`\`bash\npython main.py\n\`\`\`\n`
       });
       files.push({
         relativePath: 'run.bat',
@@ -230,7 +230,7 @@ export function buildProjectArtifact(
         content: JSON.stringify({
           name: safeName,
           version: '1.0.0',
-          description: `Projet JavaScript généré par IPL Studio`,
+          description: `JavaScript project generated by IPL Studio`,
           main: 'index.js',
           scripts: { start: 'node index.js' },
           author: 'IPL Studio v1.0'
@@ -242,7 +242,7 @@ export function buildProjectArtifact(
       });
       files.push({
         relativePath: 'README.md',
-        content: `# Projet JavaScript - ${projectName}\n\nArtefact généré par **IPL Studio v1.0**.\n\n## Exécution\n\`\`\`bash\nnode index.js\n\`\`\`\n`
+        content: `# JavaScript Project - ${projectName}\n\nArtifact generated by **IPL Studio v1.0**.\n\n## Run\n\`\`\`bash\nnode index.js\n\`\`\`\n`
       });
     } else if (targetLang === 'go') {
       files.push({
@@ -255,7 +255,7 @@ export function buildProjectArtifact(
       });
       files.push({
         relativePath: 'README.md',
-        content: `# Projet Go - ${projectName}\n\nArtefact généré par **IPL Studio v1.0**.\n\n## Exécution\n\`\`\`bash\ngo run main.go\n\`\`\`\n`
+        content: `# Go Project - ${projectName}\n\nArtifact generated by **IPL Studio v1.0**.\n\n## Run\n\`\`\`bash\ngo run main.go\n\`\`\`\n`
       });
     } else if (targetLang === 'cpp') {
       files.push({
@@ -268,7 +268,7 @@ export function buildProjectArtifact(
       });
       files.push({
         relativePath: 'README.md',
-        content: `# Projet C++ 20 - ${projectName}\n\nArtefact généré par **IPL Studio v1.0**.\n`
+        content: `# C++ 20 Project - ${projectName}\n\nArtifact generated by **IPL Studio v1.0**.\n`
       });
     } else if (targetLang === 'html') {
       files.push({
@@ -277,7 +277,7 @@ export function buildProjectArtifact(
       });
       files.push({
         relativePath: 'README.md',
-        content: `# Application Web HTML5 - ${projectName}\n\nOuvrez \`index.html\` dans n'importe quel navigateur.\n`
+        content: `# HTML5 Web Application - ${projectName}\n\nOpen \`index.html\` in any browser.\n`
       });
     } else {
       files.push({
@@ -286,12 +286,12 @@ export function buildProjectArtifact(
       });
       files.push({
         relativePath: 'README.md',
-        content: `# Artefact PLL v2 - ${projectName}\n`
+        content: `# PLL v2 Artifact - ${projectName}\n`
       });
     }
   }
 
-  // Fichier source IPL toujours inclus dans source/
+  // IPL source file always included under source/
   if (!files.some(f => f.relativePath === 'source/main.ipl')) {
     files.push({
       relativePath: 'source/main.ipl',
@@ -307,7 +307,7 @@ export function buildProjectArtifact(
 }
 
 /**
- * Exporte l'artefact complet du projet sous forme d'archive .zip téléchargeable
+ * Exports the full project artifact as a downloadable .zip archive
  */
 export async function downloadProjectZip(
   projectName: string,

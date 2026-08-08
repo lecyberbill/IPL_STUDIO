@@ -60,7 +60,7 @@ const CLOUD_PROVIDERS: ProviderPreset[] = [
   },
   {
     id: 'custom',
-    name: '⚙️ Mode Manuel / Endpoint Personnalisé',
+    name: '⚙️ Manual Mode / Custom Endpoint',
     endpoint: '',
     apiKeyName: '',
     models: []
@@ -124,15 +124,15 @@ export const SettingsModal: React.FC = () => {
         const modelList = (data.data || data.models || []).map((m: any) => m.id || m.name).filter(Boolean);
         if (modelList.length > 0) {
           setLiveFetchedModels(modelList);
-          addLog(`Récupéré ${modelList.length} modèle(s) en direct depuis ${baseUrl} !`, 'success');
+          addLog(`Fetched ${modelList.length} model(s) live from ${baseUrl}!`, 'success');
         } else {
-          addLog(`Aucun modèle renvoyé par l'endpoint ${baseUrl}.`, 'warn');
+          addLog(`No models returned by endpoint ${baseUrl}.`, 'warn');
         }
       } else {
-        addLog(`Erreur ${response.status} lors de la récupération des modèles depuis ${baseUrl}`, 'warn');
+        addLog(`Error ${response.status} while fetching models from ${baseUrl}`, 'warn');
       }
     } catch (err: any) {
-      addLog(`Impossible de contacter ${endpoint}: ${err.message}`, 'error');
+      addLog(`Cannot reach ${endpoint}: ${err.message}`, 'error');
     } finally {
       setIsFetchingModels(false);
     }
@@ -288,10 +288,10 @@ export const SettingsModal: React.FC = () => {
 
           {llmConfig.mode === 'external' && (
             <div className="space-y-3.5 bg-[#0f1117] p-4 rounded-lg border border-purple-500/30">
-              {/* 1. Choix du Fournisseur Cloud (Prédéterminé ou Manuel) */}
+              {/* 1. Cloud Provider Selection (Preset or Manual) */}
               <div>
                 <label className="block font-medium text-purple-300 mb-1">
-                  Fournisseur Cloud API (Adresse pré-configurée)
+                  Cloud API Provider (Pre-configured address)
                 </label>
                 <select
                   value={selectedProviderId}
@@ -306,10 +306,10 @@ export const SettingsModal: React.FC = () => {
                 </select>
               </div>
 
-              {/* 2. Endpoint Remote URL (Rempli automatiquement ou Manuel) */}
+              {/* 2. Remote Endpoint URL (Auto-filled or Manual) */}
               <div>
                 <label className="block font-medium text-gray-300 mb-1">
-                  Remote API Endpoint (URL Serveur)
+                  Remote API Endpoint (Server URL)
                 </label>
                 <input
                   type="text"
@@ -323,30 +323,30 @@ export const SettingsModal: React.FC = () => {
                 />
               </div>
 
-              {/* 3. Choix du Modèle (Dropdown + Option Manuelle + Récupération en direct) */}
+              {/* 3. Model Selection (Dropdown + Manual + Live Fetch) */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="font-medium text-gray-300">Modèle Cible</label>
+                  <label className="font-medium text-gray-300">Target Model</label>
                   <button
                     type="button"
                     onClick={handleFetchLiveModels}
                     disabled={isFetchingModels}
                     className="flex items-center space-x-1 text-[10px] text-cyan-400 hover:text-cyan-300 disabled:opacity-50 transition-colors"
-                    title="Interroger l'endpoint /v1/models pour charger la liste disponible"
+                    title="Query the /v1/models endpoint to load the available list"
                   >
                     <RefreshCw size={11} className={isFetchingModels ? 'animate-spin' : ''} />
-                    <span>{isFetchingModels ? 'Chargement...' : 'Récupérer modèles en direct'}</span>
+                    <span>{isFetchingModels ? 'Loading...' : 'Fetch live models'}</span>
                   </button>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {/* Select prédéfini / récupéré */}
+                  {/* Preset / fetched select */}
                   <select
                     value={llmConfig.model}
                     onChange={(e) => setLLMConfig({ model: e.target.value })}
                     className="bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-xs text-white focus:outline-none focus:border-purple-500 cursor-pointer"
                   >
-                    <optgroup label="📋 Modèles Recommandés" className="bg-[#161922] text-gray-400 font-bold">
+                    <optgroup label="📋 Recommended Models" className="bg-[#161922] text-gray-400 font-bold">
                       {(currentProvider.models.length > 0 ? currentProvider.models : [llmConfig.model]).map((m) => (
                         <option key={m} value={m} className="bg-[#161922] text-white">
                           {m}
@@ -355,7 +355,7 @@ export const SettingsModal: React.FC = () => {
                     </optgroup>
 
                     {liveFetchedModels.length > 0 && (
-                      <optgroup label="🌐 Modèles Découverts en Direct" className="bg-[#161922] text-cyan-400 font-bold">
+                      <optgroup label="🌐 Live Discovered Models" className="bg-[#161922] text-cyan-400 font-bold">
                         {liveFetchedModels.map((lm) => (
                           <option key={lm} value={lm} className="bg-[#161922] text-white">
                             {lm}
@@ -365,21 +365,21 @@ export const SettingsModal: React.FC = () => {
                     )}
                   </select>
 
-                  {/* Champ d'entrée manuel libre */}
+                  {/* Free manual input field */}
                   <input
                     type="text"
                     value={llmConfig.model}
                     onChange={(e) => setLLMConfig({ model: e.target.value })}
                     className="bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-xs text-white focus:outline-none focus:border-purple-500"
-                    placeholder="Saisissez un modèle personnalisé..."
+                    placeholder="Type a custom model..."
                   />
                 </div>
               </div>
 
-              {/* 4. Clé d'API Directe */}
+              {/* 4. Direct API Key */}
               <div>
                 <label className="block font-medium text-gray-300 mb-1">
-                  Clé d'API Directe (Optionnel — Collez directement votre clé ici)
+                  Direct API Key (Optional — paste your key directly here)
                 </label>
                 <input
                   type="password"
@@ -390,10 +390,10 @@ export const SettingsModal: React.FC = () => {
                 />
               </div>
 
-              {/* 5. Variable d'Environnement */}
+              {/* 5. Environment Variable */}
               <div>
                 <label className="block font-medium text-gray-300 mb-1">
-                  Nom de Variable d'Environnement (ex: GEMINI_API_KEY)
+                  Environment Variable Name (e.g. GEMINI_API_KEY)
                 </label>
                 <input
                   type="text"
@@ -404,7 +404,7 @@ export const SettingsModal: React.FC = () => {
                 />
                 <div className="mt-1.5 flex items-start space-x-1.5 text-[10px] text-amber-400/90 leading-relaxed">
                   <ShieldCheck size={14} className="shrink-0 mt-0.5" />
-                  <span>Saisissez votre clé directement ci-dessus OU définissez votre variable dans votre fichier <code>.env</code>.</span>
+                  <span>Enter your key directly above OR set your variable in your <code>.env</code> file.</span>
                 </div>
               </div>
             </div>

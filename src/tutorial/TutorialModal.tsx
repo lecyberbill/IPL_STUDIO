@@ -47,7 +47,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
   const [isAllPassed, setIsAllPassed] = useState<boolean>(false);
   const [injectedSuccess, setInjectedSuccess] = useState<boolean>(false);
 
-  // Mettre à jour le code utilisateur lors du changement de leçon
+  // Update the user code when the lesson changes
   useEffect(() => {
     setUserCode(lesson.initialCode);
     setShowHint(false);
@@ -59,7 +59,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
 
   if (!isOpen) return null;
 
-  // Valider les objectifs de la leçon en cours
+  // Validate the objectives of the current lesson
   const handleValidate = () => {
     const results = lesson.objectives.map(obj => ({
       id: obj.id,
@@ -81,7 +81,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
     }
   };
 
-  // Réinitialiser le code de l'exercice
+  // Reset the exercise code
   const handleReset = () => {
     setUserCode(lesson.initialCode);
     setHasValidated(false);
@@ -90,12 +90,12 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
     setShowHint(false);
   };
 
-  // Remplacer le code par la solution
+  // Replace the code with the solution
   const handleRevealSolution = () => {
     setUserCode(lesson.solution);
   };
 
-  // Charger le code d'exercice dans l'éditeur principal d'IPL Studio
+  // Load the exercise code into IPL Studio's main editor
   const handleInjectIntoStudio = () => {
     setCode(userCode);
     setInjectedSuccess(true);
@@ -118,13 +118,13 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-bold bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-400 bg-clip-text text-transparent">
-                  Tutoriel Interactif IPL
+                  IPL Interactive Tutorial
                 </h2>
                 <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                  {completedLessons.length} / {IPL_TUTORIAL_LESSONS.length} terminés
+                  {completedLessons.length} / {IPL_TUTORIAL_LESSONS.length} completed
                 </span>
               </div>
-              <p className="text-xs text-gray-400">Apprenez à concevoir des spécifications d'intention en pas-à-pas</p>
+              <p className="text-xs text-gray-400">Learn to design intent specifications step by step</p>
             </div>
           </div>
 
@@ -136,13 +136,13 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
           </button>
         </div>
 
-        {/* Corps Principal */}
+        {/* Main Body */}
         <div className="flex-1 flex overflow-hidden">
           
-          {/* Navigation Latérale Gauche (Liste des Leçons) */}
+          {/* Left Sidebar Navigation (Lesson List) */}
           <div className="w-72 bg-[#0f111a] border-r border-[#24283b] flex flex-col shrink-0 overflow-y-auto">
             <div className="p-3 border-b border-[#24283b] text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Parcours de Formation
+              Training Path
             </div>
             <div className="p-2 space-y-1">
               {IPL_TUTORIAL_LESSONS.map((l, idx) => {
@@ -184,19 +184,19 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
               })}
             </div>
 
-            {/* Encadré d'encouragement si tout est validé */}
+            {/* Encouragement box when everything is validated */}
             {completedLessons.length === IPL_TUTORIAL_LESSONS.length && (
               <div className="m-3 p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-lg text-emerald-300 text-xs flex items-center gap-2">
                 <Award className="w-5 h-5 shrink-0 text-emerald-400" />
-                <span>Bravo ! Vous avez terminé la formation complète sur IPL.</span>
+                <span>Well done! You completed the full IPL training.</span>
               </div>
             )}
           </div>
 
-          {/* Panneau Central & Droit (Contenu de la leçon + Éditeur d'exercice) */}
+          {/* Central & Right Panel (Lesson content + Exercise editor) */}
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
             
-            {/* Colonne Explications Théoriques */}
+            {/* Theory Explanations Column */}
             <div className="w-full md:w-1/2 p-6 overflow-y-auto border-r border-[#24283b] space-y-5 bg-[#141724]">
               <div>
                 <div className="flex items-center gap-2 text-xs font-medium text-cyan-400 mb-1">
@@ -208,7 +208,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
                 <p className="text-xs text-gray-400 mt-1">{lesson.subtitle}</p>
               </div>
 
-              {/* Contenu Markdown / Explication */}
+              {/* Markdown Content / Explanation */}
               <div className="prose prose-invert prose-xs max-w-none text-gray-300 space-y-3 leading-relaxed">
                 {lesson.explanation.split('\n\n').map((paragraph, i) => {
                   if (paragraph.startsWith('### ')) {
@@ -226,11 +226,11 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
                 })}
               </div>
 
-              {/* Objectifs de la Leçon */}
+              {/* Lesson Objectives */}
               <div className="bg-[#0f111a] border border-[#24283b] rounded-lg p-4 space-y-2">
                 <div className="text-xs font-semibold text-gray-300 flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-cyan-400" />
-                  <span>Objectifs à valider :</span>
+                  <span>Objectives to validate:</span>
                 </div>
                 <div className="space-y-1.5">
                   {lesson.objectives.map((obj) => {
@@ -257,7 +257,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
                 </div>
               </div>
 
-              {/* Accordéon Indice / Solution */}
+              {/* Hint / Solution Accordion */}
               <div className="space-y-2 pt-2">
                 <div className="flex gap-2">
                   <button
@@ -265,7 +265,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
                     className="flex-1 px-3 py-1.5 bg-[#1b1f30] hover:bg-[#23283e] border border-[#2a2f45] rounded-lg text-xs font-medium text-amber-300 flex items-center justify-center gap-1.5 transition-colors"
                   >
                     <HelpCircle className="w-3.5 h-3.5" />
-                    <span>{showHint ? 'Masquer l\'indice' : 'Besoin d\'un indice ?'}</span>
+                    <span>{showHint ? 'Hide hint' : 'Need a hint?'}</span>
                   </button>
 
                   <button
@@ -273,37 +273,37 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
                     className="px-3 py-1.5 bg-[#1b1f30] hover:bg-[#23283e] border border-[#2a2f45] rounded-lg text-xs font-medium text-gray-400 flex items-center justify-center gap-1.5 transition-colors"
                   >
                     <Eye className="w-3.5 h-3.5" />
-                    <span>Voir la solution</span>
+                    <span>View solution</span>
                   </button>
                 </div>
 
                 {showHint && (
                   <div className="p-3 bg-amber-950/30 border border-amber-500/30 rounded-lg text-xs text-amber-200">
-                    💡 <strong>Indice :</strong> {lesson.hint}
+                    💡 <strong>Hint:</strong> {lesson.hint}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Colonne Éditeur de Code Interactif */}
+            {/* Interactive Code Editor Column */}
             <div className="w-full md:w-1/2 flex flex-col h-full bg-[#0b0d14]">
               <div className="px-4 py-2 border-b border-[#24283b] bg-[#121420] flex items-center justify-between text-xs text-gray-400">
                 <div className="flex items-center gap-2">
                   <Code2 className="w-4 h-4 text-cyan-400" />
-                  <span className="font-mono text-cyan-300">exercice_leçon_{lesson.id}.ipl</span>
+                  <span className="font-mono text-cyan-300">lesson_exercise_{lesson.id}.ipl</span>
                 </div>
 
                 <button
                   onClick={handleReset}
                   className="flex items-center gap-1 text-gray-400 hover:text-white transition-colors"
-                  title="Réinitialiser le code de l'exercice"
+                  title="Reset the exercise code"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Réinitialiser</span>
+                  <span>Reset</span>
                 </button>
               </div>
 
-              {/* Zone Éditeur Monaco */}
+              {/* Monaco Editor Zone */}
               <div className="flex-1 relative">
                 <Editor
                   height="100%"
@@ -322,7 +322,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
                 />
               </div>
 
-              {/* Barre d'Action & Résultats */}
+              {/* Action Bar & Results */}
               <div className="p-4 border-t border-[#24283b] bg-[#131624] space-y-3">
                 {hasValidated && (
                   <div className={`p-3 rounded-lg border text-xs flex items-center justify-between ${
@@ -338,8 +338,8 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
                       )}
                       <span>
                         {isAllPassed 
-                          ? 'Parfait ! Tous les objectifs de cet exercice sont validés.' 
-                          : 'Certains objectifs ne sont pas encore remplis. Vérifiez votre code.'}
+                          ? 'Perfect! All objectives of this exercise are validated.' 
+                          : 'Some objectives are not met yet. Check your code.'}
                       </span>
                     </div>
 
@@ -348,7 +348,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
                         onClick={() => setCurrentLessonIndex(prev => prev + 1)}
                         className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-medium flex items-center gap-1 transition-colors"
                       >
-                        <span>Suivant</span>
+                        <span>Next</span>
                         <ChevronRight className="w-3.5 h-3.5" />
                       </button>
                     )}
@@ -361,7 +361,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
                     className="px-4 py-2 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-medium rounded-lg text-xs flex items-center gap-2 shadow-lg shadow-cyan-950/50 transition-all"
                   >
                     <Play className="w-3.5 h-3.5 fill-current" />
-                    <span>Vérifier mon code</span>
+                    <span>Check my code</span>
                   </button>
 
                   <button
@@ -371,10 +371,10 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
                         ? 'bg-emerald-600 border-emerald-500 text-white' 
                         : 'bg-[#1b1f30] hover:bg-[#252b42] border-[#2a2f45] text-cyan-300'
                     }`}
-                    title="Envoyer ce code d'exercice dans l'éditeur principal du Studio"
+                    title="Send this exercise code to the Studio's main editor"
                   >
                     <Code2 className="w-3.5 h-3.5" />
-                    <span>{injectedSuccess ? 'Injecté dans le Studio !' : 'Ouvrir dans le Studio'}</span>
+                    <span>{injectedSuccess ? 'Injected into the Studio!' : 'Open in the Studio'}</span>
                   </button>
                 </div>
               </div>
@@ -393,17 +393,17 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
             className="flex items-center gap-1 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Leçon précédente</span>
+            <span>Previous lesson</span>
           </button>
 
-          <span className="font-mono text-gray-500">Leçon {currentLessonIndex + 1} sur {IPL_TUTORIAL_LESSONS.length}</span>
+          <span className="font-mono text-gray-500">Lesson {currentLessonIndex + 1} of {IPL_TUTORIAL_LESSONS.length}</span>
 
           <button
             disabled={currentLessonIndex === IPL_TUTORIAL_LESSONS.length - 1}
             onClick={() => setCurrentLessonIndex(prev => Math.min(IPL_TUTORIAL_LESSONS.length - 1, prev + 1))}
             className="flex items-center gap-1 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 transition-colors"
           >
-            <span>Leçon suivante</span>
+            <span>Next lesson</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

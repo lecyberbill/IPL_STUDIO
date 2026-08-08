@@ -23,7 +23,7 @@ export const TerminalPanel: React.FC = () => {
 
     if (!terminalRef.current) return;
 
-    // Nettoyage explicite de l'élément conteneur
+    // Explicit cleanup of the container element
     terminalRef.current.innerHTML = '';
 
     const term = new Terminal({
@@ -56,7 +56,7 @@ export const TerminalPanel: React.FC = () => {
           fitAddon.fit();
         } catch (_) {}
       } catch (err) {
-        // Ignorer l'avertissement d'initialisation asynchrone xterm
+        // Ignore xterm async initialization warning
       }
     }, 50);
 
@@ -64,7 +64,7 @@ export const TerminalPanel: React.FC = () => {
       try {
         fitAddon.fit();
       } catch (err) {
-        // Ignorer les exceptions au redimensionnement
+        // Ignore exceptions on resize
       }
     };
     window.addEventListener('resize', handleResize);

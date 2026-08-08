@@ -27,7 +27,7 @@ export const App: React.FC = () => {
   const [isResizingLeft, setIsResizingLeft] = useState(false);
   const [isResizingRight, setIsResizingRight] = useState(false);
 
-  // Gérer le redimensionnement interactif des colonnes au glisser de la souris
+  // Handle interactive column resizing on mouse drag
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isResizingLeft) {
@@ -54,7 +54,7 @@ export const App: React.FC = () => {
     };
   }, [isResizingLeft, isResizingRight, setLeftSidebarWidth, setRightSidebarWidth]);
 
-  // Écouteur global du raccourci clavier Ctrl + Entrée (ou Cmd + Entrée) pour lancer la génération
+  // Global listener for the Ctrl + Enter (or Cmd + Enter) keyboard shortcut to trigger generation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -69,44 +69,44 @@ export const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0f1117] text-gray-100 overflow-hidden font-sans select-none">
-      {/* 1. Barre de Contrôle Supérieure */}
+      {/* 1. Top Control Bar */}
       <Navbar />
 
-      {/* 2. Espace de Travail Central (Panneaux Redimensionnables) */}
+      {/* 2. Central Workspace (Resizable Panels) */}
       <main className="flex-1 flex flex-row overflow-hidden relative">
-        {/* Panneau Gauche : Palette Verbes et Arborescence .ipl */}
+        {/* Left Panel: Verb Palette & .ipl Tree */}
         <LeftSidebar />
 
-        {/* Poignée de Redimensionnement Colonne 1 (Gauche) */}
+        {/* Resize Handle Column 1 (Left) */}
         <div
           onMouseDown={() => setIsResizingLeft(true)}
           onDoubleClick={() => setLeftSidebarWidth(280)}
           className={`w-1.5 hover:w-2 bg-[#161922] hover:bg-cyan-500/60 cursor-col-resize z-30 transition-all shrink-0 border-r border-[#2a2f42] ${
             isResizingLeft ? 'bg-cyan-500 w-2' : ''
           }`}
-          title="Faire glisser pour redimensionner la colonne gauche (Double-clic pour réinitialiser)"
+          title="Drag to resize the left column (Double-click to reset)"
         />
 
-        {/* Zone Centrale : Éditeur Monaco ou Blocs AST */}
+        {/* Central Zone: Monaco Editor or AST Blocks */}
         <section className="flex-1 flex flex-col h-full overflow-hidden bg-[#12141c] min-w-0">
           {editorViewMode === 'text' ? <IplMonacoEditor /> : <BlockViewEditor />}
         </section>
 
-        {/* Poignée de Redimensionnement Colonne 3 (Droite) */}
+        {/* Resize Handle Column 3 (Right) */}
         <div
           onMouseDown={() => setIsResizingRight(true)}
           onDoubleClick={() => setRightSidebarWidth(520)}
           className={`w-1.5 hover:w-2 bg-[#161922] hover:bg-cyan-500/60 cursor-col-resize z-30 transition-all shrink-0 border-l border-[#2a2f42] ${
             isResizingRight ? 'bg-cyan-500 w-2' : ''
           }`}
-          title="Faire glisser pour redimensionner la colonne droite (Double-clic pour réinitialiser)"
+          title="Drag to resize the right column (Double-click to reset)"
         />
 
-        {/* Panneau Droit : Inspecteur de Cible & Chat LLM */}
+        {/* Right Panel: Target Inspector & LLM Chat */}
         <TargetInspector />
       </main>
 
-      {/* 3. Console Bas de Page & Terminal Embarqué */}
+      {/* 3. Bottom Console & Embedded Terminal */}
       <ConsolePanel />
 
       {/* 4. Modals */}

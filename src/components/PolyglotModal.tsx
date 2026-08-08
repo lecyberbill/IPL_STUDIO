@@ -6,10 +6,10 @@ import type { PolyglotLayer } from '../store/useIdeStore';
 const PRESET_ROLES = [
   'Backend API',
   'Frontend UI',
-  'Base de données / Stockage',
-  'Service Worker / Tâche Fond',
-  'Outil CLI / Executable',
-  'DevOps / Conteneur'
+  'Database / Storage',
+  'Service Worker / Background Task',
+  'CLI Tool / Executable',
+  'DevOps / Container'
 ];
 
 const PRESET_TECHS = [
@@ -35,7 +35,7 @@ export const PolyglotModal: React.FC = () => {
   const [autoDecide, setAutoDecide] = useState(polyglotConfig.autoDecide);
   const [layers, setLayers] = useState<PolyglotLayer[]>(polyglotConfig.layers);
 
-  // Synchroniser l'état local dès que le modale s'ouvre ou que la config du store change
+  // Sync local state whenever the modal opens or the store config changes
   useEffect(() => {
     if (isPolyglotModalOpen) {
       setAutoDecide(polyglotConfig.autoDecide);
@@ -78,7 +78,7 @@ export const PolyglotModal: React.FC = () => {
         <div className="px-5 py-4 bg-[#0f1117] border-b border-[#2a2f42] flex items-center justify-between">
           <div className="flex items-center space-x-2 text-cyan-400 font-bold text-sm">
             <Layers size={18} />
-            <span>🌐 Configuration Polyglotte Multi-Stacks</span>
+            <span>🌐 Polyglot Multi-Stack Configuration</span>
           </div>
           <button
             onClick={togglePolyglotModal}
@@ -95,10 +95,10 @@ export const PolyglotModal: React.FC = () => {
             <div className="space-y-0.5">
               <div className="flex items-center space-x-2 font-semibold text-white">
                 <Sparkles size={15} className="text-yellow-400" />
-                <span>Décision Automatique par le Modèle LLM</span>
+                <span>Automatic LLM Model Decision</span>
               </div>
               <p className="text-[11px] text-gray-400">
-                Laisse l'Architecte LLM analyser votre spécification IPL et choisir la stack optimale.
+                Let the LLM Architect analyze your IPL specification and pick the optimal stack.
               </p>
             </div>
 
@@ -119,7 +119,7 @@ export const PolyglotModal: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-1.5 font-semibold text-cyan-300">
                   <Cpu size={14} />
-                  <span>Couples de Composants Cibles (Rôle ➔ Technologie)</span>
+                  <span>Target Component Pairs (Role ➔ Technology)</span>
                 </div>
                 <button
                   type="button"
@@ -127,7 +127,7 @@ export const PolyglotModal: React.FC = () => {
                   className="flex items-center space-x-1 px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded text-[11px] font-semibold transition-all"
                 >
                   <Plus size={13} />
-                  <span>Ajouter un composant</span>
+                  <span>Add component</span>
                 </button>
               </div>
 
@@ -143,13 +143,13 @@ export const PolyglotModal: React.FC = () => {
 
                     {/* Role Select/Input */}
                     <div className="flex-1 space-y-1">
-                      <label className="text-[10px] text-gray-400 font-mono block">Rôle du Composant</label>
+                      <label className="text-[10px] text-gray-400 font-mono block">Component Role</label>
                       <input
                         type="text"
                         list={`roles-${layer.id}`}
                         value={layer.role}
                         onChange={(e) => handleUpdateLayer(layer.id, 'role', e.target.value)}
-                        placeholder="Ex: Backend API, Frontend UI..."
+                        placeholder="e.g. Backend API, Frontend UI..."
                         className="w-full bg-[#161922] border border-[#2a2f42] rounded px-2.5 py-1 text-white text-xs focus:outline-none focus:border-cyan-500 font-mono"
                       />
                       <datalist id={`roles-${layer.id}`}>
@@ -161,13 +161,13 @@ export const PolyglotModal: React.FC = () => {
 
                     {/* Tech Select/Input */}
                     <div className="flex-1 space-y-1">
-                      <label className="text-[10px] text-gray-400 font-mono block">Technologie Cible</label>
+                      <label className="text-[10px] text-gray-400 font-mono block">Target Technology</label>
                       <input
                         type="text"
                         list={`techs-${layer.id}`}
                         value={layer.tech}
                         onChange={(e) => handleUpdateLayer(layer.id, 'tech', e.target.value)}
-                        placeholder="Ex: Python (FastAPI), HTML5/JS..."
+                        placeholder="e.g. Python (FastAPI), HTML5/JS..."
                         className="w-full bg-[#161922] border border-[#2a2f42] rounded px-2.5 py-1 text-cyan-300 text-xs focus:outline-none focus:border-cyan-500 font-mono"
                       />
                       <datalist id={`techs-${layer.id}`}>
@@ -181,7 +181,7 @@ export const PolyglotModal: React.FC = () => {
                       onClick={() => handleRemoveLayer(layer.id)}
                       disabled={layers.length <= 1}
                       className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors disabled:opacity-30 shrink-0 mt-3"
-                      title="Supprimer ce composant"
+                      title="Remove this component"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -195,14 +195,14 @@ export const PolyglotModal: React.FC = () => {
         {/* Footer */}
         <div className="px-5 py-3 bg-[#0f1117] border-t border-[#2a2f42] flex items-center justify-between">
           <span className="text-[10px] text-gray-500 font-mono">
-            {autoDecide ? 'Mode Automatique Actif' : `${layers.length} composant(s) configuré(s)`}
+            {autoDecide ? 'Auto Mode Active' : `${layers.length} component(s) configured`}
           </span>
           <button
             onClick={handleSave}
             className="flex items-center space-x-1.5 px-4 py-1.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-bold rounded-lg text-xs transition-all shadow"
           >
             <Check size={14} />
-            <span>Enregistrer la Stack Polyglotte</span>
+            <span>Save Polyglot Stack</span>
           </button>
         </div>
       </div>

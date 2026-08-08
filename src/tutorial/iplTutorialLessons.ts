@@ -12,7 +12,7 @@ export interface TutorialLesson {
   subtitle: string;
   category: string;
   icon: string;
-  difficulty: 'Débutant' | 'Intermédiaire' | 'Avancé';
+  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
   estimatedTime: string;
   explanation: string;
   codeExample: string;
@@ -25,32 +25,32 @@ export interface TutorialLesson {
 export const IPL_TUTORIAL_LESSONS: TutorialLesson[] = [
   {
     id: 1,
-    title: "1. Structurer une Vue UI",
-    subtitle: "Déclarer des interfaces graphiques avec le verbe `add view`",
-    category: "Bases IPL",
+    title: "1. Structuring a UI View",
+    subtitle: "Declare graphical interfaces with the `add view` verb",
+    category: "IPL Basics",
     icon: "Layout",
-    difficulty: "Débutant",
+    difficulty: "Beginner",
     estimatedTime: "3 min",
-    explanation: `Dans **IPL (Intent Programming Language)**, la déclaration des interfaces utilisateur se fait de manière déclarative avec le verbe **\`add view\`**.
+    explanation: `In **IPL (Intent Programming Language)**, user interfaces are declared declaratively with the **\`add view\`** verb.
 
-Une vue définit le titre, le thème visuel, et la liste des composants graphiques nécessaires pour l'application.
+A view defines the title, the visual theme, and the list of graphical components required by the application.
 
-### Syntaxe générale :
+### General syntax :
 \`\`\`ipl
-add view NomDeLaVue {
-  title: "Titre de l'application",
+add view ViewName {
+  title: "Application title",
   theme: "dark",
   components: [
-    "inputNom",
-    "boutonValider",
-    "carteResultat"
+    "nameInput",
+    "validateButton",
+    "resultCard"
   ]
 }
 \`\`\`
 
-**Note :** Le verbe \`add\` est l'un des 12 verbes canoniques d'IPL.`,
+**Note:** The \`add\` verb is one of IPL's 12 canonical verbs.`,
     codeExample: `add view DashboardView {
-  title: "Tableau de Bord Analytique",
+  title: "Analytics Dashboard",
   theme: "dark",
   components: [
     "filterDateInput",
@@ -58,40 +58,40 @@ add view NomDeLaVue {
     "salesChart"
   ]
 }`,
-    initialCode: `// Étape 1 : Déclarez votre première vue IPL prénommée TaskDashboardView
-// Elle doit contenir un titre "Gestionnaire de Tâches" et au moins 2 composants.
+    initialCode: `// Step 1: Declare your first IPL view named TaskDashboardView
+// It must contain a "Task Manager" title and at least 2 components.
 
 add view TaskDashboardView {
-  // Complétez ici
-  title: "Gestionnaire de Tâches",
+  // Complete here
+  title: "Task Manager",
   components: [
     "taskInputField",
     "taskListView"
   ]
 }`,
     solution: `add view TaskDashboardView {
-  title: "Gestionnaire de Tâches",
+  title: "Task Manager",
   theme: "dark",
   components: [
     "taskInputField",
     "taskListView"
   ]
 }`,
-    hint: "Assurez-vous d'utiliser `add view TaskDashboardView { ... }` avec un champ `title:` et une liste `components: [...]` avec au moins 2 éléments.",
+    hint: "Make sure you use `add view TaskDashboardView { ... }` with a `title:` field and a `components: [...]` list with at least 2 items.",
     objectives: [
       {
         id: "view_decl",
-        description: "Déclarer une vue nommée `TaskDashboardView` avec le verbe `add view`",
+        description: "Declare a view named `TaskDashboardView` with the `add view` verb",
         check: (code: string) => /add\s+view\s+TaskDashboardView\s*\{/.test(code)
       },
       {
         id: "view_title",
-        description: "Définir le champ `title:` avec une chaîne de caractères",
+        description: "Define the `title:` field with a string",
         check: (code: string) => /title\s*:\s*["'][^"']+["']/.test(code)
       },
       {
         id: "view_components",
-        description: "Définir un tableau `components:` contenant au moins 2 éléments",
+        description: "Define a `components:` array containing at least 2 items",
         check: (code: string) => {
           const match = code.match(/components\s*:\s*\[([\s\S]*?)\]/);
           if (!match) return false;
@@ -103,23 +103,23 @@ add view TaskDashboardView {
   },
   {
     id: 2,
-    title: "2. Déclarer des Entités & Types",
-    subtitle: "Modéliser le domaine avec `add entity` et les 7 Types d'Intention",
-    category: "Modélisation",
+    title: "2. Declaring Entities & Types",
+    subtitle: "Model the domain with `add entity` and the 7 Intent Types",
+    category: "Modeling",
     icon: "Database",
-    difficulty: "Débutant",
+    difficulty: "Beginner",
     estimatedTime: "5 min",
-    explanation: `Les données dans IPL sont structurées sous forme d'**Entités**. Pour garantir une génération de code multi-langage (Rust, Python, TypeScript, Go) 100% fiable, IPL impose strictement **7 Types d'Intention** :
+    explanation: `Data in IPL is structured as **Entities**. To guarantee 100% reliable multi-language code generation (Rust, Python, TypeScript, Go), IPL strictly enforces **7 Intent Types**:
 
-1. \`text\` : Chaînes de caractères (titre, nom, description).
-2. \`number\` : Nombres entiers ou décimaux (prix, âge, score).
-3. \`boolean\` : Valeurs vraies/fausses (\`true\` / \`false\`).
-4. \`id\` : Identifiants uniques / UUID.
-5. \`date\` : Dates ou horodatages.
-6. \`options("val1", "val2")\` : Énumérations et choix contraints.
-7. \`list\` : Listes ou tableaux d'éléments.
+1. \`text\`: Character strings (title, name, description).
+2. \`number\`: Integers or decimals (price, age, score).
+3. \`boolean\`: True/false values (\`true\` / \`false\`).
+4. \`id\`: Unique identifiers / UUID.
+5. \`date\`: Dates or timestamps.
+6. \`options("val1", "val2")\`: Enumerations and constrained choices.
+7. \`list\`: Lists or arrays of items.
 
-### Exemple :
+### Example :
 \`\`\`ipl
 add entity User {
   id: id,
@@ -136,16 +136,16 @@ add entity User {
   inStock: boolean,
   createdAt: date
 }`,
-    initialCode: `// Étape 2 : Créez une entité nommée Task
-// Elle doit posséder 4 champs :
+    initialCode: `// Step 2: Create an entity named Task
+// It must have 4 fields:
 // - id (type: id)
 // - title (type: text)
-// - priority (type: options avec "low", "medium", "high")
+// - priority (type: options with "low", "medium", "high")
 // - isDone (type: boolean)
 
 add entity Task {
   id: id,
-  // Ajoutez les autres champs ici
+  // Add the other fields here
 }`,
     solution: `add entity Task {
   id: id,
@@ -153,51 +153,51 @@ add entity Task {
   priority: options("low", "medium", "high"),
   isDone: boolean
 }`,
-    hint: "Déclarez les champs dans l'entité Task en utilisant `title: text`, `priority: options(\"low\", \"medium\", \"high\")`, et `isDone: boolean`.",
+    hint: "Declare the fields in the Task entity using `title: text`, `priority: options(\"low\", \"medium\", \"high\")`, and `isDone: boolean`.",
     objectives: [
       {
         id: "entity_decl",
-        description: "Déclarer l'entité `Task` avec `add entity Task { ... }`",
+        description: "Declare the `Task` entity with `add entity Task { ... }`",
         check: (code: string) => /add\s+entity\s+Task\s*\{/.test(code)
       },
       {
         id: "entity_id",
-        description: "Inclure le champ `id: id`",
+        description: "Include the `id: id` field",
         check: (code: string) => /id\s*:\s*id/.test(code)
       },
       {
         id: "entity_title",
-        description: "Inclure le champ `title: text`",
+        description: "Include the `title: text` field",
         check: (code: string) => /title\s*:\s*text/.test(code)
       },
       {
         id: "entity_priority",
-        description: "Inclure le champ `priority: options(...)` avec au moins 2 options",
+        description: "Include the `priority: options(...)` field with at least 2 options",
         check: (code: string) => /priority\s*:\s*options\s*\([^)]+\)/.test(code)
       },
       {
         id: "entity_bool",
-        description: "Inclure un champ booléen `isDone: boolean`",
+        description: "Include a boolean field `isDone: boolean`",
         check: (code: string) => /isDone\s*:\s*boolean/.test(code)
       }
     ]
   },
   {
     id: 3,
-    title: "3. Manipuler les Données (CRUD)",
-    subtitle: "Utiliser les verbes `read`, `set`, `remove`, `search`",
-    category: "Verbes de Données",
+    title: "3. Manipulating Data (CRUD)",
+    subtitle: "Use the `read`, `set`, `remove`, `search` verbs",
+    category: "Data Verbs",
     icon: "Repeat",
-    difficulty: "Intermédiaire",
+    difficulty: "Intermediate",
     estimatedTime: "5 min",
-    explanation: `IPL fournit des verbes déclaratifs pour manipuler la donnée sans se soucier du SQL ou du stockage sous-jacent :
+    explanation: `IPL provides declarative verbs to manipulate data without worrying about SQL or the underlying storage:
 
-- **\`read\`** : Lit un enregistrement depuis un service ou une table.
-- **\`set\`** : Modifie une propriété ou un état.
-- **\`remove\`** : Supprime un élément d'une collection.
-- **\`search\`** : Recherche des éléments selon un critère.
+- **\`read\`**: Reads a record from a service or a table.
+- **\`set\`**: Modifies a property or a state.
+- **\`remove\`**: Removes an item from a collection.
+- **\`search\`**: Searches for items matching a criterion.
 
-### Exemples :
+### Examples :
 \`\`\`ipl
 read targetUser from userService {
   where: id == currentId
@@ -217,55 +217,55 @@ search activeTasks from taskList {
 
 set activeUser.lastLogin = "2026-08-06"
 `,
-    initialCode: `// Étape 3 : Effectuez les 2 opérations suivantes :
-// 1. Lisez la tâche dans 'taskService' où id == req.taskId et stockez-la dans 'currentTask'
-// 2. Modifiez l'état de 'currentTask.isDone' à true avec le verbe 'set'
+    initialCode: `// Step 3: Perform the following 2 operations:
+// 1. Read the task from 'taskService' where id == req.taskId and store it in 'currentTask'
+// 2. Set 'currentTask.isDone' to true with the 'set' verb
 
 read currentTask from taskService {
   where: id == req.taskId
 }
 
-// Écrivez l'instruction 'set' ci-dessous :
+// Write the 'set' statement below:
 `,
     solution: `read currentTask from taskService {
   where: id == req.taskId
 }
 
 set currentTask.isDone = true`,
-    hint: "Pour modifier une propriété, utilisez `set currentTask.isDone = true`.",
+    hint: "To modify a property, use `set currentTask.isDone = true`.",
     objectives: [
       {
         id: "read_verb",
-        description: "Utiliser `read currentTask from taskService { ... }`",
+        description: "Use `read currentTask from taskService { ... }`",
         check: (code: string) => /read\s+currentTask\s+from\s+taskService/.test(code)
       },
       {
         id: "read_where",
-        description: "Spécifier le critère `where: id == req.taskId`",
+        description: "Specify the `where: id == req.taskId` criterion",
         check: (code: string) => /where\s*:\s*id\s*==\s*req\.taskId/.test(code)
       },
       {
         id: "set_verb",
-        description: "Mettre à jour la tâche avec `set currentTask.isDone = true`",
+        description: "Update the task with `set currentTask.isDone = true`",
         check: (code: string) => /set\s+currentTask\.isDone\s*=\s*true/.test(code)
       }
     ]
   },
   {
     id: 4,
-    title: "4. Métriques & Calculs",
-    subtitle: "Utiliser `compute`, `if` et `for` pour la logique métier",
-    category: "Logique & Flux",
+    title: "4. Metrics & Calculations",
+    subtitle: "Use `compute`, `if` and `for` for business logic",
+    category: "Logic & Flow",
     icon: "Cpu",
-    difficulty: "Intermédiaire",
+    difficulty: "Intermediate",
     estimatedTime: "5 min",
-    explanation: `Les opérations de calcul et de contrôle de flux dans IPL s'expriment naturellement :
+    explanation: `Calculation and flow-control operations in IPL are expressed naturally:
 
-- **\`compute\`** : Déclare un calcul métier explicite.
-- **\`if (...) { ... } else { ... }\`** : Branchement conditionnel.
-- **\`for item in collection { ... }\`** : Boucle d'itération.
+- **\`compute\`**: Declares an explicit business calculation.
+- **\`if (...) { ... } else { ... }\`**: Conditional branching.
+- **\`for item in collection { ... }\`**: Iteration loop.
 
-### Exemple :
+### Example :
 \`\`\`ipl
 compute score from analytics {
   total: baseScore + (bonus * 1.5)
@@ -284,16 +284,16 @@ if (score.total > 100) {
 if (cartTotal.finalPrice > 50) {
   set shipping.isFree = true
 }`,
-    initialCode: `// Étape 4 :
-// 1. Calculez une métrique nommée 'completionStats' depuis 'taskList' :
+    initialCode: `// Step 4:
+// 1. Compute a metric named 'completionStats' from 'taskList':
 //    completionRate: (completedCount / totalCount) * 100
-// 2. Si completionStats.completionRate >= 100, réglez 'project.status = "COMPLETED"' avec 'set'
+// 2. If completionStats.completionRate >= 100, set 'project.status = "COMPLETED"' with 'set'
 
 compute completionStats from taskList {
   completionRate: (completedCount / totalCount) * 100
 }
 
-// Ajoutez la condition 'if (...) { ... }' ici :
+// Add the 'if (...) { ... }' condition here:
 `,
     solution: `compute completionStats from taskList {
   completionRate: (completedCount / totalCount) * 100
@@ -302,38 +302,38 @@ compute completionStats from taskList {
 if (completionStats.completionRate >= 100) {
   set project.status = "COMPLETED"
 }`,
-    hint: "Créez une structure `if (completionStats.completionRate >= 100) { set project.status = \"COMPLETED\" }`.",
+    hint: "Create an `if (completionStats.completionRate >= 100) { set project.status = \"COMPLETED\" }` structure.",
     objectives: [
       {
         id: "compute_verb",
-        description: "Utiliser le verbe `compute` pour calculer `completionRate`",
+        description: "Use the `compute` verb to calculate `completionRate`",
         check: (code: string) => /compute\s+completionStats\s+from\s+taskList/.test(code)
       },
       {
         id: "if_condition",
-        description: "Créer un bloc conditionnel `if (completionStats.completionRate >= 100)`",
+        description: "Create a conditional block `if (completionStats.completionRate >= 100)`",
         check: (code: string) => /if\s*\(\s*completionStats\.completionRate\s*>=\s*100\s*\)/.test(code)
       },
       {
         id: "set_inside_if",
-        description: "Mettre à jour l'état dans le bloc if avec `set project.status = \"COMPLETED\"`",
+        description: "Update the state inside the if block with `set project.status = \"COMPLETED\"`",
         check: (code: string) => /set\s+project\.status\s*=\s*["']COMPLETED["']/.test(code)
       }
     ]
   },
   {
     id: 5,
-    title: "5. Événements & Gestion d'Erreurs",
-    subtitle: "Rendre l'application réactive avec `listen`, `try`, `catch` et `return`",
-    category: "Événements & APIs",
+    title: "5. Events & Error Handling",
+    subtitle: "Make the app reactive with `listen`, `try`, `catch` and `return`",
+    category: "Events & APIs",
     icon: "Zap",
-    difficulty: "Avancé",
+    difficulty: "Advanced",
     estimatedTime: "6 min",
-    explanation: `Les applications IPL réagissent aux événements utilisateurs ou système via **\`listen event on "nom:evenement"\`**.
+    explanation: `IPL applications react to user or system events via **\`listen event on "event:name"\`**.
 
-Pour garantir la sécurité et la résilience, les blocs d'accès aux données ou aux services externes doivent être encapsulés dans **\`try { ... } catch (err) { ... }\`**, terminés par **\`return\`** pour renvoyer une réponse structurée.
+To guarantee safety and resilience, blocks accessing data or external services must be wrapped in **\`try { ... } catch (err) { ... }\`**, ending with **\`return\`** to send back a structured response.
 
-### Exemple :
+### Example :
 \`\`\`ipl
 listen event on "user:create" {
   try {
@@ -342,7 +342,7 @@ listen event on "user:create" {
     }
     send notification to emailService {
       to: newUser.email,
-      body: "Bienvenue !"
+      body: "Welcome!"
     }
     return { status: "SUCCESS", user: newUser }
   } catch (err) {
@@ -359,11 +359,11 @@ listen event on "user:create" {
     return { status: "FAILED", error: err.message }
   }
 }`,
-    initialCode: `// Étape 5 : Écoutez l'événement "task:toggle"
-// Dans un bloc try/catch :
-// 1. Modifiez la tâche
-// 2. Envoyez une mise à jour au composant 'taskListView' avec 'send'
-// 3. Retournez un objet { status: "SUCCESS" }
+    initialCode: `// Step 5: Listen for the "task:toggle" event
+// Inside a try/catch block:
+// 1. Modify the task
+// 2. Send an update to the 'taskListView' component with 'send'
+// 3. Return an object { status: "SUCCESS" }
 
 listen event on "task:toggle" {
   try {
@@ -395,44 +395,44 @@ listen event on "task:toggle" {
     }
   }
 }`,
-    hint: "Assurez-vous de posséder `listen event on \"task:toggle\"`, un bloc `try { ... } catch (err) { ... }`, le verbe `send` et un `return { ... }`.",
+    hint: "Make sure you have `listen event on \"task:toggle\"`, a `try { ... } catch (err) { ... }` block, the `send` verb and a `return { ... }`.",
     objectives: [
       {
         id: "listen_event",
-        description: "Écouter l'événement `listen event on \"task:toggle\"`",
+        description: "Listen for the `listen event on \"task:toggle\"` event",
         check: (code: string) => /listen\s+event\s+on\s+["']task:toggle["']/.test(code)
       },
       {
         id: "try_catch",
-        description: "Utiliser un bloc de sécurité `try { ... } catch (err) { ... }`",
+        description: "Use a safety block `try { ... } catch (err) { ... }`",
         check: (code: string) => /try\s*\{[\s\S]*\}\s*catch\s*\(\s*err\s*\)\s*\{/.test(code)
       },
       {
         id: "send_verb",
-        description: "Dispatch de la mise à jour avec `send update to taskListView`",
+        description: "Dispatch the update with `send update to taskListView`",
         check: (code: string) => /send\s+\w+\s+to\s+taskListView/.test(code)
       },
       {
         id: "return_payload",
-        description: "Retourner une réponse structurée avec `return { status: ... }`",
+        description: "Return a structured response with `return { status: ... }`",
         check: (code: string) => /return\s*\{[\s\S]*status\s*:/.test(code)
       }
     ]
   },
   {
     id: 6,
-    title: "6. Projet Final : App de Tâches Intelligente",
-    subtitle: "Combiner vues, entités, calculs et événements dans un fichier IPL complet",
-    category: "Projet complet",
+    title: "6. Final Project: Smart Task App",
+    subtitle: "Combine views, entities, calculations and events in a complete IPL file",
+    category: "Complete project",
     icon: "CheckCircle2",
-    difficulty: "Avancé",
+    difficulty: "Advanced",
     estimatedTime: "8 min",
-    explanation: `Félicitations ! Vous maîtrisez les concepts fondamentaux d'IPL.
+    explanation: `Congratulations! You now master IPL's core concepts.
 
-Dans cet exercice final, vous allez créer une **Spécification IPL complète** qui regroupe :
-1. Une Vue UI (\`add view TaskAppView\`)
-2. Une Entité de données (\`add entity TaskItem\`)
-3. Un Gestionnaire d'Événement réactif (\`listen event on "task:create"\`) qui utilise \`try/catch\`, \`compute\`, \`send\` et \`return\`.`,
+In this final exercise, you will create a **complete IPL Specification** that brings together:
+1. A UI View (\`add view TaskAppView\`)
+2. A Data Entity (\`add entity TaskItem\`)
+3. A Reactive Event Handler (\`listen event on "task:create"\`) using \`try/catch\`, \`compute\`, \`send\` and \`return\`.`,
     codeExample: `add view TaskAppView {
   title: "IPL Smart Task Manager",
   theme: "dark",
@@ -459,7 +459,7 @@ listen event on "task:create" {
     return { status: "FAILED" }
   }
 }`,
-    initialCode: `// Étape 6 (Projet Final) : Écrivez la spécification complète IPL !
+    initialCode: `// Step 6 (Final Project): Write the complete IPL specification!
 
 add view TaskAppView {
   title: "IPL Smart Task Manager",
@@ -519,26 +519,26 @@ listen event on "task:create" {
     }
   }
 }`,
-    hint: "Conservez les trois blocs principaux : `add view TaskAppView`, `add entity TaskItem`, et `listen event on \"task:create\"`.",
+    hint: "Keep the three main blocks: `add view TaskAppView`, `add entity TaskItem`, and `listen event on \"task:create\"`.",
     objectives: [
       {
         id: "final_view",
-        description: "Contient une vue `add view TaskAppView`",
+        description: "Contains a view `add view TaskAppView`",
         check: (code: string) => /add\s+view\s+TaskAppView/.test(code)
       },
       {
         id: "final_entity",
-        description: "Contient une entité `add entity TaskItem` avec id, title et boolean",
+        description: "Contains an entity `add entity TaskItem` with id, title and boolean",
         check: (code: string) => /add\s+entity\s+TaskItem/.test(code) && /isDone\s*:\s*boolean/.test(code)
       },
       {
         id: "final_listen",
-        description: "Contient un gestionnaire d'événement `listen event on \"task:create\"`",
+        description: "Contains an event handler `listen event on \"task:create\"`",
         check: (code: string) => /listen\s+event\s+on\s+["']task:create["']/.test(code)
       },
       {
         id: "final_robustness",
-        description: "Contient `try`, `compute`, `send` et `return` dans le bloc d'événement",
+        description: "Contains `try`, `compute`, `send` and `return` in the event block",
         check: (code: string) => /try/.test(code) && /compute/.test(code) && /send/.test(code) && /return/.test(code)
       }
     ]

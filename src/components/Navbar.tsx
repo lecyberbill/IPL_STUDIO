@@ -163,10 +163,10 @@ export const Navbar: React.FC = () => {
             <button
               onClick={togglePolyglotModal}
               className="flex items-center space-x-1 px-2.5 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-md text-xs font-semibold transition-all"
-              title="Configurer les composants et technologies Polyglottes"
+              title="Configure Polyglot components and technologies"
             >
               <Layers size={14} />
-              <span>{polyglotConfig.autoDecide ? 'Auto Polyglotte' : `${polyglotConfig.layers.length} Composant(s)`}</span>
+              <span>{polyglotConfig.autoDecide ? 'Auto Polyglot' : `${polyglotConfig.layers.length} Component(s)`}</span>
             </button>
           )}
         </div>
@@ -186,10 +186,10 @@ export const Navbar: React.FC = () => {
         <button
           onClick={toggleTutorial}
           className="flex items-center space-x-1.5 px-3 py-1.5 bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 rounded-lg border border-cyan-500/40 text-xs font-semibold transition-all shadow-sm shadow-cyan-950/40"
-          title="Apprendre l'IPL avec le tutoriel pas-à-pas interactif"
+          title="Learn IPL with the interactive step-by-step tutorial"
         >
           <GraduationCap size={15} className="text-cyan-400" />
-          <span>Tutoriel IPL</span>
+          <span>IPL Tutorial</span>
         </button>
 
         <button
