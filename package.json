@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "doc:guide": "node scripts/gen-agent-guide.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "bench": "node scripts/run-benchmark.ts"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

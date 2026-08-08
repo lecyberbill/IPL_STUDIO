@@ -243,36 +243,34 @@ export async function callLLM(
 }
 
 /**
- * Generates a production-ready multi-file application from IPL Intent code (Two-Pass LLM Code Generator)
+ * Builds the per-target stack instruction used by both passes.
  */
-export async function generateIPL(
-  iplCode: string,
+export function buildLangInstruction(
   targetLang: TargetLanguage,
-  config: LLMConfig,
-  onLog: (msg: string, type: 'info' | 'success' | 'warn' | 'error') => void,
-  onStreamChunk?: (accumulatedText: string) => void,
   polyglotConfig?: { autoDecide: boolean; layers: Array<{ role: string; tech: string }> }
-): Promise<string> {
-  onLog(`🚀 Starting the 2-Pass LLM Code Generator for target: [${targetLang.toUpperCase()}]...`, 'info');
-
-  let langInstruction = '';
+): string {
   if (targetLang === 'polyglot') {
     if (polyglotConfig && !polyglotConfig.autoDecide && polyglotConfig.layers.length > 0) {
       const layersList = polyglotConfig.layers.map(l => `- Component/Role "${l.role}": ${l.tech}`).join('\n');
-      langInstruction = `Target Polyglot Stack Architecture:\n${layersList}\nProvide clean, decoupled multi-file source code for each specified component layer!`;
-    } else {
-      langInstruction = 'Select ONE cohesive architecture stack (e.g., Frontend UI in HTML5/JS/Tailwind, or Python/Node/Rust backend service) that best fulfills the IPL specification. Build ONE single, complete, production-ready application. Do NOT output multiple redundant implementations in different languages!';
+      return `Target Polyglot Stack Architecture:\n${layersList}\nProvide clean, decoupled multi-file source code for each specified component layer!`;
     }
-  } else {
-    langInstruction = `Target language: ${targetLang.toUpperCase()}. Generate clean, production-ready code for this specific ecosystem.`;
+    return 'Select ONE cohesive architecture stack (e.g., Frontend UI in HTML5/JS/Tailwind, or Python/Node/Rust backend service) that best fulfills the IPL specification. Build ONE single, complete, production-ready application. Do NOT output multiple redundant implementations in different languages!';
   }
+  return `Target language: ${targetLang.toUpperCase()}. Generate clean, production-ready code for this specific ecosystem.`;
+}
 
-  // PASS 1: Topology Analysis
-  onLog('Pass 1: Analyzing project topology & multi-file structure...', 'info');
-  const pass1Prompt = `You are a Lead Software Architect.
+/**
+ * Pass 1 prompt: topology architect (JSON project structure).
+ */
+export function buildPass1Prompt(
+  iplCode: string,
+  targetLang: TargetLanguage,
+  polyglotConfig?: { autoDecide: boolean; layers: Array<{ role: string; tech: string }> }
+): string {
+  return `You are a Lead Software Architect.
 
 TARGET STACK:
-${langInstruction}
+${buildLangInstruction(targetLang, polyglotConfig)}
 
 BUSINESS REQUIREMENTS (Structured Pseudo-Code):
 \`\`\`
@@ -293,21 +291,22 @@ Return ONLY a valid raw JSON object defining the project topology:
     { "relativePath": "path/to/file.ext", "description": "purpose" }
   ]
 }`;
+}
 
-  let topologyJsonStr = '';
-  try {
-    topologyJsonStr = await callLLM(pass1Prompt, config, onLog, undefined, { temperature: 0.4 });
-  } catch (err: any) {
-    onLog(`Pass 1 Fallback triggered: ${err.message}`, 'warn');
-  }
-
-  // PASS 2: Complete Code Generation
-  onLog('Pass 2: Generating full multi-file source code with XML tagging...', 'info');
-  const pass2Prompt = `You are a Senior Full-Stack Software Engineer.
+/**
+ * Pass 2 prompt: code generator (XML-tagged source files).
+ */
+export function buildPass2Prompt(
+  iplCode: string,
+  targetLang: TargetLanguage,
+  topologyJsonStr: string,
+  polyglotConfig?: { autoDecide: boolean; layers: Array<{ role: string; tech: string }> }
+): string {
+  return `You are a Senior Full-Stack Software Engineer.
 Build a complete, production-ready software application that directly fulfills the business requirements described in the structured pseudo-code below.
 
 1. TARGET STACK:
-${langInstruction}
+${buildLangInstruction(targetLang, polyglotConfig)}
 
 2. BUSINESS REQUIREMENTS (Structured Pseudo-Code):
 \`\`\`
@@ -327,6 +326,35 @@ Wrap EVERY generated project file inside XML tags:
 </file>
 
 Deliver clean, production-grade code directly fulfilling the requirements.`;
+}
+
+/**
+ * Generates a production-ready multi-file application from IPL Intent code (Two-Pass LLM Code Generator)
+ */
+export async function generateIPL(
+  iplCode: string,
+  targetLang: TargetLanguage,
+  config: LLMConfig,
+  onLog: (msg: string, type: 'info' | 'success' | 'warn' | 'error') => void,
+  onStreamChunk?: (accumulatedText: string) => void,
+  polyglotConfig?: { autoDecide: boolean; layers: Array<{ role: string; tech: string }> }
+): Promise<string> {
+  onLog(`🚀 Starting the 2-Pass LLM Code Generator for target: [${targetLang.toUpperCase()}]...`, 'info');
+
+  // PASS 1: Topology Analysis
+  onLog('Pass 1: Analyzing project topology & multi-file structure...', 'info');
+  const pass1Prompt = buildPass1Prompt(iplCode, targetLang, polyglotConfig);
+
+  let topologyJsonStr = '';
+  try {
+    topologyJsonStr = await callLLM(pass1Prompt, config, onLog, undefined, { temperature: 0.4 });
+  } catch (err: any) {
+    onLog(`Pass 1 Fallback triggered: ${err.message}`, 'warn');
+  }
+
+  // PASS 2: Complete Code Generation
+  onLog('Pass 2: Generating full multi-file source code with XML tagging...', 'info');
+  const pass2Prompt = buildPass2Prompt(iplCode, targetLang, topologyJsonStr, polyglotConfig);
 
   const generatedArtifact = await callLLM(pass2Prompt, config, onLog, onStreamChunk);
   onLog('🎉 2-Pass generation completed successfully!', 'success');

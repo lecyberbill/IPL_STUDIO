@@ -1,0 +1,616 @@
+/**
+ * IPL Studio — Automated LLM Benchmark Harness ("the moment of truth").
+ *
+ * Runs the real 2-Pass generator (Pass 1 topology + Pass 2 XML) against the
+ * canonical specs, parses the artifact with the real parseMultiFileXml, writes
+ * it to disk, and verifies it (run command / marker / ES-module scan / node
+ * syntax check). Emits a Markdown report under output/benchmark/.
+ *
+ * Usage:
+ *   node scripts/run-benchmark.ts                        # all specs, 1 iteration, external mode
+ *   node scripts/run-benchmark.ts --mode mock            # offline pipeline smoke test (no LLM/network)
+ *   node scripts/run-benchmark.ts --mode external --model deepseek-chat --iterations 2
+ *   node scripts/run-benchmark.ts --spec hello           # single spec
+ *   node scripts/run-benchmark.ts --mode lmstudio        # local LM Studio
+ *   node scripts/run-benchmark.ts --mode local           # local Ollama
+ *
+ * External mode reads the API key from VITE_DP_API_KEY (or DEEPSEEK_API_KEY /
+ * OPENAI_API_KEY / VITE_OPENAI_API_KEY / VITE_GEMINI_API_KEY) or a local .env.
+ *
+ * Exit code: 0 if every run passed, 1 otherwise.
+ */
+import { readFileSync, mkdirSync, writeFileSync, readdirSync, rmSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { parseMultiFileXml } from '../src/engine/artifactGenerator.ts';
+import { callLLM, buildPass1Prompt, buildPass2Prompt, DEFAULT_LLM_CONFIG } from '../src/engine/llmGenerator.ts';
+import type { LLMConfig, TargetLanguage } from '../src/engine/llmGenerator.ts';
+
+// ---------------------------------------------------------------------------
+// CLI options
+// ---------------------------------------------------------------------------
+
+interface CliArgs {
+  mode: 'external' | 'lmstudio' | 'local' | 'mock';
+  model?: string;
+  endpoint?: string;
+  iterations: number;
+  spec?: string;
+  timeoutPerPassMs: number;
+  timeoutRunMs: number;
+  quiet: boolean;
+}
+
+function parseArgs(argv: string[]): CliArgs {
+  const args: CliArgs = { mode: 'external', iterations: 1, timeoutPerPassMs: 120_000, timeoutRunMs: 30_000, quiet: false };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    const next = () => argv[++i];
+    if (a === '--mode') args.mode = next() as CliArgs['mode'];
+    else if (a === '--model') args.model = next();
+    else if (a === '--endpoint') args.endpoint = next();
+    else if (a === '--iterations') args.iterations = Math.max(1, parseInt(next() || '1', 10));
+    else if (a === '--spec') args.spec = next();
+    else if (a === '--timeout-pass') args.timeoutPerPassMs = parseInt(next() || '120000', 10);
+    else if (a === '--timeout-run') args.timeoutRunMs = parseInt(next() || '30000', 10);
+    else if (a === '--quiet') args.quiet = true;
+    else if (a === '--help') {
+      console.log(`IPL Studio Benchmark Harness
+
+Usage: node scripts/run-benchmark.ts [options]
+
+Options:
+  --mode <external|lmstudio|local|mock>   LLM backend (default: external)
+  --model <name>                          model id (default: deepseek-chat / per mode)
+  --endpoint <url>                        override endpoint
+  --iterations <n>                        runs per spec (default: 1)
+  --spec <id>                             run a single spec
+  --timeout-pass <ms>                     per-pass LLM timeout (default: 120000)
+  --timeout-run <ms>                      command execution timeout (default: 30000)
+  --quiet                                 suppress streaming logs
+  --help                                  this help`);
+      process.exit(0);
+    }
+  }
+  return args;
+}
+
+// ---------------------------------------------------------------------------
+// .env loader (never commit .env; it is gitignored)
+// ---------------------------------------------------------------------------
+
+function loadDotEnv(): void {
+  try {
+    const envPath = resolve(import.meta.dirname, '../.env');
+    const content = readFileSync(envPath, 'utf8');
+    for (const rawLine of content.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith('#') || !line.includes('=')) continue;
+      const eq = line.indexOf('=');
+      const key = line.slice(0, eq).trim();
+      const value = line.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
+      if (key && process.env[key] === undefined) process.env[key] = value;
+    }
+  } catch {
+    // No .env file — rely on real environment variables.
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Benchmark specs
+// ---------------------------------------------------------------------------
+
+interface BenchSpec {
+  id: string;
+  name: string;
+  targetLang: TargetLanguage;
+  code: string;
+  verify: {
+    command?: string;
+    marker?: string;
+    markerCaseInsensitive?: boolean;
+    forbid?: string[];
+  };
+}
+
+const SPECS: BenchSpec[] = [
+  {
+    id: 'hello',
+    name: 'Hello World (Console Card)',
+    targetLang: 'html',
+    code: `// IPL Project v1.0 - Hello World
+add message {
+  text: "Hello World IPL Studio v1.0",
+  target: "console"
+}
+
+compute timestamp from system
+send message to screen
+return success`,
+    verify: { marker: 'Hello World', forbid: ['<script type="module"', 'type="module"'] }
+  },
+  {
+    id: 'typed-order',
+    name: 'Typed E-Commerce Order Spec',
+    targetLang: 'python',
+    code: `add entity Order {
+  id: id,
+  customerName: text,
+  totalAmount: number,
+  isPaid: boolean,
+  createdAt: date,
+  status: options("pending", "processing", "shipped", "delivered")
+}
+
+listen event on "checkout:completed" {
+  read orderData from event {
+    where: totalAmount > 0
+  }
+
+  if (orderData.isPaid == true) {
+    set orderData.status = "processing"
+    send confirmationEmail to orderData.customerName {
+      subject: "Order Confirmation",
+      orderId: orderData.id
+    }
+  } else {
+    set orderData.status = "pending"
+  }
+}`,
+    verify: { command: 'python main.py' }
+  },
+  {
+    id: 'weather',
+    name: 'Weather Forecast Dashboard',
+    targetLang: 'html',
+    code: `// IPL Spec v1.0 - Real-Time Weather Forecast Dashboard
+add view WeatherDashboard {
+  title: "Live Weather Forecast Dashboard",
+  theme: "dark"
+}
+add entity WeatherRequest {
+  id: id,
+  locationName: text,
+  units: options("metric", "imperial")
+}
+add entity WeatherReport {
+  city: text,
+  temperature: number,
+  isAlertActive: boolean
+}
+listen event on "weather:search" {
+  try {
+    read currentReport from weatherService { query: locationName }
+    compute weatherIndex from currentReport {
+      comfortScore: currentReport.temperature - (currentReport.humidity * 0.1)
+    }
+    if (currentReport.temperature > 35) {
+      set currentReport.isAlertActive = true
+      send alert to extremeAlertBanner { severity: "HIGH" }
+    }
+    send update to weatherSummaryCard { data: currentReport, index: weatherIndex }
+    return { report: currentReport, status: "SUCCESS" }
+  } catch (err) {
+    send log to systemMonitor { level: "ERROR", message: err.message }
+    return { status: "FAILED", reason: "unavailable" }
+  }
+}`,
+    verify: { marker: 'Weather', markerCaseInsensitive: true, forbid: ['<script type="module"', 'type="module"'] }
+  },
+  {
+    id: 'form',
+    name: 'User Registration Form',
+    targetLang: 'javascript',
+    code: `// IPL Project v1.0 - User Registration Form
+add form {
+  title: "Member Registration",
+  fields: ["email", "password"]
+}
+
+listen event on "form:submit" {
+  read email from form
+  if (email != "") {
+    send welcome to email
+    set status = "success"
+  } else {
+    set status = "error"
+  }
+}`,
+    verify: { marker: 'Register', markerCaseInsensitive: true, forbid: ['<script type="module"', 'type="module"'] }
+  },
+  {
+    id: 'node-hello',
+    name: 'Node CLI Greeter',
+    targetLang: 'javascript',
+    code: `// IPL Project v1.0 - CLI Greeter
+add message {
+  text: "Hello World IPL Studio v1.0",
+  target: "console"
+}
+
+compute timestamp from system
+send message to screen
+return success`,
+    verify: { command: 'node index.js', marker: 'Hello World' }
+  }
+];
+
+// ---------------------------------------------------------------------------
+// Result types
+// ---------------------------------------------------------------------------
+
+type RunStatus = 'PASS' | 'WARN' | 'FAIL';
+
+interface PassTiming {
+  ms: number;
+  chars: number;
+  approxTokens: number;
+}
+
+interface RunResult {
+  specId: string;
+  specName: string;
+  iteration: number;
+  status: RunStatus;
+  statusDetail: string;
+  pass1: PassTiming;
+  pass2: PassTiming;
+  totalMs: number;
+  fileCount: number;
+  totalBytes: number;
+  files: string[];
+  artifactXml: string;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const log = (args: CliArgs, msg: string, kind: 'info' | 'success' | 'warn' | 'error' = 'info') => {
+  if (args.quiet) return;
+  const icon = kind === 'success' ? '✅' : kind === 'warn' ? '⚠️' : kind === 'error' ? '❌' : '→';
+  console.log(`  ${icon} ${msg}`);
+};
+
+async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolvePromise, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label} timed out after ${ms} ms`)), ms);
+    p.then(v => { clearTimeout(t); resolvePromise(v); }, (e) => { clearTimeout(t); reject(e); });
+  });
+}
+
+function approxTokens(chars: number): number {
+  return Math.ceil(chars / 4);
+}
+
+/** Renders a canned artifact (mock mode) that should PASS the spec's checks. */
+function buildMockArtifact(spec: BenchSpec): string {
+  const marker = spec.verify.marker ?? 'IPL Studio';
+  if (spec.verify.command?.startsWith('python')) {
+    return [
+      '<file path="main.py">',
+      `print("${marker}")`,
+      'print("IPL Studio 2-Pass generator: mock artifact")',
+      '</file>'
+    ].join('\n');
+  }
+  if (spec.verify.command?.startsWith('node')) {
+    return [
+      '<file path="index.js">',
+      `console.log("${marker}");`,
+      '</file>'
+    ].join('\n');
+  }
+  return [
+    '<file path="index.html">',
+    '<!DOCTYPE html>',
+    '<html><head><title>IPL Studio</title>',
+    '<script src="https://cdn.tailwindcss.com"></script>',
+    '</head><body>',
+    `<div id="app">${marker}</div>`,
+    '<script src="js/main.js"></script>',
+    '</body></html>',
+    '</file>',
+    '<file path="js/main.js">',
+    `document.getElementById("app").textContent = "${marker}";`,
+    '</file>'
+  ].join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Generation
+// ---------------------------------------------------------------------------
+
+interface GenerationOutput {
+  xml: string;
+  pass1: PassTiming;
+  pass2: PassTiming;
+}
+
+async function generateReal(spec: BenchSpec, config: LLMConfig, args: CliArgs): Promise<GenerationOutput> {
+  const pass1Prompt = buildPass1Prompt(spec.code, spec.targetLang);
+
+  const t1 = Date.now();
+  const p1Text = await withTimeout(
+    callLLM(pass1Prompt, config, () => {}, undefined, { temperature: 0.4 }),
+    args.timeoutPerPassMs,
+    'Pass 1'
+  );
+  const pass1: PassTiming = { ms: Date.now() - t1, chars: p1Text.length, approxTokens: approxTokens(p1Text.length) };
+
+  const topology = extractTopologyJson(p1Text) ?? '';
+
+  const t2 = Date.now();
+  const xml = await withTimeout(
+    callLLM(buildPass2Prompt(spec.code, spec.targetLang, topology), config, () => {}, undefined, { temperature: 0.15, seed: 42 }),
+    args.timeoutPerPassMs,
+    'Pass 2'
+  );
+  const pass2: PassTiming = { ms: Date.now() - t2, chars: xml.length, approxTokens: approxTokens(xml.length) };
+
+  return { xml, pass1, pass2 };
+}
+
+/** Extracts a JSON object from Pass 1 output (resilient to code fences / noise). */
+function extractTopologyJson(text: string): string | null {
+  const jsonBlock = text.match(/```json\s*([\s\S]*?)```/);
+  const candidate = jsonBlock ? jsonBlock[1] : text;
+  const start = candidate.indexOf('{');
+  const end = candidate.lastIndexOf('}');
+  if (start === -1 || end === -1 || end <= start) return null;
+  try {
+    JSON.parse(candidate.slice(start, end + 1));
+    return candidate.slice(start, end + 1);
+  } catch {
+    return null;
+  }
+}
+
+async function generateMock(spec: BenchSpec): Promise<GenerationOutput> {
+  return {
+    xml: buildMockArtifact(spec),
+    pass1: { ms: 0, chars: 0, approxTokens: 0 },
+    pass2: { ms: 0, chars: 0, approxTokens: 0 }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Disk write + verification
+// ---------------------------------------------------------------------------
+
+function writeArtifact(runDir: string, xml: string): { files: string[]; totalBytes: number } {
+  const parsed = parseMultiFileXml(xml);
+  const files: string[] = [];
+  let totalBytes = 0;
+  for (const f of parsed) {
+    if (!f.relativePath || /^[a-zA-Z]:[\\/]/.test(f.relativePath) || f.relativePath.includes('..')) continue;
+    const target = resolve(runDir, f.relativePath);
+    if (!target.startsWith(resolve(runDir))) continue;
+    mkdirSync(resolve(target, '..'), { recursive: true });
+    writeFileSync(target, f.content, 'utf8');
+    files.push(f.relativePath);
+    totalBytes += Buffer.byteLength(f.content, 'utf8');
+  }
+  return { files, totalBytes };
+}
+
+function runCommand(cwd: string, command: string, timeoutMs: number): { exitCode: number | null; output: string; timedOut: boolean } {
+  const res = spawnSync(command, { cwd, shell: true, timeout: timeoutMs, encoding: 'utf8', windowsHide: true });
+  return {
+    exitCode: res.status,
+    output: `${res.stdout || ''}\n${res.stderr || ''}`.trim(),
+    timedOut: !!res.error && (res.error as NodeJS.ErrnoException).code === 'ETIMEDOUT'
+  };
+}
+
+async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{ status: RunStatus; detail: string }> {
+  const allFiles = readdirSync(runDir, { recursive: true }) as string[];
+  const allContent = allFiles
+    .filter(f => !f.endsWith('.txt'))
+    .map(f => {
+      try { return readFileSync(resolve(runDir, f), 'utf8'); } catch { return ''; }
+    })
+    .join('\n');
+
+  if (spec.verify.marker) {
+    const needle = spec.verify.marker;
+    const found = spec.verify.markerCaseInsensitive
+      ? allContent.toLowerCase().includes(needle.toLowerCase())
+      : allContent.includes(needle);
+    if (!found) return { status: 'FAIL', detail: `marker "${needle}" not found in generated files` };
+  }
+
+  for (const forbidden of spec.verify.forbid ?? []) {
+    if (allContent.includes(forbidden)) {
+      return { status: 'FAIL', detail: `forbidden pattern "${forbidden}" present (browser/ES-module hazard)` };
+    }
+  }
+
+  if (spec.verify.command) {
+    const jsFiles = allFiles.filter(f => f.endsWith('.js'));
+    for (const f of jsFiles) {
+      const check = spawnSync('node', ['--check', resolve(runDir, f)], { encoding: 'utf8', windowsHide: true });
+      if (check.status !== 0) {
+        return { status: 'FAIL', detail: `node --check failed on ${f}: ${(check.stderr || '').trim().slice(0, 200)}` };
+      }
+    }
+
+    const run = runCommand(runDir, spec.verify.command, args.timeoutRunMs);
+    if (run.timedOut) return { status: 'WARN', detail: `command timed out after ${args.timeoutRunMs} ms (long-running server?)` };
+    if (run.exitCode === null) return { status: 'WARN', detail: 'toolchain not available (command could not be spawned)' };
+    if (run.exitCode === 127 || run.exitCode === 9009) {
+      return { status: 'WARN', detail: `toolchain not available (${spec.verify.command} not found on this machine)` };
+    }
+    if (run.exitCode !== 0) {
+      if (/is not recognized as an internal|n'est pas reconnu|command not found|not recognized|ENOENT/i.test(run.output)) {
+        return { status: 'WARN', detail: `toolchain not available (${spec.verify.command} not found on this machine)` };
+      }
+      if (/cannot find module/i.test(run.output)) {
+        return { status: 'WARN', detail: `entry missing (${spec.verify.command}) — generated app may be browser-based` };
+      }
+      return { status: 'FAIL', detail: `exit code ${run.exitCode}: ${run.output.slice(0, 200)}` };
+    }
+  }
+
+  return { status: 'PASS', detail: 'verified OK' };
+}
+
+// ---------------------------------------------------------------------------
+// Report
+// ---------------------------------------------------------------------------
+
+function buildReport(args: CliArgs, config: LLMConfig, results: RunResult[]): string {
+  const lines: string[] = [];
+  lines.push('# 📊 IPL Studio — Automated Benchmark Report');
+  lines.push('');
+  lines.push(`- **Date**: ${new Date().toISOString()}`);
+  lines.push(`- **Engine**: 2-Pass LLM Generator (Pass 1 topology + Pass 2 XML)`);
+  lines.push(`- **Mode**: ${args.mode}${args.mode === 'mock' ? ' (offline pipeline smoke test)' : ''}`);
+  if (args.mode !== 'mock') lines.push(`- **Model**: ${config.model} · **Endpoint**: ${config.externalEndpoint || config.lmStudioEndpoint || config.localEndpoint}`);
+  lines.push(`- **Iterations per spec**: ${args.iterations}`);
+  lines.push('');
+
+  const bySpec = new Map<string, RunResult[]>();
+  for (const r of results) {
+    const arr = bySpec.get(r.specId) ?? [];
+    arr.push(r);
+    bySpec.set(r.specId, arr);
+  }
+
+  lines.push('## Summary');
+  lines.push('');
+  lines.push('| Spec | Runs | PASS | WARN | FAIL | Avg total (ms) | Avg files | Avg size (KB) |');
+  lines.push('| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |');
+  let totalPass = 0;
+  let totalRuns = 0;
+  for (const [id, runs] of bySpec) {
+    const pass = runs.filter(r => r.status === 'PASS').length;
+    const warn = runs.filter(r => r.status === 'WARN').length;
+    const fail = runs.filter(r => r.status === 'FAIL').length;
+    totalPass += pass;
+    totalRuns += runs.length;
+    const avgMs = Math.round(runs.reduce((s, r) => s + r.totalMs, 0) / runs.length);
+    const avgFiles = Math.round(runs.reduce((s, r) => s + r.fileCount, 0) / runs.length);
+    const avgKB = Math.round((runs.reduce((s, r) => s + r.totalBytes, 0) / runs.length) / 1024);
+    lines.push(`| ${id} | ${runs.length} | ${pass} | ${warn} | ${fail} | ${avgMs} | ${avgFiles} | ${avgKB} |`);
+  }
+  lines.push('');
+  lines.push(`**Overall first-try PASS rate**: ${totalRuns ? `${Math.round((totalPass / totalRuns) * 100)}% (${totalPass}/${totalRuns})` : 'n/a'}`);
+  lines.push('');
+
+  lines.push('## Detailed Runs');
+  lines.push('');
+  for (const r of results) {
+    const icon = r.status === 'PASS' ? '✅' : r.status === 'WARN' ? '⚠️' : '❌';
+    lines.push(`### ${r.specName} — run ${r.iteration} ${icon} **${r.status}** (${r.totalMs} ms, ${r.fileCount} files, ${(r.totalBytes / 1024).toFixed(1)} KB)`);
+    lines.push('');
+    lines.push(`- **Detail**: ${r.statusDetail}`);
+    if (args.mode !== 'mock') {
+      lines.push(`- **Pass 1**: ${r.pass1.ms} ms · ≈ ${r.pass1.approxTokens} tokens`);
+      lines.push(`- **Pass 2**: ${r.pass2.ms} ms · ≈ ${r.pass2.approxTokens} tokens`);
+    }
+    lines.push(`- **Files**: ${r.files.join(', ') || '(none)'}`);
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+async function main(): Promise<number> {
+  loadDotEnv();
+  const args = parseArgs(process.argv.slice(2));
+
+  const specs = args.spec ? SPECS.filter(s => s.id === args.spec) : SPECS;
+  if (specs.length === 0) {
+    console.error(`Unknown spec "${args.spec}". Available: ${SPECS.map(s => s.id).join(', ')}`);
+    return 2;
+  }
+
+  let config: LLMConfig = { ...DEFAULT_LLM_CONFIG, mode: args.mode as LLMConfig['mode'] };
+  if (args.mode === 'external') {
+    const apiKey =
+      process.env.VITE_DP_API_KEY ||
+      process.env.DEEPSEEK_API_KEY ||
+      process.env.OPENAI_API_KEY ||
+      process.env.VITE_OPENAI_API_KEY ||
+      process.env.VITE_GEMINI_API_KEY ||
+      '';
+    if (!apiKey) {
+      console.error('No API key found. Set VITE_DP_API_KEY (or DEEPSEEK_API_KEY / OPENAI_API_KEY) or define it in .env.');
+      return 2;
+    }
+    config.customApiKey = apiKey;
+  }
+  if (args.model) config.model = args.model;
+  if (args.endpoint) {
+    if (args.mode === 'external') config.externalEndpoint = args.endpoint;
+    else if (args.mode === 'lmstudio') config.lmStudioEndpoint = args.endpoint;
+    else config.localEndpoint = args.endpoint;
+  }
+
+  const root = resolve(import.meta.dirname, '../output/benchmark');
+  const runId = new Date().toISOString().replace(/[:.]/g, '-');
+
+  console.log(`IPL Studio Benchmark — mode=${args.mode} iterations=${args.iterations}`);
+  if (args.mode !== 'mock') console.log(`Model: ${config.model} · Endpoint: ${config.externalEndpoint || config.lmStudioEndpoint || config.localEndpoint}`);
+  console.log('');
+
+  const results: RunResult[] = [];
+
+  for (const spec of specs) {
+    console.log(`▶ ${spec.name} [${spec.id}] → ${spec.targetLang}`);
+    for (let i = 1; i <= args.iterations; i++) {
+      log(args, `run ${i}/${args.iterations}`, 'info');
+      const runDir = resolve(root, spec.id, `run-${runId}-${i}`);
+      rmSync(runDir, { recursive: true, force: true });
+      mkdirSync(runDir, { recursive: true });
+
+      const start = Date.now();
+      let gen: GenerationOutput;
+      let genError = '';
+      try {
+        gen = args.mode === 'mock' ? await generateMock(spec) : await generateReal(spec, config, args);
+      } catch (err: any) {
+        genError = err.message;
+        const result: RunResult = {
+          specId: spec.id, specName: spec.name, iteration: i, status: 'FAIL', statusDetail: `generation error: ${genError}`,
+          pass1: { ms: 0, chars: 0, approxTokens: 0 }, pass2: { ms: 0, chars: 0, approxTokens: 0 },
+          totalMs: Date.now() - start, fileCount: 0, totalBytes: 0, files: [], artifactXml: ''
+        };
+        results.push(result);
+        log(args, result.statusDetail, 'error');
+        continue;
+      }
+
+      const written = writeArtifact(runDir, gen.xml);
+      const v = await verify(spec, runDir, args);
+
+      const result: RunResult = {
+        specId: spec.id, specName: spec.name, iteration: i, status: v.status, statusDetail: v.detail,
+        pass1: gen.pass1, pass2: gen.pass2,
+        totalMs: Date.now() - start,
+        fileCount: written.files.length, totalBytes: written.totalBytes, files: written.files,
+        artifactXml: gen.xml
+      };
+      results.push(result);
+      log(args, `${v.status} — ${v.detail} (${result.totalMs} ms, ${written.files.length} files)`, v.status === 'PASS' ? 'success' : v.status === 'WARN' ? 'warn' : 'error');
+    }
+    console.log('');
+  }
+
+  const report = buildReport(args, config, results);
+  const reportPath = resolve(root, `report-${runId}.md`);
+  mkdirSync(root, { recursive: true });
+  writeFileSync(reportPath, report, 'utf8');
+  console.log(`Report written to ${reportPath}`);
+  console.log('');
+
+  const failed = results.some(r => r.status === 'FAIL');
+  return failed ? 1 : 0;
+}
+
+main().then(code => process.exit(code));

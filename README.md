@@ -7,6 +7,7 @@
 [![Changelog](https://img.shields.io/badge/Release_Notes-v1.2.0-blue.svg?style=for-the-badge)](CHANGELOG.md)
 [![LLM Agent Guide](https://img.shields.io/badge/Agent_Prompt-IPL_Guide-purple.svg?style=for-the-badge)](IPL_AGENT_GUIDE.md)
 [![Benchmark Suite](https://img.shields.io/badge/Benchmark-Hello_World-orange.svg?style=for-the-badge)](BENCHMARK_HELLO_WORLD.md)
+[![Roadmap](https://img.shields.io/badge/Roadmap-Phases_4--10-teal.svg?style=for-the-badge)](ROADMAP.md)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
 > **IPL Studio** is an AI-powered polyglot, intent-based IDE with autonomous agentic capabilities. It transforms high-level declarative specifications written in **IPL (Intent Programming Language)** into runnable, multi-file codebases (Rust, Python, Node.js, Go, C++, HTML5, Java, etc.) written directly to disk.
@@ -113,6 +114,15 @@ npm run test:watch
 ```
 38 tests cover the IPL parser, the semantic analyzer, and the data-driven grammar signature.
 
+### 5. Run the Automated Benchmark Harness
+```bash
+npm run bench -- --mode mock       # offline pipeline smoke test (no API key needed)
+npm run bench -- --mode external   # real end-to-end against DeepSeek (needs VITE_DP_API_KEY)
+npm run bench -- --mode lmstudio   # against a local LM Studio server
+npm run bench -- --iterations 3    # more runs per spec for stable latency averages
+```
+Runs the real 2-Pass pipeline per spec, parses artifacts with the real parser, writes to `output/benchmark/`, and emits a Markdown report (PASS/WARN/FAIL, per-pass latency, token estimates). See [ROADMAP.md](ROADMAP.md) → **Phase 4**.
+
 ---
 
 ## ⚙️ LLM Engine Connection Modes
@@ -139,7 +149,7 @@ IPL Studio supports three execution modes configurable in the Settings modal (`�
 ```text
 IPL_STUDIO/
 ├── output/                   # Physical disk target folder for generated projects
-├── scripts/                  # Dev utilities (gen-agent-guide.ts → npm run doc:guide)
+├── scripts/                  # Dev utilities (gen-agent-guide.ts, run-benchmark.ts → npm run bench)
 ├── src/
 │   ├── components/           # UI components (Monaco, Terminal, Git, Chat, Inspector, etc.)
 │   ├── engine/               # LLM Code Generator engine, IPL Grammar, typed parser, Artifact Generator
@@ -148,6 +158,7 @@ IPL_STUDIO/
 │   └── main.tsx              # React Entrypoint
 ├── vite.config.ts            # Vite config & API Middlewares (/api/run-command, /api/read-disk, /api/write-artifact)
 ├── CHANGELOG.md              # Detailed release notes and version history
+├── ROADMAP.md                # Canonical roadmap (Phases 4-10) with acceptance criteria
 ├── package.json
 └── README.md
 ```

@@ -32,6 +32,15 @@ All notable changes to **IPL Studio** are documented in this file.
   - `iplSemantics.test.ts` (10): zero false positives on the canonical example, duplicate declarations, unknown intent types, unknown `set` targets, and try/catch protection checks.
   - `iplGrammar.test.ts` (6): combined `validateIPLCode` (syntax + semantics), the data-driven grammar signature tables, and Monarch `typeKeywords` derived from `IPL_INTENT_TYPES`.
 
+### ⚡ Automated Benchmark Harness & Roadmap
+- **`ROADMAP.md`**: new canonical roadmap (the original was lost) — completed M0-M3 + T1, upcoming Phases 4-10 with objectives, scope, and acceptance criteria.
+- **`scripts/run-benchmark.ts` + `npm run bench`**: end-to-end "moment of truth" for the 2-Pass engine. Runs the real Pass 1 + Pass 2 prompts, parses the artifact with the real `parseMultiFileXml`, writes to `output/benchmark/`, and verifies (run command / marker / ES-module scan / `node --check`). Emits a Markdown report with PASS/WARN/FAIL, per-pass latency, token estimates, and file counts.
+  - `--mode mock` = offline pipeline smoke test (no API key or network needed).
+  - `--mode external|lmstudio|local` + `.env`-aware API key resolution for real endpoints.
+  - ES-module usage (`<script type="module">`) always FAILs `html` targets (the documented CORS/`file://` failure mode).
+- **Node-compatible engine**: `artifactGenerator.ts` now imports the browser-only `file-saver` lazily inside `downloadProjectZip`, so the parser + artifact pipeline run under plain Node (benchmarks/CLI tooling).
+- **Prompt builders exported** from `llmGenerator.ts` (`buildLangInstruction`, `buildPass1Prompt`, `buildPass2Prompt`) enabling per-pass measurement in the harness.
+
 ### 🌍 Internationalization (French → English)
 - Translated all remaining French UI strings, comments, tutorials (`iplTutorialLessons.ts` fully rewritten), artifact content, and config comments to English.
 

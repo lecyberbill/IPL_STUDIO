@@ -1,5 +1,4 @@
 import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
 import type { TargetLanguage } from './llmGenerator';
 
 export interface ProjectArtifactFile {
@@ -326,5 +325,8 @@ export async function downloadProjectZip(
   });
 
   const blob = await zip.generateAsync({ type: 'blob' });
+  // Imported lazily so this module also runs under Node (benchmark / CLI tooling);
+  // 'file-saver' is a browser-only CommonJS module without a proper named-export interop.
+  const { saveAs } = await import('file-saver');
   saveAs(blob, `${folderName}_artifact.zip`);
 }
