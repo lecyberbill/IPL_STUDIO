@@ -25,8 +25,12 @@ export function applyPatchToContent(originalContent: string, patchBlock: string)
     const searchTarget = match[1];
     const replacement = match[2];
 
-    if (searchTarget && updatedContent.includes(searchTarget)) {
-      updatedContent = updatedContent.replace(searchTarget, replacement);
+    if (searchTarget) {
+      if (updatedContent.includes(searchTarget)) {
+        updatedContent = updatedContent.replace(searchTarget, replacement);
+      } else if (updatedContent.includes(searchTarget.trim())) {
+        updatedContent = updatedContent.replace(searchTarget.trim(), replacement.trim());
+      }
     }
   }
 

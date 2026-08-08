@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
+import { defaultOutputDir } from '../engine/paths';
 import { FolderPlus, X, HardDrive, Trash2, Check, Edit2, Play, Folder } from 'lucide-react';
 
 export const ProjectModal: React.FC = () => {
@@ -27,7 +28,7 @@ export const ProjectModal: React.FC = () => {
   if (!isProjectModalOpen) return null;
 
   const safeName = projectName.trim().toLowerCase().replace(/[^a-z0-9]/g, '_') || 'my_project';
-  const defaultOutputDir = `d:/image_to_text/IPL/output/${safeName}`;
+  const suggestedOutputDir = defaultOutputDir(safeName);
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +43,7 @@ export const ProjectModal: React.FC = () => {
       templateCode = `// Auth Spec: ${projectName}\nadd user {\n  email: "user@domain.com",\n  passwordHash: "secret"\n}\nif user.isAuthorized {\n  return token\n}`;
     }
 
-    const finalOutputDir = customOutputDir.trim() || defaultOutputDir;
+    const finalOutputDir = customOutputDir.trim() || suggestedOutputDir;
     createProject(projectName.trim(), templateCode, finalOutputDir);
     addLog(`New project "${projectName.trim()}" created. Disk path: ${finalOutputDir}`, 'success');
     setProjectName('');
@@ -146,13 +147,13 @@ export const ProjectModal: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  placeholder={defaultOutputDir}
+                  placeholder={suggestedOutputDir}
                   value={customOutputDir}
                   onChange={(e) => setCustomOutputDir(e.target.value)}
                   className="w-full bg-[#0f1117] border border-[#2a2f42] rounded-lg px-3 py-2 text-cyan-300 font-mono text-[11px] focus:outline-none focus:border-cyan-500 placeholder-gray-600"
                 />
                 <p className="mt-1 text-[10px] text-gray-500 font-mono truncate">
-                  Will write files to: <span className="text-gray-400">{customOutputDir.trim() || defaultOutputDir}</span>
+                  Will write files to: <span className="text-gray-400">{customOutputDir.trim() || suggestedOutputDir}</span>
                 </p>
               </div>
 
@@ -221,7 +222,7 @@ export const ProjectModal: React.FC = () => {
               {projects.map((proj) => {
                 const isActive = proj.id === activeProjectId;
                 const safeProjName = proj.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
-                const diskPath = proj.outputDir || `d:/image_to_text/IPL/output/${safeProjName}`;
+                const diskPath = proj.outputDir || defaultOutputDir(safeProjName);
 
                 return (
                   <div

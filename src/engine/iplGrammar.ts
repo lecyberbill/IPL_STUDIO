@@ -225,7 +225,7 @@ export const IPL_LANGUAGE_DEFINITION = {
           '@default': 'identifier'
         }
       }],
-      [/[A-[#0-9]]*/, 'type'],
+      [/[A-Z][\w$]*/, 'type'],
       { include: '@whitespace' },
       [/[{}()\[\]]/, '@brackets'],
       [/@symbols/, {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { useIdeStore } from '../store/useIdeStore';
 import { buildProjectArtifact, downloadProjectZip } from '../engine/artifactGenerator';
+import { defaultOutputDir } from '../engine/paths';
 import { ChatPanel } from './ChatPanel';
 import { 
   Code, 
@@ -102,7 +103,7 @@ export const TargetInspector: React.FC = () => {
   };
 
   const activeProject = projects.find(p => p.id === activeProjectId);
-  const outputDir = activeProject?.outputDir || `d:/image_to_text/IPL/output/${activeProject?.name.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'my_project'}`;
+  const outputDir = activeProject?.outputDir || defaultOutputDir(activeProject?.name || 'my_project');
 
   // Extract files from multi-file artifact
   const artifact = buildProjectArtifact(

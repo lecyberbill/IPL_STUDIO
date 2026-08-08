@@ -3,18 +3,39 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 import fs from 'fs'
-import { spawn, exec } from 'child_process'
+import { spawn, exec, execFile } from 'child_process'
 import { promisify } from 'util'
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+/**
+ * Racine de l'espace de travail : tous les chemins d'écriture / d'exécution
+ * sont cloisonnés à l'intérieur de cette racine pour limiter l'impact en cas
+ * d'exposition accidentelle du serveur de dev.
+ */
+const WORKSPACE_ROOT = process.cwd();
+
+/**
+ * Vérifie qu'un chemin résolu reste bien à l'intérieur de l'espace de travail.
+ */
+function isWithinWorkspace(resolvedPath: string): boolean {
+  const relative = path.relative(WORKSPACE_ROOT, resolvedPath);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
 
 /**
  * Middleware Vite serveur pour matérialiser physiquement les artefacts générés, exécuter des commandes et gérer Git
+ * ⚠️ Endpoints uniquement disponibles en mode développement (configureServer n'est pas actif en production).
  */
 function artifactDiskWriterPlugin() {
   return {
     name: 'artifact-disk-writer-plugin',
     configureServer(server: any) {
+      server.config.logger.warn(
+        '[Security] Dev-only endpoints /api/write-artifact, /api/read-disk, /api/run-command et /api/git/* sont actifs. '
+        + 'N\'exposez JAMAIS ce serveur de développement sur un réseau non fiable.'
+      );
       server.middlewares.use(async (req: any, res: any, next: any) => {
         if (req.url === '/api/write-artifact' && req.method === 'POST') {
           let body = '';
@@ -34,11 +55,23 @@ function artifactDiskWriterPlugin() {
                 ? outputDir 
                 : path.resolve(process.cwd(), outputDir);
 
+              if (!isWithinWorkspace(resolvedDir)) {
+                res.statusCode = 403;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({
+                  error: 'outputDir doit rester à l\'intérieur de l\'espace de travail du projet.'
+                }));
+                return;
+              }
+
               fs.mkdirSync(resolvedDir, { recursive: true });
 
               let writtenCount = 0;
               files.forEach((file: { relativePath: string; content: string }) => {
                 const fullPath = path.join(resolvedDir, file.relativePath);
+                if (!isWithinWorkspace(fullPath)) {
+                  throw new Error(`Fichier "${file.relativePath}" sort de l'espace de travail, écriture refusée.`);
+                }
                 const parentDir = path.dirname(fullPath);
                 fs.mkdirSync(parentDir, { recursive: true });
                 fs.writeFileSync(fullPath, file.content, 'utf-8');
@@ -75,6 +108,15 @@ function artifactDiskWriterPlugin() {
               const resolvedDir = path.isAbsolute(outputDir) 
                 ? outputDir 
                 : path.resolve(process.cwd(), outputDir);
+
+              if (!isWithinWorkspace(resolvedDir)) {
+                res.statusCode = 403;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({
+                  error: 'outputDir doit rester à l\'intérieur de l\'espace de travail du projet.'
+                }));
+                return;
+              }
 
               if (!fs.existsSync(resolvedDir)) {
                 res.statusCode = 200;
@@ -135,7 +177,18 @@ function artifactDiskWriterPlugin() {
                 return;
               }
 
-              const targetCwd = cwd && fs.existsSync(cwd) ? cwd : process.cwd();
+              const targetCwd = cwd
+                ? path.resolve(process.cwd(), cwd)
+                : process.cwd();
+
+              if (!isWithinWorkspace(targetCwd)) {
+                res.statusCode = 403;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({
+                  error: 'Le répertoire de travail (cwd) doit rester à l\'intérieur de l\'espace de travail du projet.'
+                }));
+                return;
+              }
 
               res.setHeader('Content-Type', 'text/plain; charset=utf-8');
               res.setHeader('Transfer-Encoding', 'chunked');
@@ -154,7 +207,7 @@ function artifactDiskWriterPlugin() {
               });
 
               proc.on('close', (code) => {
-                res.write(`\n[Processus terminé avec le code ${code}]\n`);
+                res.write(`\n[Exit code: ${code}] - Processus terminé\n`);
                 res.end();
               });
 
@@ -200,9 +253,11 @@ function artifactDiskWriterPlugin() {
           req.on('end', async () => {
             try {
               const data = JSON.parse(body);
-              const message = data.message || 'IPL Studio Auto-Commit';
-              await execAsync('git add .', { cwd: process.cwd() });
-              const { stdout } = await execAsync(`git commit -m "${message.replace(/"/g, '\\"')}"`, { cwd: process.cwd() });
+              const message = String(data.message || 'IPL Studio Auto-Commit')
+                .replace(/\r?\n/g, ' ')
+                .trim() || 'IPL Studio Auto-Commit';
+              await execFileAsync('git', ['add', '.'], { cwd: process.cwd() });
+              const { stdout } = await execFileAsync('git', ['commit', '-m', message], { cwd: process.cwd() });
               res.statusCode = 200;
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify({ success: true, log: stdout }));
@@ -224,16 +279,20 @@ function artifactDiskWriterPlugin() {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
+  // Ne jamais exposer de variables d'environnement non préfixées VITE_ côté client.
+  // Les clés API utilisées par l'application doivent être préfixées VITE_ (standard Vite).
   const combinedEnvs: Record<string, string> = {};
-  
+
   Object.keys(process.env).forEach(key => {
-    if (key.startsWith('VITE_') || key.includes('API_KEY') || key.includes('DP_')) {
+    if (key.startsWith('VITE_')) {
       combinedEnvs[key] = process.env[key] || '';
     }
   });
 
   Object.keys(env).forEach(key => {
-    combinedEnvs[key] = env[key] || '';
+    if (key.startsWith('VITE_')) {
+      combinedEnvs[key] = env[key] || '';
+    }
   });
 
   return {

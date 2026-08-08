@@ -3,6 +3,7 @@ import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 import { useIdeStore } from '../store/useIdeStore';
+import { defaultOutputDir } from '../engine/paths';
 import { Play, Terminal as TerminalIcon, Trash2, RefreshCw, Bot } from 'lucide-react';
 
 export const TerminalPanel: React.FC = () => {
@@ -14,10 +15,16 @@ export const TerminalPanel: React.FC = () => {
 
   const { projects, activeProjectId, targetLang, writeArtifactToDisk, autoDebugAndFix, addLog } = useIdeStore();
   const activeProject = projects.find(p => p.id === activeProjectId);
-  const outputDir = activeProject?.outputDir || `d:/image_to_text/IPL/output/${activeProject?.name.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'my_project'}`;
+  const outputDir = activeProject?.outputDir || defaultOutputDir(activeProject?.name || 'my_project');
 
   useEffect(() => {
+    let isMounted = true;
+    let timerId: any = null;
+
     if (!terminalRef.current) return;
+
+    // Nettoyage explicite de l'élément conteneur
+    terminalRef.current.innerHTML = '';
 
     const term = new Terminal({
       theme: {
@@ -34,21 +41,41 @@ export const TerminalPanel: React.FC = () => {
 
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
-    term.open(terminalRef.current);
-    fitAddon.fit();
 
-    xtermInstance.current = term;
-    fitAddonRef.current = fitAddon;
+    timerId = setTimeout(() => {
+      if (!isMounted || !terminalRef.current) return;
+      try {
+        term.open(terminalRef.current);
+        xtermInstance.current = term;
+        fitAddonRef.current = fitAddon;
 
-    term.writeln('\x1b[1;36m=== IPL Studio Embedded Terminal v1.0 ===\x1b[0m');
-    term.writeln(`\x1b[90mWorking Directory: ${outputDir}\x1b[0m\n`);
+        term.writeln('\x1b[1;36m=== IPL Studio Embedded Terminal v1.0 ===\x1b[0m');
+        term.writeln(`\x1b[90mWorking Directory: ${outputDir}\x1b[0m\n`);
 
-    const handleResize = () => fitAddon.fit();
+        try {
+          fitAddon.fit();
+        } catch (_) {}
+      } catch (err) {
+        // Ignorer l'avertissement d'initialisation asynchrone xterm
+      }
+    }, 50);
+
+    const handleResize = () => {
+      try {
+        fitAddon.fit();
+      } catch (err) {
+        // Ignorer les exceptions au redimensionnement
+      }
+    };
     window.addEventListener('resize', handleResize);
 
     return () => {
+      isMounted = false;
+      if (timerId) clearTimeout(timerId);
       window.removeEventListener('resize', handleResize);
-      term.dispose();
+      try {
+        term.dispose();
+      } catch (err) {}
     };
   }, []);
 

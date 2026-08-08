@@ -5,6 +5,7 @@ import type { TargetLanguage, LLMConfig } from '../engine/llmCompiler';
 import { DEFAULT_LLM_CONFIG, compileIPL } from '../engine/llmCompiler';
 import type { SyntaxErrorItem, IPLVerb } from '../engine/iplGrammar';
 import { validateIPLCode } from '../engine/iplGrammar';
+import { defaultOutputDir } from '../engine/paths';
 
 export interface LogEntry {
   id: string;
@@ -78,6 +79,8 @@ export interface IDEState {
   isSettingsOpen: boolean;
   isProjectModalOpen: boolean;
   isGitModalOpen: boolean;
+  isTutorialOpen: boolean;
+  toggleTutorial: () => void;
 
   // Layout & Resizing
   leftSidebarWidth: number;
@@ -359,6 +362,7 @@ export const useIdeStore = create<IDEState>()(
       isSettingsOpen: false,
       isProjectModalOpen: false,
       isGitModalOpen: false,
+      isTutorialOpen: false,
 
       leftSidebarWidth: 280,
       rightSidebarWidth: 520,
@@ -413,6 +417,7 @@ export const useIdeStore = create<IDEState>()(
       toggleSettings: () => set((state) => ({ isSettingsOpen: !state.isSettingsOpen })),
       toggleProjectModal: () => set((state) => ({ isProjectModalOpen: !state.isProjectModalOpen })),
       toggleGitModal: () => set((state) => ({ isGitModalOpen: !state.isGitModalOpen })),
+      toggleTutorial: () => set((state) => ({ isTutorialOpen: !state.isTutorialOpen })),
 
       addLog: (text, type = 'info') => {
         const newEntry: LogEntry = {
@@ -429,8 +434,7 @@ export const useIdeStore = create<IDEState>()(
       createProject: (name: string, templateCode?: string, outputDir?: string) => {
         const newId = `proj-${Date.now()}`;
         const defaultCode = templateCode || `// New IPL Project: ${name}\nadd item {\n  name: "${name}"\n}\n`;
-        const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
-        const finalOutputDir = outputDir?.trim() || `d:/image_to_text/IPL/output/${safeName}`;
+        const finalOutputDir = outputDir?.trim() || defaultOutputDir(name);
 
         const newProject: IPLProject = {
           id: newId,
@@ -535,7 +539,7 @@ export const useIdeStore = create<IDEState>()(
 
         const targetDir = proj.outputDir && proj.outputDir.trim()
           ? proj.outputDir.trim()
-          : `d:/image_to_text/IPL/output/${proj.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+          : defaultOutputDir(proj.name);
 
         if (!compiledCode) {
           addLog(`Impossible de matérialiser : le projet n'a pas encore été compilé.`, 'warn');
@@ -577,7 +581,7 @@ export const useIdeStore = create<IDEState>()(
 
         const targetDir = proj.outputDir && proj.outputDir.trim()
           ? proj.outputDir.trim()
-          : `d:/image_to_text/IPL/output/${proj.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+          : defaultOutputDir(proj.name);
 
         try {
           const response = await fetch('/api/read-disk', {
@@ -807,30 +811,44 @@ export const useIdeStore = create<IDEState>()(
             (msg, type) => addLog(msg, type)
           );
 
-          const fileMatches = parseMultiFileXml(rawResult);
+          // Extraire l'état actuel des fichiers
+          const existingFiles = parseMultiFileXml(compiledCode || '');
+          // Fusionner et appliquer les modifications ciblées (<patch>) et nouveaux fichiers (<file>)
+          const updatedFiles = parseMultiFileXml(rawResult, existingFiles);
 
-          if (fileMatches.length > 0) {
-            set({ compiledCode: rawResult, isCompiling: false });
+          const hasPatchOrFileTag = /<file\s+path=["']([^"']+)["']\s*>/i.test(rawResult) || 
+                                    /<patch\s+path=["']([^"']+)["']\s*>/i.test(rawResult);
+
+          if (hasPatchOrFileTag && updatedFiles.length > 0) {
+            // Reconstruire l'artifact XML propre avec <file path="..."> pour chaque fichier
+            const newXmlCode = updatedFiles.map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`).join('\n\n');
+
+            set({ compiledCode: newXmlCode, isCompiling: false });
             await get().writeArtifactToDisk();
 
-            const textReply = rawResult.replace(/<file\s+path=["']([^"']+)["']\s*>([\s\S]*?)<\/file>/gi, '').trim();
+            // Nettoyer la réponse textuelle du chat en retirant les balises <file> et <patch>
+            let textReply = rawResult
+              .replace(/<file\s+path=["']([^"']+)["']\s*>([\s\S]*?)<\/file>/gi, '')
+              .replace(/<patch\s+path=["']([^"']+)["']\s*>([\s\S]*?)<\/patch>/gi, '')
+              .trim();
+
             return {
-              textReply: textReply || `I have updated your project files according to your request: "${userPrompt.trim()}".`,
+              textReply: textReply || `J'ai appliqué les modifications dans vos fichiers de projet d'après votre demande : "${userPrompt.trim()}".`,
               codeChanged: true
             };
           } else {
-            // Conversational response only - DO NOT overwrite project code!
+            // Réponse uniquement conversationnelle - NE PAS écraser les fichiers du projet !
             set({ isCompiling: false });
             return {
-              textReply: rawResult.trim() || 'I am ready to help you with your project.',
+              textReply: rawResult.trim() || 'Je suis prêt à vous aider avec votre projet IPL.',
               codeChanged: false
             };
           }
         } catch (err: any) {
-          addLog(`LLM Chat Error: ${err.message}`, 'error');
+          addLog(`Erreur Chat LLM: ${err.message}`, 'error');
           set({ isCompiling: false });
           return {
-            textReply: `Error: ${err.message}`,
+            textReply: `Erreur: ${err.message}`,
             codeChanged: false
           };
         }
@@ -839,7 +857,7 @@ export const useIdeStore = create<IDEState>()(
       autoDebugAndFix: async (customCmd?: string) => {
         const { projects, activeProjectId, targetLang, llmConfig, addLog, writeArtifactToDisk } = get();
         const activeProj = projects.find(p => p.id === activeProjectId);
-        const outputDir = activeProj?.outputDir || `d:/image_to_text/IPL/output/${activeProj?.name.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'mon_projet'}`;
+        const outputDir = activeProj?.outputDir || defaultOutputDir(activeProj?.name || 'mon_projet');
 
         let cmdToRun = customCmd;
         if (!cmdToRun) {
@@ -870,11 +888,17 @@ export const useIdeStore = create<IDEState>()(
             outputLog = err.message;
           }
 
-          const hasError = outputLog.includes('Processus terminé avec le code 1') || 
-                           outputLog.includes('Processus terminé avec le code 101') ||
-                           outputLog.includes('Traceback (most recent call last)') ||
-                           outputLog.includes('error:') || 
-                           outputLog.includes('Error:');
+          // Détection d'erreur robuste : on se base d'abord sur le code de sortie
+          // neutre émis par le backend, puis sur des heuristiques textuelles.
+          const exitCodeMatch = outputLog.match(/\[Exit code:\s*(-?\d+)\]/i);
+          const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : null;
+
+          let hasError = false;
+          if (exitCode !== null) {
+            hasError = exitCode !== 0;
+          } else {
+            hasError = /Traceback \(most recent call last\)|panic!|error:|Error:|Exception|SyntaxError|NameError|ReferenceError|TypeError|ImportError|command not found|is not recognized|cannot find|ENOENT|fatal:|exit code\s*[1-9]|terminé avec le code [1-9]/i.test(outputLog);
+          }
 
           if (!hasError) {
             addLog(`[Agent Codeur 🤖] 🎉 Exécution réussie à 100% à la passe ${attempt} ! Aucun bug détecté.`, 'success');
@@ -897,7 +921,17 @@ export const useIdeStore = create<IDEState>()(
               (streamChunkText) => set({ compiledCode: streamChunkText })
             );
 
-            set({ compiledCode: fixedResult, isCompiling: false });
+            const { parseMultiFileXml } = await import('../engine/artifactGenerator');
+            const existingFiles = parseMultiFileXml(get().compiledCode || '');
+            const updatedFiles = parseMultiFileXml(fixedResult, existingFiles);
+
+            if (updatedFiles.length > 0) {
+              const cleanXmlCode = updatedFiles.map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`).join('\n\n');
+              set({ compiledCode: cleanXmlCode, isCompiling: false });
+            } else {
+              set({ compiledCode: fixedResult, isCompiling: false });
+            }
+
             await writeArtifactToDisk();
           } catch (err: any) {
             addLog(`Échec de l'auto-réparation LLM: ${err.message}`, 'error');

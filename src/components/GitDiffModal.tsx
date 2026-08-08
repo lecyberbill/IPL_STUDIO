@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { DiffEditor } from '@monaco-editor/react';
 import { useIdeStore } from '../store/useIdeStore';
+import { defaultOutputDir } from '../engine/paths';
 import { GitCompare, X, GitCommit, RefreshCw, FileText } from 'lucide-react';
 
 interface GitDiffModalProps {
@@ -18,7 +19,7 @@ export const GitDiffModal: React.FC<GitDiffModalProps> = ({ isOpen, onClose }) =
   const [activeTab, setActiveTab] = useState<'visual' | 'raw'>('visual');
 
   const activeProj = projects.find(p => p.id === activeProjectId);
-  const outputDir = activeProj?.outputDir || `d:/image_to_text/IPL/output/${activeProj?.name.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'my_project'}`;
+  const outputDir = activeProj?.outputDir || defaultOutputDir(activeProj?.name || 'my_project');
 
   const fetchGitData = async () => {
     setIsLoading(true);
