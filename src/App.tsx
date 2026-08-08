@@ -9,6 +9,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { ProjectModal } from './components/ProjectModal';
 import { GitDiffModal } from './components/GitDiffModal';
 import { PolyglotModal } from './components/PolyglotModal';
+import { TutorialModal } from './tutorial';
 import { useIdeStore } from './store/useIdeStore';
 
 export const App: React.FC = () => {
@@ -17,6 +18,8 @@ export const App: React.FC = () => {
     runCompilation, 
     isGitModalOpen, 
     toggleGitModal,
+    isTutorialOpen,
+    toggleTutorial,
     setLeftSidebarWidth,
     setRightSidebarWidth
   } = useIdeStore();
@@ -111,6 +114,7 @@ export const App: React.FC = () => {
       <ProjectModal />
       <PolyglotModal />
       <GitDiffModal isOpen={isGitModalOpen} onClose={toggleGitModal} />
+      <TutorialModal isOpen={isTutorialOpen} onClose={toggleTutorial} />
     </div>
   );
 };

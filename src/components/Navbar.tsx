@@ -11,7 +11,8 @@ import {
   GitCompare,
   Download,
   Trash2,
-  Layers
+  Layers,
+  GraduationCap
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -25,6 +26,7 @@ export const Navbar: React.FC = () => {
     toggleSettings,
     toggleProjectModal,
     toggleGitModal,
+    toggleTutorial,
     projects,
     activeProjectId,
     switchProject,
@@ -179,6 +181,15 @@ export const Navbar: React.FC = () => {
         >
           <GitCompare size={14} className="text-cyan-400" />
           <span>Git Diff</span>
+        </button>
+
+        <button
+          onClick={toggleTutorial}
+          className="flex items-center space-x-1.5 px-3 py-1.5 bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 rounded-lg border border-cyan-500/40 text-xs font-semibold transition-all shadow-sm shadow-cyan-950/40"
+          title="Apprendre l'IPL avec le tutoriel pas-à-pas interactif"
+        >
+          <GraduationCap size={15} className="text-cyan-400" />
+          <span>Tutoriel IPL</span>
         </button>
 
         <button
