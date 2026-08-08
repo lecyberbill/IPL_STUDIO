@@ -37,6 +37,8 @@ All notable changes to **IPL Studio** are documented in this file.
 - **`scripts/run-benchmark.ts` + `npm run bench`**: end-to-end "moment of truth" for the 2-Pass engine. Runs the real Pass 1 + Pass 2 prompts, parses the artifact with the real `parseMultiFileXml`, writes to `output/benchmark/`, and verifies (run command / marker / ES-module scan / `node --check`). Emits a Markdown report with PASS/WARN/FAIL, per-pass latency, token estimates, and file counts.
   - `--mode mock` = offline pipeline smoke test (no API key or network needed).
   - `--mode external|lmstudio|local` + `.env`-aware API key resolution for real endpoints.
+  - `--python <venvDir|exe>` = resolve the `python` command via a venv `Scripts` dir or a direct exe path (e.g. `--python D:\...\.venv\Scripts`).
+  - Entry-point discovery: if `main.py`/`index.js` is missing at the root but exists deeper (e.g. `src/app.py`), the verifier retries with the discovered path before failing — measuring "is the app runnable?" rather than "is it named exactly as the spec?".
   - ES-module usage (`<script type="module">`) always FAILs `html` targets (the documented CORS/`file://` failure mode).
 - **Node-compatible engine**: `artifactGenerator.ts` now imports the browser-only `file-saver` lazily inside `downloadProjectZip`, so the parser + artifact pipeline run under plain Node (benchmarks/CLI tooling).
 - **Prompt builders exported** from `llmGenerator.ts` (`buildLangInstruction`, `buildPass1Prompt`, `buildPass2Prompt`) enabling per-pass measurement in the harness.

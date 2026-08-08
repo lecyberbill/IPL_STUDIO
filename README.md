@@ -120,6 +120,7 @@ npm run bench -- --mode mock       # offline pipeline smoke test (no API key nee
 npm run bench -- --mode external   # real end-to-end against DeepSeek (needs VITE_DP_API_KEY)
 npm run bench -- --mode lmstudio   # against a local LM Studio server
 npm run bench -- --iterations 3    # more runs per spec for stable latency averages
+npm run bench -- --python D:\path\.venv\Scripts   # resolve `python` via a venv (typed specs)
 ```
 Runs the real 2-Pass pipeline per spec, parses artifacts with the real parser, writes to `output/benchmark/`, and emits a Markdown report (PASS/WARN/FAIL, per-pass latency, token estimates). See [ROADMAP.md](ROADMAP.md) → **Phase 4**.
 

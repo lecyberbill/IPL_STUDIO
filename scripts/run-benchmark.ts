@@ -13,14 +13,15 @@
  *   node scripts/run-benchmark.ts --spec hello           # single spec
  *   node scripts/run-benchmark.ts --mode lmstudio        # local LM Studio
  *   node scripts/run-benchmark.ts --mode local           # local Ollama
+ *   node scripts/run-benchmark.ts --python <venvDir|exe> # resolve `python` via a venv Scripts dir or an exe path
  *
  * External mode reads the API key from VITE_DP_API_KEY (or DEEPSEEK_API_KEY /
  * OPENAI_API_KEY / VITE_OPENAI_API_KEY / VITE_GEMINI_API_KEY) or a local .env.
  *
  * Exit code: 0 if every run passed, 1 otherwise.
  */
-import { readFileSync, mkdirSync, writeFileSync, readdirSync, rmSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, mkdirSync, writeFileSync, readdirSync, rmSync, existsSync, statSync } from 'node:fs';
+import { resolve as pathResolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { parseMultiFileXml } from '../src/engine/artifactGenerator.ts';
 import { callLLM, buildPass1Prompt, buildPass2Prompt, DEFAULT_LLM_CONFIG } from '../src/engine/llmGenerator.ts';
@@ -39,6 +40,7 @@ interface CliArgs {
   timeoutPerPassMs: number;
   timeoutRunMs: number;
   quiet: boolean;
+  pythonPath?: string;
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -53,6 +55,7 @@ function parseArgs(argv: string[]): CliArgs {
     else if (a === '--spec') args.spec = next();
     else if (a === '--timeout-pass') args.timeoutPerPassMs = parseInt(next() || '120000', 10);
     else if (a === '--timeout-run') args.timeoutRunMs = parseInt(next() || '30000', 10);
+    else if (a === '--python') args.pythonPath = next();
     else if (a === '--quiet') args.quiet = true;
     else if (a === '--help') {
       console.log(`IPL Studio Benchmark Harness
@@ -67,6 +70,7 @@ Options:
   --spec <id>                             run a single spec
   --timeout-pass <ms>                     per-pass LLM timeout (default: 120000)
   --timeout-run <ms>                      command execution timeout (default: 30000)
+  --python <venvDir|exe>                  resolve \`python\` via a venv Scripts dir or a direct exe path
   --quiet                                 suppress streaming logs
   --help                                  this help`);
       process.exit(0);
@@ -81,7 +85,7 @@ Options:
 
 function loadDotEnv(): void {
   try {
-    const envPath = resolve(import.meta.dirname, '../.env');
+    const envPath = pathResolve(import.meta.dirname, '../.env');
     const content = readFileSync(envPath, 'utf8');
     for (const rawLine of content.split(/\r?\n/)) {
       const line = rawLine.trim();
@@ -384,9 +388,9 @@ function writeArtifact(runDir: string, xml: string): { files: string[]; totalByt
   let totalBytes = 0;
   for (const f of parsed) {
     if (!f.relativePath || /^[a-zA-Z]:[\\/]/.test(f.relativePath) || f.relativePath.includes('..')) continue;
-    const target = resolve(runDir, f.relativePath);
-    if (!target.startsWith(resolve(runDir))) continue;
-    mkdirSync(resolve(target, '..'), { recursive: true });
+    const target = pathResolve(runDir, f.relativePath);
+    if (!target.startsWith(pathResolve(runDir))) continue;
+    mkdirSync(pathResolve(target, '..'), { recursive: true });
     writeFileSync(target, f.content, 'utf8');
     files.push(f.relativePath);
     totalBytes += Buffer.byteLength(f.content, 'utf8');
@@ -394,8 +398,9 @@ function writeArtifact(runDir: string, xml: string): { files: string[]; totalByt
   return { files, totalBytes };
 }
 
-function runCommand(cwd: string, command: string, timeoutMs: number): { exitCode: number | null; output: string; timedOut: boolean } {
-  const res = spawnSync(command, { cwd, shell: true, timeout: timeoutMs, encoding: 'utf8', windowsHide: true });
+function runCommand(cwd: string, command: string, timeoutMs: number, pythonPath?: string): { exitCode: number | null; output: string; timedOut: boolean } {
+  const resolved = resolvePythonCommand(command, pythonPath);
+  const res = spawnSync(resolved, { cwd, shell: true, timeout: timeoutMs, encoding: 'utf8', windowsHide: true });
   return {
     exitCode: res.status,
     output: `${res.stdout || ''}\n${res.stderr || ''}`.trim(),
@@ -403,12 +408,38 @@ function runCommand(cwd: string, command: string, timeoutMs: number): { exitCode
   };
 }
 
+/**
+ * Resolves a `python`/`python3` prefix in a shell command to a concrete
+ * interpreter: a venv `Scripts` dir is prepended to PATH (or the venv's
+ * `bin` on POSIX), otherwise a direct exe path replaces the command.
+ */
+function resolvePythonCommand(command: string, pythonPath?: string): string {
+  if (!pythonPath) return command;
+  if (!/^python(3|3\.\d+)?\b/.test(command)) return command;
+  try {
+    const isDir = existsSync(pythonPath) && statSync(pythonPath).isDirectory();
+    if (isDir) {
+      const pythons = ['python.exe', 'python3.exe', 'python', 'python3']
+        .map(name => pathResolve(pythonPath, name))
+        .find(p => existsSync(p));
+      if (pythons) {
+        const dirs = pathResolve(pythons, '..');
+        process.env.PATH = `${dirs}${process.platform === 'win32' ? ';' : ':'}${process.env.PATH ?? ''}`;
+      }
+      return command;
+    }
+  } catch {
+    // fall through to direct exe handling
+  }
+  return command.replace(/^python(3|3\.\d+)?/, `"${pathResolve(pythonPath)}"`);
+}
+
 async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{ status: RunStatus; detail: string }> {
   const allFiles = readdirSync(runDir, { recursive: true }) as string[];
   const allContent = allFiles
     .filter(f => !f.endsWith('.txt'))
     .map(f => {
-      try { return readFileSync(resolve(runDir, f), 'utf8'); } catch { return ''; }
+      try { return readFileSync(pathResolve(runDir, f), 'utf8'); } catch { return ''; }
     })
     .join('\n');
 
@@ -429,13 +460,13 @@ async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{
   if (spec.verify.command) {
     const jsFiles = allFiles.filter(f => f.endsWith('.js'));
     for (const f of jsFiles) {
-      const check = spawnSync('node', ['--check', resolve(runDir, f)], { encoding: 'utf8', windowsHide: true });
+      const check = spawnSync('node', ['--check', pathResolve(runDir, f)], { encoding: 'utf8', windowsHide: true });
       if (check.status !== 0) {
         return { status: 'FAIL', detail: `node --check failed on ${f}: ${(check.stderr || '').trim().slice(0, 200)}` };
       }
     }
 
-    const run = runCommand(runDir, spec.verify.command, args.timeoutRunMs);
+    const run = runCommand(runDir, spec.verify.command, args.timeoutRunMs, args.pythonPath);
     if (run.timedOut) return { status: 'WARN', detail: `command timed out after ${args.timeoutRunMs} ms (long-running server?)` };
     if (run.exitCode === null) return { status: 'WARN', detail: 'toolchain not available (command could not be spawned)' };
     if (run.exitCode === 127 || run.exitCode === 9009) {
@@ -448,11 +479,44 @@ async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{
       if (/cannot find module/i.test(run.output)) {
         return { status: 'WARN', detail: `entry missing (${spec.verify.command}) — generated app may be browser-based` };
       }
+      // The entry file may live in a subdirectory (e.g. src/main.py). Retry with
+      // the discovered path before failing.
+      const retried = retryWithDiscoveredEntry(spec.verify.command, allFiles);
+      if (retried) {
+        const retry = runCommand(runDir, retried.command, args.timeoutRunMs, args.pythonPath);
+        if (retry.exitCode === 0) return { status: 'PASS', detail: `verified OK (entry discovered as ${retried.entry})` };
+        return { status: 'FAIL', detail: `${spec.verify.command} failed (${run.output.slice(0, 120)}) — retried ${retried.command}: ${retry.output.slice(0, 160) || `exit ${retry.exitCode}`}` };
+      }
       return { status: 'FAIL', detail: `exit code ${run.exitCode}: ${run.output.slice(0, 200)}` };
     }
   }
 
   return { status: 'PASS', detail: 'verified OK' };
+}
+
+/**
+ * If a run command references an entry file that is missing at the run root but
+ * exists deeper in the tree (e.g. `python main.py` vs `src/main.py`), rewrite
+ * the command to use the discovered path. As a last resort, try the shallowest
+ * conventional entry file (main/app/index) so a structurally different but
+ * runnable app is measured as runnable rather than misnamed.
+ */
+function retryWithDiscoveredEntry(command: string, allFiles: string[]): { command: string; entry: string } | null {
+  const m = /^((?:python(?:3|3\.\d+)?|node)\s+)([\w./-]+\.\w+)(.*)$/.exec(command);
+  if (!m) return null;
+  const ext = m[2].endsWith('.py') ? '.py' : '.js';
+  const depth = (f: string) => f.split(/[\\/]/).length;
+
+  const exact = allFiles.filter(f => f.split(/[\\/]/).pop() === m[2].split(/[\\/]/).pop());
+  const candidates = (exact.length > 0
+    ? exact
+    : allFiles
+        .filter(f => f.endsWith(ext) && !/(^|[\\/])tests?([\\/]|$)/i.test(f))
+        .filter(f => /(^|[\\/])(main|app|index)(\.\w+)?$/.test(f.replace(/\\/g, '/')))
+  ).sort((a, b) => depth(a) - depth(b));
+  if (candidates.length === 0) return null;
+  const entry = candidates[0].replace(/\\/g, '/');
+  return { command: `${m[1]}${entry}${m[3]}`, entry };
 }
 
 // ---------------------------------------------------------------------------
@@ -552,7 +616,7 @@ async function main(): Promise<number> {
     else config.localEndpoint = args.endpoint;
   }
 
-  const root = resolve(import.meta.dirname, '../output/benchmark');
+  const root = pathResolve(import.meta.dirname, '../output/benchmark');
   const runId = new Date().toISOString().replace(/[:.]/g, '-');
 
   console.log(`IPL Studio Benchmark — mode=${args.mode} iterations=${args.iterations}`);
@@ -565,7 +629,7 @@ async function main(): Promise<number> {
     console.log(`▶ ${spec.name} [${spec.id}] → ${spec.targetLang}`);
     for (let i = 1; i <= args.iterations; i++) {
       log(args, `run ${i}/${args.iterations}`, 'info');
-      const runDir = resolve(root, spec.id, `run-${runId}-${i}`);
+      const runDir = pathResolve(root, spec.id, `run-${runId}-${i}`);
       rmSync(runDir, { recursive: true, force: true });
       mkdirSync(runDir, { recursive: true });
 
@@ -603,7 +667,7 @@ async function main(): Promise<number> {
   }
 
   const report = buildReport(args, config, results);
-  const reportPath = resolve(root, `report-${runId}.md`);
+  const reportPath = pathResolve(root, `report-${runId}.md`);
   mkdirSync(root, { recursive: true });
   writeFileSync(reportPath, report, 'utf8');
   console.log(`Report written to ${reportPath}`);
