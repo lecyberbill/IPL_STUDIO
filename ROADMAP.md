@@ -137,6 +137,21 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 
 ---
 
+## ⬜ Phase 11 — Local Model Catalog (LM Studio & Ollama)
+
+**Objective**: Discover, list, and load models running locally so the packaged app is not tied to a hardcoded endpoint/model.
+
+**Scope**:
+- Query the LM Studio `/v1/models` and Ollama `/api/tags` endpoints on startup (both already speak OpenAI-compatible-ish APIs) and surface available models in the Settings modal.
+- Keep the catalog entirely optional: if the local server is unreachable, fall back to the manual endpoint/model fields (no hard dependency).
+- Persist the selected model per mode and validate connectivity before generation (bad endpoint → clear warning, never blocks).
+
+**Acceptance criteria**:
+- [ ] Model dropdown is populated from a live LM Studio or Ollama server without manual entry.
+- [ ] A dead/unreachable local server degrades gracefully to manual config with a warning (rails, not walls).
+
+---
+
 ## 🧭 Guiding Principles (unchanged)
 
 1. **Rails, not walls** — diagnostics never block; severity is `info | warning`.
