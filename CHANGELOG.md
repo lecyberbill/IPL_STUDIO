@@ -25,6 +25,13 @@ All notable changes to **IPL Studio** are documented in this file.
   - **Unknown set target** (`info`): `set <name>.field = ...` where `<name>` is never declared or produced anywhere in the spec.
 - **Parser**: `add view <Name>` is now a first-class declaration kind (`entityKind: 'view'`) so the guide's canonical `add view` syntax parses with the correct name.
 
+### 🧪 Automated Test Suite (Vitest)
+- **First test infrastructure**: `vitest` added as a dev dependency with `npm test` (one-shot) and `npm run test:watch` (watch mode).
+- **38 tests across 3 suites** locking in the engine's behavior:
+  - `iplParser.test.ts` (22): tokenizer/comment handling, `add`/`add view`, targeted verbs, `set`, control flow (`listen`/`if`/`for`/`try`/`return`), generic statements, diagnostics, `validateIPLCode` shape, and `parseIPLToTree` block trees.
+  - `iplSemantics.test.ts` (10): zero false positives on the canonical example, duplicate declarations, unknown intent types, unknown `set` targets, and try/catch protection checks.
+  - `iplGrammar.test.ts` (6): combined `validateIPLCode` (syntax + semantics), the data-driven grammar signature tables, and Monarch `typeKeywords` derived from `IPL_INTENT_TYPES`.
+
 ### 🌍 Internationalization (French → English)
 - Translated all remaining French UI strings, comments, tutorials (`iplTutorialLessons.ts` fully rewritten), artifact content, and config comments to English.
 

@@ -106,6 +106,13 @@ npm run dev
 ```
 Open your browser at [http://localhost:5173](http://localhost:5173).
 
+### 4. Run the Test Suite
+```bash
+npm test        # one-shot
+npm run test:watch
+```
+38 tests cover the IPL parser, the semantic analyzer, and the data-driven grammar signature.
+
 ---
 
 ## ⚙️ LLM Engine Connection Modes
