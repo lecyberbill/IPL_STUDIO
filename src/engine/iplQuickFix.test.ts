@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { applyIPLQuickFixes } from './iplQuickFix';
+import { applyIPLQuickFixes, applySingleQuickFix } from './iplQuickFix';
+import { validateIPLCode } from './iplGrammar';
 
 describe('applyIPLQuickFixes', () => {
   it('closes an unterminated string', () => {
@@ -34,5 +35,25 @@ describe('applyIPLQuickFixes', () => {
     const code = 'add unknownType as entity {\n  name: text\n}\n';
     const { remaining } = applyIPLQuickFixes(code);
     expect(remaining.length).toBeGreaterThanOrEqual(0);
+  });
+
+  it('inserts a missing "=" in a set statement (Phase 6)', () => {
+    const code = 'set orderData.status\n';
+    const { code: fixed, applied } = applyIPLQuickFixes(code);
+    expect(applied.some(a => a.fixLabel === 'Insert " = "')).toBe(true);
+    expect(fixed).toContain('set orderData.status = ');
+  });
+
+  it('does NOT auto-apply the lossy unknown-intent-type fix (auto: false)', () => {
+    const code = 'add entity User {\n  age: integer\n}\n';
+    const { applied, remaining } = applyIPLQuickFixes(code);
+    expect(applied.some(a => a.fixLabel.includes('Replace'))).toBe(false);
+    // The unknown intent type stays advisory-only for the pre-generation repair...
+    expect(remaining.some(d => d.message.includes('Unknown intent type'))).toBe(true);
+    // ...but is still actionable via applySingleQuickFix.
+    const diag = validateIPLCode(code).find(d => d.message.includes('Unknown intent type'));
+    expect(diag?.fix?.label).toContain('text');
+    const fixed = applySingleQuickFix(code, diag!);
+    expect(fixed).toContain('age: text');
   });
 });

@@ -3,6 +3,7 @@ import Editor, { useMonaco } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import { useIdeStore } from '../store/useIdeStore';
 import { IPL_LANGUAGE_DEFINITION, IPL_VERBS, extractIPLSymbols } from '../engine/iplGrammar';
+import { resolveIPLDefinition } from '../engine/iplRefs';
 import type { SyntaxErrorItem } from '../engine/iplGrammar';
 import { Code, AlertTriangle } from 'lucide-react';
 
@@ -109,31 +110,37 @@ export const IplMonacoEditor: React.FC = () => {
               };
             }
 
-            return null;
-          }
-        });
-
-        // 3. Go to Definition Provider (F12 / Ctrl+Click)
-        monacoInstance.languages.registerDefinitionProvider('ipl', {
-          provideDefinition: (model, position) => {
-            const word = model.getWordAtPosition(position);
-            if (!word) return null;
-
-            const symbols = extractIPLSymbols(model.getValue());
-            const symMatch = symbols.find(s => s.name === word.word);
-            if (symMatch) {
+            // Phase 6 — semantic reference hover (declared / produced / event).
+            const loc = resolveIPLDefinition(model.getValue(), position.lineNumber, position.column);
+            if (loc) {
+              const kindLabel = loc.kind === 'declared' ? 'declared (add)' : loc.kind === 'event' ? 'event (listen)' : `produced (${loc.verb})`;
               return {
-                uri: model.uri,
-                range: {
-                  startLineNumber: symMatch.line,
-                  startColumn: symMatch.column,
-                  endLineNumber: symMatch.line,
-                  endColumn: symMatch.column + symMatch.name.length
-                }
+                contents: [
+                  { value: `**IPL symbol: \`${loc.name}\`** (${kindLabel})` },
+                  { value: `Defined at line ${loc.line}, column ${loc.column}` }
+                ]
               };
             }
 
             return null;
+          }
+        });
+
+        // 3. Go to Definition Provider (F12 / Ctrl+Click) — Phase 6 semantic
+        // resolution over the 3 reference kinds (declared / produced / event).
+        monacoInstance.languages.registerDefinitionProvider('ipl', {
+          provideDefinition: (model, position) => {
+            const loc = resolveIPLDefinition(model.getValue(), position.lineNumber, position.column);
+            if (!loc) return null;
+            return {
+              uri: model.uri,
+              range: {
+                startLineNumber: loc.line,
+                startColumn: loc.column,
+                endLineNumber: loc.line,
+                endColumn: loc.endColumn
+              }
+            };
           }
         });
 

@@ -21,6 +21,9 @@ export type IPLSeverity = 'info' | 'warning';
 export interface IPLQuickFix {
   label: string;
   newText: string;
+  /** When false, the fix is actionable in the editor but NOT auto-applied by
+   *  the deterministic pre-generation repair (lossy/guessed edits). */
+  auto?: boolean;
 }
 
 export interface IPLDiagnostic {
@@ -395,6 +398,8 @@ export interface IPLBlockNode {
   category: 'data' | 'action' | 'control' | 'flow' | 'expression';
   headerText: string;
   children: IPLBlockNode[];
+  /** Phase 6 — semantic state of the node's target symbol, when determinable. */
+  semanticState?: 'declared' | 'produced' | 'unknown';
 }
 
 // ---------------------------------------------------------------------------
@@ -936,8 +941,16 @@ class IPLParserImpl {
       stmt.target = this.parseExprFromTokens(header.slice(0, eq));
       stmt.value = this.parseExprFromTokens(header.slice(eq + 1));
     } else {
+      const insertAt = this.lastConsumed();
       stmt.target = this.parseExprFromTokens(header);
-      this.diag('info', `"set" is missing "=" for the value assignment.`, start.line, start.column + 3, start.column + 6);
+      this.diag(
+        'info',
+        `"set" is missing "=" for the value assignment. Insert " = " before the next token.`,
+        insertAt.line,
+        insertAt.endColumn,
+        insertAt.endColumn,
+        { label: 'Insert " = "', newText: ' = ', auto: true }
+      );
     }
 
     this.parsePropsOrBlock(stmt);

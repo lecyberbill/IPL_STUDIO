@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
 import { TerminalPanel } from './TerminalPanel';
-import { Terminal, Trash2, Info, CheckCircle2, AlertTriangle, AlertCircle, ChevronUp, ChevronDown } from 'lucide-react';
+import { DiagnosticsPanel } from './DiagnosticsPanel';
+import { Terminal, Trash2, Info, CheckCircle2, AlertTriangle, AlertCircle, ChevronUp, ChevronDown, ListChecks } from 'lucide-react';
 
 export const ConsolePanel: React.FC = () => {
-  const { logs, clearLogs } = useIdeStore();
-  const [activeTab, setActiveTab] = useState<'terminal' | 'logs'>('terminal');
+  const { logs, clearLogs, syntaxErrors } = useIdeStore();
+  const [activeTab, setActiveTab] = useState<'terminal' | 'diagnostics' | 'logs'>('terminal');
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
 
   const getLogIcon = (type: string) => {
@@ -36,6 +37,18 @@ export const ConsolePanel: React.FC = () => {
           >
             <Terminal size={14} />
             <span>Embedded Terminal (Run)</span>
+          </button>
+
+          <button
+            onClick={() => { setActiveTab('diagnostics'); setIsExpanded(true); }}
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+              activeTab === 'diagnostics' && isExpanded
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <ListChecks size={14} />
+            <span>Diagnostics ({syntaxErrors.length})</span>
           </button>
 
           <button
@@ -77,6 +90,8 @@ export const ConsolePanel: React.FC = () => {
         <div className="h-44 bg-[#0b0d13] overflow-hidden">
           {activeTab === 'terminal' ? (
             <TerminalPanel />
+          ) : activeTab === 'diagnostics' ? (
+            <DiagnosticsPanel />
           ) : (
             <div className="h-full overflow-y-auto p-3 space-y-1.5 font-mono text-xs select-text">
               {logs.map((log) => (

@@ -75,8 +75,10 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 - Block-tree viewer shows semantic state (declared / produced / unknown) on each node.
 
 **Acceptance criteria**:
-- [ ] Every diagnostic with a `fix` is actionable from the editor.
-- [ ] Go-to-def resolves the 3 reference kinds (declared, produced, event) with no false positives on the canonical example.
+- [x] Every diagnostic with a `fix` is actionable from the editor.
+- [x] Go-to-def resolves the 3 reference kinds (declared, produced, event) with no false positives on the canonical example.
+
+**Status**: 🟢 done — new **Diagnostics** bottom-panel tab (severity filter, jump-to-line, apply-fix buttons via `applySingleQuickFix`); `src/engine/iplRefs.ts` reference index (`declared` / `produced` / `event`) powering a semantic go-to-definition + hover with zero false positives on fields/option values; block-tree nodes annotated with `declared` / `produced` / `unknown` badges; two new editor-actionable fixes (missing `=`, unknown intent type) — the lossy intent-type fix is `auto:false` (actionable, never auto-applied pre-generation).
 
 ---
 

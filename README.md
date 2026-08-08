@@ -64,9 +64,11 @@ See [CHANGELOG.md](CHANGELOG.md) for the complete list of release notes, version
 - Semantic checks run on the **merged project** (`validateIPLProject`): duplicate declarations and unknown references are detected across files, and the generated app reflects every module. Edits made in the editor stay in sync with the file map, and generation is always rooted at `main.ipl` deterministically.
 
 ### 🧠 7. Semantic Language Server (LSP) Features
-- **Go to Definition ($F12$ / Ctrl+Click)**: Instantly jump to declared symbols and entity lines in Monaco.
-- **Hover Provider**: Rich Markdown tooltips showing verb documentation, snippets, and symbol definitions on hover.
+- **Go to Definition ($F12$ / Ctrl+Click)**: Semantic resolution over the 3 reference kinds — `declared` (`add entity|module|view`), `produced` (`read`/`compute`/`search`/`send`/`for`-item), and `event` (`listen event on "..."`, including quoted names with `:`). Field references never resolve (no false positives).
+- **Hover Provider**: Rich Markdown tooltips showing verb documentation, snippets, and the semantic definition (declared / produced / event) of the symbol under the cursor.
 - **Contextual Autocomplete**: Smart suggestions for IPL verbs, intent types, and declared project symbols.
+- **Diagnostics Panel**: bottom-panel tab with severity filter, jump-to-line, and one-click application of every advisory quick-fix.
+- **Semantic block tree**: visual editor badges each block `declared` / `produced` / `unknown`.
 
 ---
 

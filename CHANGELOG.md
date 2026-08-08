@@ -61,6 +61,13 @@ All notable changes to **IPL Studio** are documented in this file.
 - **Deterministic generation root**: `runGeneration` builds the union rooted at `main.ipl` regardless of which file is active, applies pre-generation quick-fixes on the merged union, and logs every unresolved import. Backwards-compatible `resolveIPLImports` wrapper retained.
 - **9 new tests** (`resolveIPLProject` single/nested/cycle/diamond/unresolved + `validateIPLProject` cross-file refs/duplicates/unresolved) → now **63 tests across 6 suites**.
 
+### 🧭 Semantic UX — Diagnostics Become Helpful (Phase 6)
+- **Dedicated Diagnostics panel**: new bottom-panel tab listing every advisory for the active file with a **severity filter** (All / Warnings / Info), **jump-to-line** (`revealPositionInCenter`), fixable counts, and a **Fix** button on any diagnostic carrying a quick-fix (via the new `applySingleQuickFix`).
+- **Semantic reference index (`src/engine/iplRefs.ts`)**: deterministic symbol table over the three reference kinds — `declared` (`add entity|module|view`), `produced` (`read`/`remove`/`search`/`send`/`compute`/`for`-item), `event` (`listen event on "..."`). The Monaco **go-to-definition** (F12 / Ctrl+Click) and **hover** now resolve all three, including quoted event names containing `:` (`"checkout:completed"`), with zero false positives on property fields and option values (verified against the canonical order spec).
+- **Block-tree semantic state**: every block node is annotated `declared` / `produced` / `unknown` with color-coded badges in the visual editor (`annotateBlockNodes`).
+- **Two new editor-actionable quick-fixes**: missing `=` in `set` ("Insert \" = \"") and unknown intent type ("Replace X with text"). The unknown-intent-type fix is flagged `auto: false` — actionable in the editor/panel but **never** auto-applied by the deterministic pre-generation repair (lossy guess).
+- **18 new tests** (`iplRefs.test.ts` 16: index, resolution, reference extraction, statement names, annotation; `iplQuickFix.test.ts` +2: missing-`=` auto-fix, intent-type non-auto) → now **81 tests across 7 suites**.
+
 ### 🌍 Internationalization (French → English)
 - Translated all remaining French UI strings, comments, tutorials (`iplTutorialLessons.ts` fully rewritten), artifact content, and config comments to English.
 

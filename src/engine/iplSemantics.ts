@@ -48,10 +48,16 @@ function checkIntentTypes(stmt: IPLStatement, out: SyntaxErrorItem[]): void {
   for (const prop of stmt.props) {
     if (isIdentifier(prop.value) && !INTENT_TYPE_NAMES.has(prop.value.name)) {
       out.push({
-        line: prop.line,
-        column: prop.column,
+        line: prop.value.line,
+        column: prop.value.column,
         message: `Unknown intent type "${prop.value.name}" for field "${prop.key}". Expected one of: text, number, boolean, id, date, options, list.`,
-        severity: 'info'
+        severity: 'info',
+        endColumn: prop.value.endColumn,
+        fix: {
+          label: `Replace "${prop.value.name}" with "text"`,
+          newText: 'text',
+          auto: false
+        }
       });
     }
   }

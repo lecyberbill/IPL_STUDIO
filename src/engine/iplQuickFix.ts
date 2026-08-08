@@ -33,10 +33,10 @@ function offsetAt(code: string, line: number, column: number): number {
 /** Replaces the source range covered by a quick-fix (column..endColumn, 1-based). */
 function applyRangeFix(code: string, d: SyntaxErrorItem): string | null {
   const fix = d.fix;
-  if (!fix || !d.endColumn || d.endColumn <= d.column) return null;
+  if (!fix || !d.endColumn || d.endColumn < d.column) return null;
   const start = offsetAt(code, d.line, d.column);
   const end = offsetAt(code, d.line, d.endColumn);
-  if (end <= start || end > code.length) return null;
+  if (end < start || end > code.length) return null;
   return code.slice(0, start) + fix.newText + code.slice(end);
 }
 
@@ -50,6 +50,16 @@ function applyAppendFix(code: string, d: SyntaxErrorItem): string | null {
 }
 
 /**
+ * Applies a single diagnostic's quick-fix to a copy of the code. Returns the
+ * fixed source, or `null` when the diagnostic has no applicable fix. Used by
+ * the diagnostics panel so fixes are actionable outside Monaco too.
+ */
+export function applySingleQuickFix(code: string, d: SyntaxErrorItem): string | null {
+  if (!d.fix) return null;
+  return d.fix.newText.trim() === '}' ? applyAppendFix(code, d) : applyRangeFix(code, d);
+}
+
+/**
  * Applies all fixable diagnostics iteratively until the code stabilizes.
  * Unfixable (semantic / informational) diagnostics are reported as `remaining`.
  */
@@ -60,7 +70,10 @@ export function applyIPLQuickFixes(code: string): IPLPreRepairResult {
 
   for (let pass = 0; pass < MAX_FIX_PASSES; pass++) {
     const diagnostics = validateIPLCode(working);
-    const fixable = diagnostics.filter(d => d.fix && !seen.has(`${d.line}:${d.column}:${d.fix.label}`));
+    // Only auto-apply fixes flagged for deterministic pre-generation repair
+    // (`auto !== false`). Lossy/guessed edits (e.g. unknown intent type) stay
+    // actionable in the editor but are never auto-applied.
+    const fixable = diagnostics.filter(d => d.fix && d.fix.auto !== false && !seen.has(`${d.line}:${d.column}:${d.fix.label}`));
     if (fixable.length === 0) {
       return { code: working, applied, remaining: diagnostics };
     }
@@ -69,7 +82,7 @@ export function applyIPLQuickFixes(code: string): IPLPreRepairResult {
     let changed = false;
     for (const d of fixable.sort((a, b) => b.line - a.line || (b.column ?? 0) - (a.column ?? 0))) {
       const key = `${d.line}:${d.column}:${d.fix!.label}`;
-      const fixed = d.fix!.newText.trim() === '}' ? applyAppendFix(working, d) : applyRangeFix(working, d);
+      const fixed = applySingleQuickFix(working, d);
       if (fixed && fixed !== working) {
         working = fixed;
         applied.push({ line: d.line, message: d.message, fixLabel: d.fix!.label });

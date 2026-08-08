@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
 import type { IPLVerb } from '../engine/iplGrammar';
 import { IPL_VERBS } from '../engine/iplGrammar';
 import { parseIPLToTree } from '../engine/iplGrammar';
 import type { IPLBlockNode } from '../engine/iplGrammar';
+import { annotateBlockNodes } from '../engine/iplRefs';
 import { 
   Boxes, 
   Code, 
@@ -45,6 +46,10 @@ export const BlockViewEditor: React.FC = () => {
   const [tree, setTree] = useState<IPLBlockNode[]>(() => parseIPLToTree(code));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState<string>('');
+
+  // Phase 6 — semantic state (declared / produced / unknown) derived from the
+  // reference index, refreshed whenever the tree or source changes.
+  const semanticTree = useMemo(() => annotateBlockNodes(tree, code), [tree, code]);
 
   // Global sync and update of IPL code
   const updateTreeAndCode = (newTree: IPLBlockNode[]) => {
@@ -163,6 +168,13 @@ export const BlockViewEditor: React.FC = () => {
     expression: { bg: 'bg-[#161922]', border: 'border-gray-700', text: 'text-gray-200', accent: 'bg-gray-500' }
   };
 
+  // Phase 6 — semantic state badge styling
+  const semanticStyles: Record<string, string> = {
+    declared: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40',
+    produced: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/40',
+    unknown: 'bg-rose-500/15 text-rose-300 border-rose-500/40'
+  };
+
   // Recursive render of a block and its nested sub-blocks
   const renderBlockNode = (node: IPLBlockNode, depth = 0) => {
     const style = categoryStyles[node.category] || categoryStyles.expression;
@@ -185,6 +197,12 @@ export const BlockViewEditor: React.FC = () => {
             {node.verbName && (
               <span className={`font-bold uppercase text-[10px] px-2 py-0.5 rounded ${style.accent} text-black shadow-sm font-mono`}>
                 {node.verbName}
+              </span>
+            )}
+
+            {node.semanticState && (
+              <span className={`font-semibold text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded border ${semanticStyles[node.semanticState]}`}>
+                {node.semanticState}
               </span>
             )}
 
@@ -307,8 +325,8 @@ export const BlockViewEditor: React.FC = () => {
 
       {/* Main Blocks Canvas */}
       <div className="flex-1 bg-[#0f1117] border border-[#2a2f42] rounded-2xl p-5 overflow-y-auto font-sans shadow-inner space-y-3">
-        {tree.length > 0 ? (
-          tree.map(node => renderBlockNode(node))
+        {semanticTree.length > 0 ? (
+          semanticTree.map(node => renderBlockNode(node))
         ) : (
           <div className="text-center py-20 text-gray-500 text-xs font-mono">
             No IPL intent blocks in this project. Drop a block from the left palette to get started.
