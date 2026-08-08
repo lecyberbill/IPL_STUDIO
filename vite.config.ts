@@ -10,9 +10,9 @@ const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
 /**
- * Workspace root: all write / execution paths are sandboxed
- * inside this root to limit impact in case the dev server
- * is accidentally exposed.
+ * Workspace root: relative write / execution paths are sandboxed
+ * inside this root. Explicit absolute paths may target any local folder
+ * so projects can be created outside the program directory.
  */
 const WORKSPACE_ROOT = process.cwd();
 
@@ -25,8 +25,42 @@ function isWithinWorkspace(resolvedPath: string): boolean {
 }
 
 /**
+ * Verifies a path stays inside a given root directory.
+ */
+function isWithinDirectory(rootDir: string, candidatePath: string): boolean {
+  const relative = path.relative(rootDir, candidatePath);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+// Absolute paths pointing outside the workspace are allowed by design;
+// warn once per path so the user is never surprised about the trust boundary.
+const warnedExternalPaths = new Set<string>();
+
+/**
+ * Resolves a user-supplied path. Relative paths must stay inside the
+ * workspace (guards against ".." traversal); absolute paths may point
+ * anywhere on the local machine so projects can live outside the repo.
+ */
+function resolveTargetPath(input: string): { targetPath: string; isExternal: boolean } {
+  const resolved = path.isAbsolute(input) ? input : path.resolve(process.cwd(), input);
+  const isExternal = !isWithinWorkspace(resolved);
+  if (isExternal && !path.isAbsolute(input)) {
+    const err: any = new Error('Relative path escapes the project workspace. Use an absolute path to target a folder outside of it.');
+    err.statusCode = 403;
+    throw err;
+  }
+  if (isExternal && !warnedExternalPaths.has(resolved)) {
+    warnedExternalPaths.add(resolved);
+    console.warn(`[Security] Operating outside the workspace: ${resolved}. Intended for explicit absolute-path project folders; keep the dev server on localhost.`);
+  }
+  return { targetPath: resolved, isExternal };
+}
+
+/**
  * Vite server middleware to physically materialize generated artifacts, run commands and manage Git
  * ⚠️ Endpoints only available in development mode (configureServer is not active in production).
+ * Absolute paths may target any local folder (projects can live outside the program directory);
+ * keep the server on localhost and do NOT expose it to an untrusted network.
  */
 function artifactDiskWriterPlugin() {
   return {
@@ -34,6 +68,7 @@ function artifactDiskWriterPlugin() {
     configureServer(server: any) {
       server.config.logger.warn(
         '[Security] Dev-only endpoints /api/write-artifact, /api/read-disk, /api/run-command and /api/git/* are active. '
+        + 'Absolute output paths may write/run anywhere on this machine. '
         + 'NEVER expose this development server to an untrusted network.'
       );
       server.middlewares.use(async (req: any, res: any, next: any) => {
@@ -51,26 +86,18 @@ function artifactDiskWriterPlugin() {
                 return;
               }
 
-              const resolvedDir = path.isAbsolute(outputDir) 
-                ? outputDir 
-                : path.resolve(process.cwd(), outputDir);
-
-              if (!isWithinWorkspace(resolvedDir)) {
-                res.statusCode = 403;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({
-                  error: 'outputDir must stay inside the project workspace.'
-                }));
-                return;
-              }
+              const { targetPath: resolvedDir } = resolveTargetPath(outputDir);
 
               fs.mkdirSync(resolvedDir, { recursive: true });
 
               let writtenCount = 0;
               files.forEach((file: { relativePath: string; content: string }) => {
+                if (path.isAbsolute(file.relativePath)) {
+                  throw new Error(`File "${file.relativePath}" must use a relative path.`);
+                }
                 const fullPath = path.join(resolvedDir, file.relativePath);
-                if (!isWithinWorkspace(fullPath)) {
-                  throw new Error(`File "${file.relativePath}" escapes the workspace, write refused.`);
+                if (!isWithinDirectory(resolvedDir, fullPath)) {
+                  throw new Error(`File "${file.relativePath}" escapes the target directory, write refused.`);
                 }
                 const parentDir = path.dirname(fullPath);
                 fs.mkdirSync(parentDir, { recursive: true });
@@ -86,7 +113,7 @@ function artifactDiskWriterPlugin() {
                 writtenFilesCount: writtenCount
               }));
             } catch (err: any) {
-              res.statusCode = 500;
+              res.statusCode = err.statusCode || 500;
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify({ error: err.message }));
             }
@@ -105,18 +132,7 @@ function artifactDiskWriterPlugin() {
                 return;
               }
 
-              const resolvedDir = path.isAbsolute(outputDir) 
-                ? outputDir 
-                : path.resolve(process.cwd(), outputDir);
-
-              if (!isWithinWorkspace(resolvedDir)) {
-                res.statusCode = 403;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({
-                  error: 'outputDir must stay inside the project workspace.'
-                }));
-                return;
-              }
+              const { targetPath: resolvedDir } = resolveTargetPath(outputDir);
 
               if (!fs.existsSync(resolvedDir)) {
                 res.statusCode = 200;
@@ -158,7 +174,7 @@ function artifactDiskWriterPlugin() {
                 files: diskFiles
               }));
             } catch (err: any) {
-              res.statusCode = 500;
+              res.statusCode = err.statusCode || 500;
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify({ error: err.message }));
             }
@@ -178,17 +194,8 @@ function artifactDiskWriterPlugin() {
               }
 
               const targetCwd = cwd
-                ? path.resolve(process.cwd(), cwd)
+                ? resolveTargetPath(cwd).targetPath
                 : process.cwd();
-
-              if (!isWithinWorkspace(targetCwd)) {
-                res.statusCode = 403;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({
-                  error: 'The working directory (cwd) must stay inside the project workspace.'
-                }));
-                return;
-              }
 
               res.setHeader('Content-Type', 'text/plain; charset=utf-8');
               res.setHeader('Transfer-Encoding', 'chunked');
@@ -216,7 +223,7 @@ function artifactDiskWriterPlugin() {
                 res.end();
               });
             } catch (err: any) {
-              res.statusCode = 500;
+              res.statusCode = err.statusCode || 500;
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify({ error: err.message }));
             }
@@ -262,7 +269,7 @@ function artifactDiskWriterPlugin() {
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify({ success: true, log: stdout }));
             } catch (err: any) {
-              res.statusCode = 500;
+              res.statusCode = err.statusCode || 500;
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify({ error: err.message }));
             }

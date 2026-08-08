@@ -155,6 +155,9 @@ export const ProjectModal: React.FC = () => {
                 <p className="mt-1 text-[10px] text-gray-500 font-mono truncate">
                   Will write files to: <span className="text-gray-400">{customOutputDir.trim() || suggestedOutputDir}</span>
                 </p>
+                <p className="mt-1 text-[10px] text-gray-500">
+                  Relative paths stay inside the program folder. Use an absolute path (e.g. D:\Projects\my_app) to create the project anywhere on your machine.
+                </p>
               </div>
 
               <div>
