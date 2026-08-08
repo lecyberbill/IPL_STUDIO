@@ -120,7 +120,7 @@ export interface IDEState {
   insertVerbSnippet: (verb: IPLVerb) => void;
   insertSnippetText: (snippetText: string, label?: string) => void;
 
-  // Génération & Autonomous Agent triggers
+  // Generation & Autonomous Agent triggers
   runGeneration: () => Promise<void>;
   requestLLMCorrection: (userPrompt: string) => Promise<{ textReply: string; codeChanged: boolean }>;
   autoDebugAndFix: (customCmd?: string) => Promise<boolean>;
@@ -374,19 +374,19 @@ export const useIdeStore = create<IDEState>()(
         const id = newTarget.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
         const customObj: CustomTarget = { id, ...newTarget };
         set((state) => ({ customTargets: [...state.customTargets, customObj] }));
-        get().addLog(`Nouvelle cible de génération créée : "${newTarget.name}"`, 'success');
+        get().addLog(`New generation target created: "${newTarget.name}"`, 'success');
       },
 
       deleteCustomTarget: (id: string) => {
         set((state) => ({ customTargets: state.customTargets.filter(t => t.id !== id) }));
-        get().addLog(`Cible custom "${id}" supprimée.`, 'info');
+        get().addLog(`Custom target "${id}" removed.`, 'info');
       },
 
       setCode: (newCode: string) => {
         const errors = validateIPLCode(newCode);
         const { activeProjectId, projects } = get();
         
-        // Mettre à jour le code du projet actif dans la liste des projets
+        // Update the active project's code in the projects list
         const updatedProjects = projects.map(p => 
           p.id === activeProjectId 
             ? { ...p, code: newCode, updatedAt: new Date().toLocaleTimeString() }
@@ -403,7 +403,7 @@ export const useIdeStore = create<IDEState>()(
         );
 
         set({ targetLang, projects: updatedProjects });
-        get().addLog(`Cible de génération du projet changée vers: ${targetLang.toUpperCase()}`, 'info');
+        get().addLog(`Project generation target changed to: ${targetLang.toUpperCase()}`, 'info');
       },
 
       setEditorViewMode: (editorViewMode) => set({ editorViewMode }),
@@ -454,13 +454,13 @@ export const useIdeStore = create<IDEState>()(
           generatedCode: ''
         }));
 
-        get().addLog(`Projet "${newProject.name}" créé et activé.`, 'success');
+        get().addLog(`Project "${newProject.name}" created and activated.`, 'success');
       },
 
       deleteProject: (id: string) => {
         const { projects, activeProjectId } = get();
         if (projects.length <= 1) {
-          get().addLog(`Impossible de supprimer le seul projet existant.`, 'warn');
+          get().addLog(`Cannot delete the only remaining project.`, 'warn');
           return;
         }
 
@@ -486,7 +486,7 @@ export const useIdeStore = create<IDEState>()(
           generatedCode: ''
         });
 
-        get().addLog(`Projet "${projectToDelete?.name || id}" supprimé.`, 'info');
+        get().addLog(`Project "${projectToDelete?.name || id}" deleted.`, 'info');
       },
 
       switchProject: (id: string) => {
@@ -506,7 +506,7 @@ export const useIdeStore = create<IDEState>()(
             syntaxErrors: validateIPLCode(targetProj.code),
             generatedCode: ''
           });
-          get().addLog(`Basculé vers le projet "${targetProj.name}".`, 'info');
+          get().addLog(`Switched to project "${targetProj.name}".`, 'info');
           if (targetProj.outputDir) {
             get().readArtifactFromDisk(targetProj.id);
           }
@@ -520,7 +520,7 @@ export const useIdeStore = create<IDEState>()(
             p.id === id ? { ...p, name: newName.trim(), updatedAt: new Date().toLocaleTimeString() } : p
           )
         }));
-        get().addLog(`Projet renommé en "${newName}".`, 'info');
+        get().addLog(`Project renamed to "${newName}".`, 'info');
       },
 
       setProjectOutputDir: (id: string, outputDir: string) => {
@@ -529,7 +529,7 @@ export const useIdeStore = create<IDEState>()(
             p.id === id ? { ...p, outputDir: outputDir.trim(), updatedAt: new Date().toLocaleTimeString() } : p
           )
         }));
-        get().addLog(`Dossier d'output physique associé au projet : "${outputDir.trim()}"`, 'info');
+        get().addLog(`Output directory associated with project: "${outputDir.trim()}"`, 'info');
       },
 
       writeArtifactToDisk: async (id?: string) => {
@@ -542,7 +542,7 @@ export const useIdeStore = create<IDEState>()(
           : defaultOutputDir(proj.name);
 
         if (!generatedCode) {
-          addLog(`Impossible de matérialiser : le projet n'a pas encore été généré.`, 'warn');
+          addLog(`Cannot materialize: the project has not been generated yet.`, 'warn');
           return false;
         }
 
@@ -561,15 +561,15 @@ export const useIdeStore = create<IDEState>()(
 
           if (response.ok) {
             const data = await response.json();
-            addLog(`[Disque] Artefacts matérialisés avec succès ! ${data.writtenFilesCount} fichier(s) écrits dans "${data.targetDir}" 📂`, 'success');
+            addLog(`[Disk] Artifacts materialized successfully! ${data.writtenFilesCount} file(s) written to "${data.targetDir}" 📂`, 'success');
             return true;
           } else {
             const errData = await response.json();
-            addLog(`Erreur écriture disque: ${errData.error}`, 'error');
+            addLog(`Disk write error: ${errData.error}`, 'error');
             return false;
           }
         } catch (err: any) {
-          addLog(`Échec de la matérialisation physique sur le disque: ${err.message}`, 'error');
+          addLog(`Failed to materialize artifacts on disk: ${err.message}`, 'error');
           return false;
         }
       },
@@ -596,22 +596,22 @@ export const useIdeStore = create<IDEState>()(
             
             if (diskFiles.length === 0) {
               set({ generatedCode: '' });
-              addLog(`[Disque] Synchro disque : Le dossier "${data.targetDir}" est vide.`, 'warn');
+              addLog(`[Disk] Disk sync: The folder "${data.targetDir}" is empty.`, 'warn');
               return true;
             }
 
             const xmlGeneratedCode = diskFiles.map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`).join('\n\n');
             
             set({ generatedCode: xmlGeneratedCode });
-            addLog(`[Disque] Synchro depuis le disque réussie ! ${diskFiles.length} fichier(s) scannés et mis à jour depuis "${data.targetDir}" 🔄`, 'success');
+            addLog(`[Disk] Disk sync successful! ${diskFiles.length} file(s) scanned and updated from "${data.targetDir}" 🔄`, 'success');
             return true;
           } else {
             const errData = await response.json();
-            addLog(`Erreur lecture disque: ${errData.error}`, 'error');
+            addLog(`Disk read error: ${errData.error}`, 'error');
             return false;
           }
         } catch (err: any) {
-          addLog(`Échec de la synchronisation depuis le disque: ${err.message}`, 'error');
+          addLog(`Disk sync failed: ${err.message}`, 'error');
           return false;
         }
       },
@@ -629,13 +629,13 @@ export const useIdeStore = create<IDEState>()(
         a.click();
         URL.revokeObjectURL(url);
 
-        get().addLog(`Fichier "${a.download}" exporté avec succès.`, 'success');
+        get().addLog(`File "${a.download}" exported successfully.`, 'success');
       },
 
       importProject: (fileName: string, fileContent: string) => {
         const cleanName = fileName.replace(/\.ipl$/i, '');
         get().createProject(cleanName, fileContent);
-        get().addLog(`Fichier .ipl "${fileName}" importé avec succès.`, 'success');
+        get().addLog(`IPL file "${fileName}" imported successfully.`, 'success');
       },
 
       insertVerbSnippet: (verb) => {
@@ -643,7 +643,7 @@ export const useIdeStore = create<IDEState>()(
         if (!editor) {
           const currentCode = get().code;
           get().setCode(`${currentCode}\n\n${verb.snippet}`);
-          get().addLog(`Snippet ${verb.name} inséré à la fin du document`, 'warn');
+          get().addLog(`Snippet ${verb.name} inserted at end of document`, 'warn');
           return;
         }
 
@@ -655,7 +655,7 @@ export const useIdeStore = create<IDEState>()(
         const indentMatch = lineContent.match(/^\s*/);
         const currentIndent = indentMatch ? indentMatch[0] : '';
 
-        // Indenter chaque ligne du snippet pour qu'il s'imbrique parfaitement
+        // Indent each snippet line so it nests cleanly
         const indentedSnippet = verb.snippet
           .split('\n')
           .map((line, idx) => (idx === 0 ? line : currentIndent + line))
@@ -672,7 +672,7 @@ export const useIdeStore = create<IDEState>()(
         ]);
 
         editor.focus();
-        get().addLog(`Brique de verbe "${verb.name}" insérée au niveau du curseur (Ctrl+Z actif)`, 'success');
+        get().addLog(`Verb block "${verb.name}" inserted at cursor (Ctrl+Z enabled)`, 'success');
       },
 
       insertSnippetText: (snippetText, label) => {
@@ -680,7 +680,7 @@ export const useIdeStore = create<IDEState>()(
         if (!editor) {
           const currentCode = get().code;
           get().setCode(`${currentCode} ${snippetText}`);
-          get().addLog(`Type "${label || snippetText}" inséré.`, 'info');
+          get().addLog(`Type "${label || snippetText}" inserted.`, 'info');
           return;
         }
 
@@ -693,7 +693,7 @@ export const useIdeStore = create<IDEState>()(
           }
         ]);
         editor.focus();
-        get().addLog(`Type d'intention "${label || snippetText}" inséré à la position du curseur`, 'info');
+        get().addLog(`Intent type "${label || snippetText}" inserted at cursor position`, 'info');
       },
 
       createSourceFile: (filename: string) => {
@@ -702,7 +702,7 @@ export const useIdeStore = create<IDEState>()(
         if (!activeProj) return;
 
         const currentFiles = activeProj.sourceFiles || { 'main.ipl': activeProj.code };
-        const initialContent = `// Fichier source IPL : ${filename}\nadd module {\n  name: "${filename.replace(/\.ipl$/, '')}"\n}\n`;
+        const initialContent = `// IPL source file: ${filename}\nadd module {\n  name: "${filename.replace(/\.ipl$/, '')}"\n}\n`;
         const updatedFiles = { ...currentFiles, [filename]: initialContent };
 
         set((state) => ({
@@ -715,7 +715,7 @@ export const useIdeStore = create<IDEState>()(
           syntaxErrors: validateIPLCode(initialContent)
         }));
 
-        get().addLog(`Fichier source "${filename}" créé et activé.`, 'success');
+        get().addLog(`Source file "${filename}" created and activated.`, 'success');
       },
 
       switchSourceFile: (filename: string) => {
@@ -734,7 +734,7 @@ export const useIdeStore = create<IDEState>()(
           syntaxErrors: validateIPLCode(targetContent)
         }));
 
-        get().addLog(`Basculé sur le fichier source "${filename}".`, 'info');
+        get().addLog(`Switched to source file "${filename}".`, 'info');
       },
 
       deleteSourceFile: (filename: string) => {
@@ -755,7 +755,7 @@ export const useIdeStore = create<IDEState>()(
           syntaxErrors: validateIPLCode(currentFiles['main.ipl'] || '')
         }));
 
-        get().addLog(`Fichier source "${filename}" supprimé.`, 'info');
+        get().addLog(`Source file "${filename}" deleted.`, 'info');
       },
 
       runGeneration: async () => {
@@ -766,7 +766,7 @@ export const useIdeStore = create<IDEState>()(
         try {
           const errors = validateIPLCode(code);
           if (errors.length > 0) {
-            addLog(`Erreur de syntaxe détectée : ${errors[0].message} (Ligne ${errors[0].line})`, 'error');
+            addLog(`Advisory IPL check: ${errors[0].message} (line ${errors[0].line}). Generation continues.`, 'warn');
           }
 
           const { resolveIPLImports } = await import('../engine/iplGrammar');
@@ -788,7 +788,7 @@ export const useIdeStore = create<IDEState>()(
           set({ generatedCode: result, isGenerating: false });
           await get().writeArtifactToDisk();
         } catch (err: any) {
-          addLog(`Erreur de génération : ${err.message}`, 'error');
+          addLog(`Generation error: ${err.message}`, 'error');
         } finally {
           set({ isGenerating: false });
         }
@@ -811,44 +811,44 @@ export const useIdeStore = create<IDEState>()(
             (msg, type) => addLog(msg, type)
           );
 
-          // Extraire l'état actuel des fichiers
+          // Extract the current state of the files
           const existingFiles = parseMultiFileXml(generatedCode || '');
-          // Fusionner et appliquer les modifications ciblées (<patch>) et nouveaux fichiers (<file>)
+          // Merge and apply targeted modifications (<patch>) and new files (<file>)
           const updatedFiles = parseMultiFileXml(rawResult, existingFiles);
 
           const hasPatchOrFileTag = /<file\s+path=["']([^"']+)["']\s*>/i.test(rawResult) || 
                                     /<patch\s+path=["']([^"']+)["']\s*>/i.test(rawResult);
 
           if (hasPatchOrFileTag && updatedFiles.length > 0) {
-            // Reconstruire l'artifact XML propre avec <file path="..."> pour chaque fichier
+            // Rebuild a clean XML artifact with <file path="..."> per file
             const newXmlCode = updatedFiles.map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`).join('\n\n');
 
             set({ generatedCode: newXmlCode, isGenerating: false });
             await get().writeArtifactToDisk();
 
-            // Nettoyer la réponse textuelle du chat en retirant les balises <file> et <patch>
+            // Clean the chat text reply by removing <file> and <patch> tags
             let textReply = rawResult
               .replace(/<file\s+path=["']([^"']+)["']\s*>([\s\S]*?)<\/file>/gi, '')
               .replace(/<patch\s+path=["']([^"']+)["']\s*>([\s\S]*?)<\/patch>/gi, '')
               .trim();
 
             return {
-              textReply: textReply || `J'ai appliqué les modifications dans vos fichiers de projet d'après votre demande : "${userPrompt.trim()}".`,
+              textReply: textReply || `I applied the changes to your project files based on your request: "${userPrompt.trim()}".`,
               codeChanged: true
             };
           } else {
-            // Réponse uniquement conversationnelle - NE PAS écraser les fichiers du projet !
+            // Conversational-only reply - DO NOT overwrite the project files!
             set({ isGenerating: false });
             return {
-              textReply: rawResult.trim() || 'Je suis prêt à vous aider avec votre projet IPL.',
+              textReply: rawResult.trim() || 'I am ready to help you with your IPL project.',
               codeChanged: false
             };
           }
         } catch (err: any) {
-          addLog(`Erreur Chat LLM: ${err.message}`, 'error');
+          addLog(`LLM Chat error: ${err.message}`, 'error');
           set({ isGenerating: false });
           return {
-            textReply: `Erreur: ${err.message}`,
+            textReply: `Error: ${err.message}`,
             codeChanged: false
           };
         }
@@ -857,7 +857,7 @@ export const useIdeStore = create<IDEState>()(
       autoDebugAndFix: async (customCmd?: string) => {
         const { projects, activeProjectId, targetLang, llmConfig, addLog, writeArtifactToDisk } = get();
         const activeProj = projects.find(p => p.id === activeProjectId);
-        const outputDir = activeProj?.outputDir || defaultOutputDir(activeProj?.name || 'mon_projet');
+        const outputDir = activeProj?.outputDir || defaultOutputDir(activeProj?.name || 'my_project');
 
         let cmdToRun = customCmd;
         if (!cmdToRun) {
@@ -871,7 +871,7 @@ export const useIdeStore = create<IDEState>()(
 
         const maxAttempts = 3;
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          addLog(`[Agent Codeur 🤖] Pass ${attempt}/${maxAttempts} - Diagnostic et exécution de "${cmdToRun}"...`, 'info');
+          addLog(`[Coding Agent 🤖] Pass ${attempt}/${maxAttempts} - Diagnosing and running "${cmdToRun}"...`, 'info');
           
           await writeArtifactToDisk();
 
@@ -888,8 +888,8 @@ export const useIdeStore = create<IDEState>()(
             outputLog = err.message;
           }
 
-          // Détection d'erreur robuste : on se base d'abord sur le code de sortie
-          // neutre émis par le backend, puis sur des heuristiques textuelles.
+          // Robust error detection: rely first on the exit code
+          // emitted by the backend, then on textual heuristics.
           const exitCodeMatch = outputLog.match(/\[Exit code:\s*(-?\d+)\]/i);
           const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : null;
 
@@ -901,16 +901,16 @@ export const useIdeStore = create<IDEState>()(
           }
 
           if (!hasError) {
-            addLog(`[Agent Codeur 🤖] 🎉 Exécution réussie à 100% à la passe ${attempt} ! Aucun bug détecté.`, 'success');
+            addLog(`[Coding Agent 🤖] 🎉 Execution succeeded at pass ${attempt}! No bugs detected.`, 'success');
             return true;
           }
 
-          addLog(`[Agent Codeur 🤖] ⚠️ Erreur détectée dans la console. Analyse du stacktrace et réparation en cours...`, 'warn');
+          addLog(`[Coding Agent 🤖] ⚠️ Error detected in the console. Analyzing stacktrace and repairing...`, 'warn');
           
           set({ isGenerating: true });
           try {
             const { refineIPLArtifact } = await import('../engine/llmGenerator');
-            const promptCorrection = `LE CODE A ÉCHOUÉ À L'EXÉCUTION TERMINAL AVEC L'ERREUR SUIVANTE. ANALYSE ET CORRIGE LES FICHIERS POUR QUE LE SCRIPT S'EXÉCUTE SANS ERREUR :\n\nConsole Log Output:\n${outputLog.substring(0, 2000)}`;
+            const promptCorrection = `THE CODE FAILED TO EXECUTE IN THE TERMINAL WITH THE FOLLOWING ERROR. ANALYZE AND FIX THE FILES SO THE SCRIPT RUNS WITHOUT ERROR:\n\nConsole Log Output:\n${outputLog.substring(0, 2000)}`;
             
             const fixedResult = await refineIPLArtifact(
               get().generatedCode || '',
@@ -934,7 +934,7 @@ export const useIdeStore = create<IDEState>()(
 
             await writeArtifactToDisk();
           } catch (err: any) {
-            addLog(`Échec de l'auto-réparation LLM: ${err.message}`, 'error');
+            addLog(`LLM self-repair failed: ${err.message}`, 'error');
             set({ isGenerating: false });
             return false;
           }

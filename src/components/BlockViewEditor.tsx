@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
 import type { IPLVerb } from '../engine/iplGrammar';
 import { IPL_VERBS } from '../engine/iplGrammar';
+import { parseIPLToTree } from '../engine/iplGrammar';
+import type { IPLBlockNode } from '../engine/iplGrammar';
 import { 
   Boxes, 
   Code, 
@@ -14,61 +16,11 @@ import {
   CornerDownRight
 } from 'lucide-react';
 
-export interface IPLBlockNode {
-  id: string;
-  verbName?: string;
-  category: 'data' | 'action' | 'control' | 'flow' | 'expression';
-  headerText: string;
-  children: IPLBlockNode[];
-}
+export { parseIPLToTree };
+export type { IPLBlockNode };
 
 /**
- * Parser de code IPL vers une structure d'arbre de blocs récursive
- */
-export function parseIPLToTree(source: string): IPLBlockNode[] {
-  const lines = source.split('\n');
-  const root: IPLBlockNode[] = [];
-  const stack: IPLBlockNode[] = [];
-  let idCounter = 0;
-
-  lines.forEach((line) => {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('//')) return;
-
-    if (trimmed === '}' && stack.length > 0) {
-      stack.pop();
-      return;
-    }
-
-    const firstWord = trimmed.split(' ')[0];
-    const foundVerb = IPL_VERBS.find(v => v.name === firstWord);
-    const isContainerHeader = trimmed.endsWith('{');
-    const headerText = isContainerHeader ? trimmed.slice(0, -1).trim() : trimmed;
-
-    const newNode: IPLBlockNode = {
-      id: `node-${Date.now()}-${idCounter++}`,
-      verbName: foundVerb?.name,
-      category: foundVerb ? foundVerb.category : 'expression',
-      headerText,
-      children: []
-    };
-
-    if (stack.length === 0) {
-      root.push(newNode);
-    } else {
-      stack[stack.length - 1].children.push(newNode);
-    }
-
-    if (isContainerHeader) {
-      stack.push(newNode);
-    }
-  });
-
-  return root;
-}
-
-/**
- * Sérialiseur de l'arbre de blocs récursif vers le code texte IPL v1.0
+ * Serializes the recursive block tree back to IPL v1.0 text.
  */
 export function treeToIPLCode(nodes: IPLBlockNode[], indentLevel = 0): string {
   const indent = '  '.repeat(indentLevel);
@@ -80,7 +32,7 @@ export function treeToIPLCode(nodes: IPLBlockNode[], indentLevel = 0): string {
     if (node.children.length > 0 || isControlOrLoop) {
       const innerCode = node.children.length > 0 
         ? treeToIPLCode(node.children, indentLevel + 1)
-        : `${indent}  // Brique d'action imbriquée`;
+        : `${indent}  // Nested action block`;
       return `${indent}${cleanHeader} {\n${innerCode}\n${indent}}`;
     } else {
       return `${indent}${cleanHeader}`;
@@ -94,14 +46,14 @@ export const BlockViewEditor: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState<string>('');
 
-  // Synchronisation et mise à jour globale du code IPL
+  // Global sync and update of IPL code
   const updateTreeAndCode = (newTree: IPLBlockNode[]) => {
     setTree(newTree);
     const newIPLCode = treeToIPLCode(newTree);
     setCode(newIPLCode);
   };
 
-  // Ajout d'une sous-brique imbriquée dans un bloc parent
+  // Add a nested sub-block inside a parent block
   const handleAddChild = (parentId: string, verb?: IPLVerb) => {
     const snippetToAdd = verb ? verb.snippet.split('\n')[0] : 'compute result = true';
     const firstWord = snippetToAdd.split(' ')[0];
@@ -129,10 +81,10 @@ export const BlockViewEditor: React.FC = () => {
 
     const updated = addRecursive(tree);
     updateTreeAndCode(updated);
-    addLog(`Brique "${childNode.verbName || 'action'}" imbriquée dans le conteneur parent.`, 'success');
+    addLog(`Block "${childNode.verbName || 'action'}" nested inside the parent container.`, 'success');
   };
 
-  // Suppression d'une brique
+  // Delete a block
   const handleDeleteNode = (id: string) => {
     const deleteRecursive = (nodes: IPLBlockNode[]): IPLBlockNode[] => {
       return nodes.filter(n => n.id !== id).map(n => ({
@@ -143,10 +95,10 @@ export const BlockViewEditor: React.FC = () => {
 
     const updated = deleteRecursive(tree);
     updateTreeAndCode(updated);
-    addLog(`Brique AST supprimée.`, 'warn');
+    addLog(`AST block deleted.`, 'warn');
   };
 
-  // Sauvegarde de l'édition texte d'une brique
+  // Save the text edit of a block
   const handleSaveEdit = (id: string) => {
     const editRecursive = (nodes: IPLBlockNode[]): IPLBlockNode[] => {
       return nodes.map(n => {
@@ -165,7 +117,7 @@ export const BlockViewEditor: React.FC = () => {
     setEditingId(null);
   };
 
-  // Dépôt direct sur la Drop Zone d'un bloc conteneur
+  // Drop directly on a container block's drop zone
   const handleDropOnContainer = (e: React.DragEvent, parentId: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -198,11 +150,11 @@ export const BlockViewEditor: React.FC = () => {
 
       const updated = addRecursive(tree);
       updateTreeAndCode(updated);
-      addLog(`Brique déposée et imbriquée avec succès !`, 'success');
+      addLog(`Block dropped and nested successfully!`, 'success');
     }
   };
 
-  // Couleurs de briques Atelier Dark par catégorie
+  // Atelier Dark block colors by category
   const categoryStyles: Record<string, { bg: string, border: string, text: string, accent: string }> = {
     data: { bg: 'bg-sky-950/40', border: 'border-sky-500/50', text: 'text-sky-300', accent: 'bg-sky-500' },
     action: { bg: 'bg-purple-950/40', border: 'border-purple-500/50', text: 'text-purple-300', accent: 'bg-purple-500' },
@@ -211,7 +163,7 @@ export const BlockViewEditor: React.FC = () => {
     expression: { bg: 'bg-[#161922]', border: 'border-gray-700', text: 'text-gray-200', accent: 'bg-gray-500' }
   };
 
-  // Rendu Récursif d'une brique et de ses sous-briques imbriquées
+  // Recursive render of a block and its nested sub-blocks
   const renderBlockNode = (node: IPLBlockNode, depth = 0) => {
     const style = categoryStyles[node.category] || categoryStyles.expression;
     const isEditing = editingId === node.id;
@@ -223,7 +175,7 @@ export const BlockViewEditor: React.FC = () => {
         className={`relative my-2 rounded-xl border ${style.border} ${style.bg} p-3 transition-all duration-150 shadow-lg`}
         style={{ marginLeft: `${depth * 14}px` }}
       >
-        {/* En-tête de la Brique */}
+        {/* Block Header */}
         <div className="flex items-center justify-between font-mono text-xs">
           <div className="flex items-center space-x-2.5 flex-1 pr-2">
             <div className="cursor-grab active:cursor-grabbing p-1 text-gray-500 hover:text-white rounded hover:bg-black/30">
@@ -257,7 +209,7 @@ export const BlockViewEditor: React.FC = () => {
             )}
           </div>
 
-          {/* Actions de Brique */}
+          {/* Block Actions */}
           <div className="flex items-center space-x-1.5">
             <button
               onClick={() => {
@@ -265,7 +217,7 @@ export const BlockViewEditor: React.FC = () => {
                 setEditingText(node.headerText);
               }}
               className="p-1 text-gray-400 hover:text-white hover:bg-black/30 rounded"
-              title="Éditer le texte de la brique"
+              title="Edit block text"
             >
               <Edit3 size={13} />
             </button>
@@ -273,14 +225,14 @@ export const BlockViewEditor: React.FC = () => {
             <button
               onClick={() => handleDeleteNode(node.id)}
               className="p-1 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
-              title="Supprimer la brique"
+              title="Delete block"
             >
               <Trash2 size={13} />
             </button>
           </div>
         </div>
 
-        {/* Zone Imbriquée (Enfants de la Brique Conteneur) */}
+        {/* Nested Zone (Container Block Children) */}
         {isContainer && (
           <div className="mt-3 pl-3 border-l-2 border-dashed border-cyan-500/40 space-y-2">
             {node.children.length > 0 && (
@@ -289,7 +241,7 @@ export const BlockViewEditor: React.FC = () => {
               </div>
             )}
 
-            {/* Zone de Dépôt Interactive (Drop Zone) */}
+            {/* Interactive Drop Zone */}
             <div
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => handleDropOnContainer(e, node.id)}
@@ -297,7 +249,7 @@ export const BlockViewEditor: React.FC = () => {
             >
               <div className="flex items-center space-x-2">
                 <CornerDownRight size={14} className="text-cyan-400 group-hover/drop:translate-x-0.5 transition-transform" />
-                <span className="font-mono text-[11px]">📥 Glissez-déposez une brique du panneau gauche ICI pour l'imbriquer</span>
+                <span className="font-mono text-[11px]">📥 Drag & drop a block from the left panel HERE to nest it</span>
               </div>
 
               <button
@@ -306,7 +258,7 @@ export const BlockViewEditor: React.FC = () => {
                 className="flex items-center space-x-1 px-2 py-0.5 bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-300 rounded font-semibold text-[10px] border border-cyan-500/30"
               >
                 <Plus size={12} />
-                <span>+ Sous-Brique</span>
+                <span>+ Sub-Block</span>
               </button>
             </div>
           </div>
@@ -321,7 +273,7 @@ export const BlockViewEditor: React.FC = () => {
       <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#2a2f42]">
         <div className="flex items-center space-x-2">
           <Boxes size={18} className="text-purple-400" />
-          <h2 className="text-sm font-semibold text-white">Éditeur Visuel de Briques Imbriquées (Mode Atelier AST)</h2>
+          <h2 className="text-sm font-semibold text-white">Visual Nested-Blocks Editor (AST Workshop Mode)</h2>
         </div>
 
         <button
@@ -329,7 +281,7 @@ export const BlockViewEditor: React.FC = () => {
           className="flex items-center space-x-1.5 text-xs text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20 px-3 py-1.5 rounded-md border border-cyan-500/30 transition-colors"
         >
           <Code size={14} />
-          <span>Revenir à l'éditeur texte Monaco</span>
+          <span>Back to Monaco text editor</span>
         </button>
       </div>
 
@@ -338,18 +290,18 @@ export const BlockViewEditor: React.FC = () => {
         <div className="flex items-center space-x-2.5">
           <Sparkles size={16} className="text-cyan-400 shrink-0" />
           <span>
-            Glissez des verbes depuis le panneau de gauche <strong>directement dans la zone pointillée "📥 Glissez-déposez"</strong> de n'importe quel bloc boucle/condition pour les imbriquer !
+            Drag verbs from the left panel <strong>directly into the dashed "📥 Drag & drop" zone</strong> of any loop/condition block to nest them!
           </span>
         </div>
         <button
           onClick={() => {
             const parsed = parseIPLToTree(code);
             setTree(parsed);
-            addLog('Arbre de briques réactualisé depuis le code texte.', 'info');
+            addLog('Block tree refreshed from text code.', 'info');
           }}
           className="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 rounded text-[10px] font-mono text-cyan-200"
         >
-          Réactualiser Arbre
+          Refresh Tree
         </button>
       </div>
 
@@ -359,7 +311,7 @@ export const BlockViewEditor: React.FC = () => {
           tree.map(node => renderBlockNode(node))
         ) : (
           <div className="text-center py-20 text-gray-500 text-xs font-mono">
-            Aucun bloc d'intention IPL dans ce projet. Déposez une brique depuis la palette de gauche pour commencer.
+            No IPL intent blocks in this project. Drop a block from the left palette to get started.
           </div>
         )}
       </div>

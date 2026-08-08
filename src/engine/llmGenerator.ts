@@ -1,6 +1,6 @@
 /**
- * Moteur de Génération LLM Polyglotte 2-Passes
- * Transforme les déclarations d'intentions IPL en applications multi-fichiers complètes.
+ * Polyglot 2-Pass LLM Generation Engine
+ * Transforms IPL intent declarations into complete multi-file applications.
  */
 
 export interface LLMConfig {
@@ -169,7 +169,7 @@ export async function callLLM(
       import.meta.env.VITE_API_KEY;
 
     if (!apiKey) {
-      throw new Error(`Cloud API Key introuvable ! Veuillez saisir votre clé directement dans les Paramètres (⚙️) ou la définir dans .env sous [${viteEnvVarName}].`);
+      throw new Error(`Cloud API Key not found! Enter your key directly in Settings (⚙️) or define it in .env as [${viteEnvVarName}].`);
     }
 
     onLog(`Connecting to Cloud API (temp=${temp}) (${config.model} at ${config.externalEndpoint})...`, 'info');
@@ -251,7 +251,7 @@ export async function generateIPL(
   onStreamChunk?: (accumulatedText: string) => void,
   polyglotConfig?: { autoDecide: boolean; layers: Array<{ role: string; tech: string }> }
 ): Promise<string> {
-  onLog(`🚀 Lancement du moteur de génération LLM 2-Passes pour la cible : [${targetLang.toUpperCase()}]...`, 'info');
+  onLog(`🚀 Starting the 2-Pass LLM Code Generator for target: [${targetLang.toUpperCase()}]...`, 'info');
 
   let langInstruction = '';
   if (targetLang === 'polyglot') {
@@ -321,7 +321,7 @@ Wrap EVERY generated project file inside XML tags:
 Deliver clean, production-grade code directly fulfilling the requirements.`;
 
   const generatedArtifact = await callLLM(pass2Prompt, config, onLog, onStreamChunk);
-  onLog('🎉 Génération 2-Passes terminée avec succès !', 'success');
+  onLog('🎉 2-Pass generation completed successfully!', 'success');
   return generatedArtifact;
 }
 

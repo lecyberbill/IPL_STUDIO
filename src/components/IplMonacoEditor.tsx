@@ -3,7 +3,11 @@ import Editor, { useMonaco } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import { useIdeStore } from '../store/useIdeStore';
 import { IPL_LANGUAGE_DEFINITION, IPL_VERBS, extractIPLSymbols } from '../engine/iplGrammar';
+import type { SyntaxErrorItem } from '../engine/iplGrammar';
 import { Code, AlertTriangle } from 'lucide-react';
+
+let currentIplDiagnostics: SyntaxErrorItem[] = [];
+let iplCodeActionProviderRegistered = false;
 
 export const IplMonacoEditor: React.FC = () => {
   const { code, setCode, setEditorInstance, syntaxErrors } = useIdeStore();
@@ -12,15 +16,15 @@ export const IplMonacoEditor: React.FC = () => {
   // Initialisation du langage IPL dans Monaco
   useEffect(() => {
     if (monacoInstance) {
-      // Enregistrement du langage s'il n'existe pas déjà
+      // Register the language if it does not already exist
       const languages = monacoInstance.languages.getLanguages();
       if (!languages.some(lang => lang.id === 'ipl')) {
         monacoInstance.languages.register({ id: 'ipl' });
 
-        // Configuration Monarch Tokénizer pour la coloration syntaxique des 12 verbes
+        // Monarch tokenizer config for syntax highlighting of the 12 verbs
         monacoInstance.languages.setMonarchTokensProvider('ipl', IPL_LANGUAGE_DEFINITION as any);
 
-        // 1. Autocomplétion intelligente des verbes et snippets à la frappe
+        // 1. Smart autocompletion of verbs and snippets while typing
         monacoInstance.languages.registerCompletionItemProvider('ipl', {
           provideCompletionItems: (model, position) => {
             const word = model.getWordUntilPosition(position);
@@ -40,7 +44,7 @@ export const IplMonacoEditor: React.FC = () => {
               range
             }));
 
-            // Proposer également les types d'intention humains (text, number, boolean, id, date, options)
+            // Also suggest the human intent types (text, number, boolean, id, date, options)
             const intentTypes = [
               { name: 'text', doc: 'Human Intent Type: Text string or email' },
               { name: 'number', doc: 'Human Intent Type: Amount, price, score, or count' },
@@ -60,14 +64,14 @@ export const IplMonacoEditor: React.FC = () => {
               });
             });
 
-            // Proposer également les symboles déclarés dans le script
+            // Also suggest symbols declared in the script
             const currentCode = model.getValue();
             const symbols = extractIPLSymbols(currentCode);
             symbols.forEach(sym => {
               suggestions.push({
                 label: sym.name,
                 kind: monacoInstance.languages.CompletionItemKind.Variable,
-                documentation: `Symbole IPL (${sym.kind}) déclaré à la ligne ${sym.line}`,
+                documentation: `IPL symbol (${sym.kind}) declared at line ${sym.line}`,
                 insertText: sym.name,
                 range
               });
@@ -77,7 +81,7 @@ export const IplMonacoEditor: React.FC = () => {
           }
         });
 
-        // 2. Hover Provider (Info-Bulles d'informations sémantiques au survol)
+        // 2. Hover Provider (semantic info tooltips)
         monacoInstance.languages.registerHoverProvider('ipl', {
           provideHover: (model, position) => {
             const word = model.getWordAtPosition(position);
@@ -87,7 +91,7 @@ export const IplMonacoEditor: React.FC = () => {
             if (verbMatch) {
               return {
                 contents: [
-                  { value: `**Verbe IPL : \`${verbMatch.name}\`** (${verbMatch.category.toUpperCase()})` },
+                  { value: `**IPL verb: \`${verbMatch.name}\`** (${verbMatch.category.toUpperCase()})` },
                   { value: verbMatch.description },
                   { value: `\`\`\`ipl\n${verbMatch.snippet}\n\`\`\`` }
                 ]
@@ -99,8 +103,8 @@ export const IplMonacoEditor: React.FC = () => {
             if (symMatch) {
               return {
                 contents: [
-                  { value: `**Entité IPL : \`${symMatch.name}\`** (\`${symMatch.kind}\`)` },
-                  { value: `Déclaré à la ligne ${symMatch.line}, colonne ${symMatch.column}` }
+                  { value: `**IPL entity: \`${symMatch.name}\`** (\`${symMatch.kind}\`)` },
+                  { value: `Declared at line ${symMatch.line}, column ${symMatch.column}` }
                 ]
               };
             }
@@ -109,7 +113,7 @@ export const IplMonacoEditor: React.FC = () => {
           }
         });
 
-        // 3. Go to Definition Provider (Aller à la Définition - F12 / Ctrl+Clic)
+        // 3. Go to Definition Provider (F12 / Ctrl+Click)
         monacoInstance.languages.registerDefinitionProvider('ipl', {
           provideDefinition: (model, position) => {
             const word = model.getWordAtPosition(position);
@@ -133,7 +137,53 @@ export const IplMonacoEditor: React.FC = () => {
           }
         });
 
-        // Thème sombre personnalisé Atelier Dark
+        // 4. Quick-Fix Code Action Provider (applies the advisory fixes carried by soft diagnostics)
+        if (!iplCodeActionProviderRegistered) {
+          iplCodeActionProviderRegistered = true;
+          monacoInstance.languages.registerCodeActionProvider('ipl', {
+            provideCodeActions: (model, range) => {
+              const actions: monaco.languages.CodeAction[] = [];
+              for (const d of currentIplDiagnostics) {
+                if (!d.fix) continue;
+                const startLine = d.line;
+                const startCol = d.column;
+                const endCol = d.endColumn ?? startCol + d.message.length;
+                const overlaps = !(
+                  range.endLineNumber < startLine ||
+                  range.startLineNumber > startLine ||
+                  range.startColumn > endCol ||
+                  range.endColumn < startCol
+                );
+                if (!overlaps) continue;
+                actions.push({
+                  title: d.fix.label,
+                  kind: 'quickfix',
+                  diagnostics: [{
+                    startLineNumber: startLine,
+                    startColumn: startCol,
+                    endLineNumber: startLine,
+                    endColumn: endCol,
+                    message: d.message,
+                    severity: d.severity === 'warning' ? monacoInstance.MarkerSeverity.Warning : monacoInstance.MarkerSeverity.Info
+                  }],
+                  edit: {
+                    edits: [{
+                      resource: model.uri,
+                      textEdit: {
+                        range: new monaco.Range(startLine, startCol, startLine, endCol),
+                        text: d.fix.newText
+                      },
+                      versionId: undefined
+                    }]
+                  }
+                });
+              }
+              return { actions, dispose: () => {} };
+            }
+          });
+        }
+
+        // Custom dark theme: Atelier Dark
         monacoInstance.editor.defineTheme('atelier-dark', {
           base: 'vs-dark',
           inherit: true,
@@ -161,18 +211,21 @@ export const IplMonacoEditor: React.FC = () => {
     }
   }, [monacoInstance]);
 
-  // Synchronisation des marqueurs d'erreurs de syntaxe
+  // Sync advisory markers with Monaco
   useEffect(() => {
     if (monacoInstance) {
+      currentIplDiagnostics = syntaxErrors;
       const editorModel = monacoInstance.editor.getModels()[0];
       if (editorModel) {
         const markers: monaco.editor.IMarkerData[] = syntaxErrors.map(err => ({
           startLineNumber: err.line,
           startColumn: err.column,
           endLineNumber: err.line,
-          endColumn: err.column + 10,
+          endColumn: err.endColumn ?? err.column + err.message.length,
           message: err.message,
-          severity: monacoInstance.MarkerSeverity.Error
+          severity: err.severity === 'warning'
+            ? monacoInstance.MarkerSeverity.Warning
+            : monacoInstance.MarkerSeverity.Info
         }));
         monacoInstance.editor.setModelMarkers(editorModel, 'ipl-syntax', markers);
       }
@@ -182,7 +235,7 @@ export const IplMonacoEditor: React.FC = () => {
   const handleEditorDidMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
     setEditorInstance(editor);
 
-    // Support du Drag & Drop HTML5 de snippets directement dans Monaco
+    // HTML5 Drag & Drop support for snippets directly into Monaco
     const domNode = editor.getDomNode();
     if (domNode) {
       domNode.addEventListener('dragover', (e: DragEvent) => {
@@ -220,16 +273,16 @@ export const IplMonacoEditor: React.FC = () => {
       <div className="h-10 bg-[#161922] border-b border-[#2a2f42] px-4 flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <Code size={16} className="text-cyan-400" />
-          <span className="font-semibold text-white text-xs">Éditeur Intentionnel IPL (Monaco LSP Active)</span>
+          <span className="font-semibold text-white text-xs">IPL Intentional Editor (Monaco LSP Active)</span>
           <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/30 font-mono">
             F12 Go to Def • Survol Info
           </span>
         </div>
 
         {syntaxErrors.length > 0 && (
-          <div className="flex items-center space-x-1 text-rose-400 text-xs font-medium bg-rose-500/10 px-2.5 py-0.5 rounded border border-rose-500/20">
+          <div className="flex items-center space-x-1 text-amber-300 text-xs font-medium bg-amber-500/10 px-2.5 py-0.5 rounded border border-amber-500/20">
             <AlertTriangle size={13} />
-            <span>{syntaxErrors.length} Erreur(s)</span>
+            <span>{syntaxErrors.length} Advisory Check(s)</span>
           </div>
         )}
       </div>
