@@ -46,6 +46,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the complete list of release notes, version
 ### 🤖 3. Autonomous Self-Healing Agent Debug Loop
 - **Error Detection & Diagnostics**: Captures terminal stderr output (`Traceback`, non-zero exit codes).
 - **Auto-Fixing**: Analyzes stacktraces via AI, refactors affected files, and re-executes tests automatically (up to 3 repair passes).
+- **Deterministic pre-repair first**: LLM-independent fixes (ES-module strip, Tailwind CDN) are applied before any LLM repair call is spent — measured in the benchmark as **repairs-to-success**.
 
 ### 🖥️ 4. Embedded Terminal (`xterm.js`) & Runner
 - Integrated `xterm.js` terminal runner for `cargo run`, `python main.py`, `node index.js`, `go run main.go`, etc.
@@ -121,8 +122,9 @@ npm run bench -- --mode external   # real end-to-end against DeepSeek (needs VIT
 npm run bench -- --mode lmstudio   # against a local LM Studio server
 npm run bench -- --iterations 3    # more runs per spec for stable latency averages
 npm run bench -- --python D:\path\.venv\Scripts   # resolve `python` via a venv (typed specs)
+npm run bench -- --repair-passes 0 # disable the self-healing repair loop (default: 3)
 ```
-Runs the real 2-Pass pipeline per spec, parses artifacts with the real parser, writes to `output/benchmark/`, and emits a Markdown report (PASS/WARN/FAIL, per-pass latency, token estimates). See [ROADMAP.md](ROADMAP.md) → **Phase 4**.
+Runs the real 2-Pass pipeline per spec, parses artifacts with the real parser, writes to `output/benchmark/`, and emits a Markdown report (PASS/WARN/FAIL, per-pass latency, token estimates, **repairs-to-success**, and a **trend/regression** section backed by `output/benchmark/history.json`). On a first-try FAIL the harness applies deterministic pre-repair (ES-module strip, Tailwind CDN) before spending LLM repair calls. See [ROADMAP.md](ROADMAP.md) → **Phases 4-5**.
 
 ---
 

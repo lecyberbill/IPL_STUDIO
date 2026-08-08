@@ -769,8 +769,21 @@ export const useIdeStore = create<IDEState>()(
             addLog(`Advisory IPL check: ${errors[0].message} (line ${errors[0].line}). Generation continues.`, 'warn');
           }
 
+          // Pre-generation repair: apply fixable diagnostics (unterminated
+          // string, unclosed block) on a copy of the code so the model receives
+          // clean input. The user's editor buffer is never modified.
+          const { applyIPLQuickFixes } = await import('../engine/iplQuickFix');
+          const preRepair = applyIPLQuickFixes(code);
+          let unifiedCode = preRepair.code;
+          if (preRepair.applied.length > 0) {
+            addLog(`Pre-generation repair: ${preRepair.applied.length} fix(es) applied deterministically (${preRepair.applied.map(a => a.fixLabel).join(', ')}). Editor untouched.`, 'success');
+          }
+          if (preRepair.remaining.length > 0) {
+            addLog(`Still ${preRepair.remaining.length} diagnostic(s) unresolved before generation (advisory only).`, 'warn');
+          }
+
           const { resolveIPLImports } = await import('../engine/iplGrammar');
-          const unifiedCode = resolveIPLImports(code, activeProj?.sourceFiles);
+          unifiedCode = resolveIPLImports(unifiedCode, activeProj?.sourceFiles);
 
           const result = await generateIPL(
             unifiedCode, 
@@ -909,6 +922,24 @@ export const useIdeStore = create<IDEState>()(
           
           set({ isGenerating: true });
           try {
+            const { parseMultiFileXml } = await import('../engine/artifactGenerator');
+            const { applyDeterministicRepairs } = await import('../engine/deterministicRepair');
+
+            // 1. Try LLM-independent deterministic fixes first (ES-module hazard,
+            //    missing Tailwind CDN) — no tokens spent if this resolves it.
+            const currentFiles = parseMultiFileXml(get().generatedCode || '');
+            const deterministic = applyDeterministicRepairs(currentFiles);
+            if (deterministic.applied.length > 0) {
+              const cleanXmlCode = deterministic.files
+                .map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`)
+                .join('\n\n');
+              set({ generatedCode: cleanXmlCode, isGenerating: false });
+              addLog(`[Coding Agent 🤖] ✅ Deterministic pre-repair applied: ${deterministic.applied.join('; ')}`, 'success');
+              await writeArtifactToDisk();
+              continue;
+            }
+
+            // 2. Deterministic repair didn't apply — spend an LLM repair call.
             const { refineIPLArtifact } = await import('../engine/llmGenerator');
             const promptCorrection = `THE CODE FAILED TO EXECUTE IN THE TERMINAL WITH THE FOLLOWING ERROR. ANALYZE AND FIX THE FILES SO THE SCRIPT RUNS WITHOUT ERROR:\n\nConsole Log Output:\n${outputLog.substring(0, 2000)}`;
             
@@ -921,7 +952,6 @@ export const useIdeStore = create<IDEState>()(
               (streamChunkText) => set({ generatedCode: streamChunkText })
             );
 
-            const { parseMultiFileXml } = await import('../engine/artifactGenerator');
             const existingFiles = parseMultiFileXml(get().generatedCode || '');
             const updatedFiles = parseMultiFileXml(fixedResult, existingFiles);
 

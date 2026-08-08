@@ -23,6 +23,7 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 | **T1 — Test Suite** | Vitest (38 tests) covering parser, semantics, and grammar signature. `npm test`. | `932f0a6` — first test infrastructure |
 | **M0 — Foundations** | French→English i18n sweep, absolute output paths outside the workspace, terminology rename (compiler → generator). | `2a44877` / `bbddc33` / `9a0cf16` |
 | **Phase 4 — Benchmark Harness** | `scripts/run-benchmark.ts` + `npm run bench`: real 2-Pass e2e vs `deepseek-chat` (60% first-try PASS, 0 FAIL), mock mode for CI, Markdown reports with latency/tokens/files. | `088337e` — harness; real-endpoint run validated |
+| **Phase 5 — Self-Healing & Repair Metrics** | `--repair-passes` loop (deterministic then LLM), `output/benchmark/history.json` + Trend/regression section, deterministic pre-repair (`deterministicRepair.ts`) wired into `autoDebugAndFix` + benchmark, pre-generation IPL quick-fixes (`iplQuickFix.ts`). | repair loop verified (typed-order FAIL→PASS via LLM; node-hello honestly `-1`) |
 
 ---
 
@@ -45,7 +46,7 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 
 ---
 
-## ⬜ Phase 5 — Self-Healing Agent & Repair Metrics
+## ✅ Phase 5 — Self-Healing Agent & Repair Metrics
 
 **Objective**: Make the autonomous debug loop measurable and trustworthy.
 
@@ -55,9 +56,11 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 - Add an LLM-independent fallback repair (deterministic ES-module / Tailwind-CDNU fixes) before spending a repair call.
 
 **Acceptance criteria**:
-- [ ] Benchmark report includes "repair passes needed" and success-after-repair rate.
-- [ ] Trend report shows regression vs. previous runs.
-- [ ] Deterministic pre-repair catches the two documented cloud failure modes (ES modules, missing Tailwind CDN).
+- [x] Benchmark report includes "repair passes needed" and success-after-repair rate.
+- [x] Trend report shows regression vs. previous runs.
+- [x] Deterministic pre-repair catches the two documented cloud failure modes (ES modules, missing Tailwind CDN).
+
+**Status**: 🟢 done — repair loop (`--repair-passes`, deterministic then LLM), `history.json` + Trend section, deterministic pre-repair module (`deterministicRepair.ts`) wired into both `autoDebugAndFix` and the benchmark. Bonus: pre-generation IPL quick-fixes (`iplQuickFix.ts`) apply fixable diagnostics before the spec reaches the model.
 
 ---
 

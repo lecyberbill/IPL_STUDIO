@@ -24,8 +24,10 @@ import { readFileSync, mkdirSync, writeFileSync, readdirSync, rmSync, existsSync
 import { resolve as pathResolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { parseMultiFileXml } from '../src/engine/artifactGenerator.ts';
-import { callLLM, buildPass1Prompt, buildPass2Prompt, DEFAULT_LLM_CONFIG } from '../src/engine/llmGenerator.ts';
+import { callLLM, buildPass1Prompt, buildPass2Prompt, refineIPLArtifact, DEFAULT_LLM_CONFIG } from '../src/engine/llmGenerator.ts';
 import type { LLMConfig, TargetLanguage } from '../src/engine/llmGenerator.ts';
+import { applyDeterministicRepairs } from '../src/engine/deterministicRepair.ts';
+import type { DeterministicRepair } from '../src/engine/deterministicRepair.ts';
 
 // ---------------------------------------------------------------------------
 // CLI options
@@ -41,10 +43,11 @@ interface CliArgs {
   timeoutRunMs: number;
   quiet: boolean;
   pythonPath?: string;
+  repairPasses: number;
 }
 
 function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = { mode: 'external', iterations: 1, timeoutPerPassMs: 120_000, timeoutRunMs: 30_000, quiet: false };
+  const args: CliArgs = { mode: 'external', iterations: 1, timeoutPerPassMs: 120_000, timeoutRunMs: 30_000, quiet: false, repairPasses: 3 };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => argv[++i];
@@ -56,6 +59,7 @@ function parseArgs(argv: string[]): CliArgs {
     else if (a === '--timeout-pass') args.timeoutPerPassMs = parseInt(next() || '120000', 10);
     else if (a === '--timeout-run') args.timeoutRunMs = parseInt(next() || '30000', 10);
     else if (a === '--python') args.pythonPath = next();
+    else if (a === '--repair-passes') args.repairPasses = Math.max(0, parseInt(next() || '3', 10));
     else if (a === '--quiet') args.quiet = true;
     else if (a === '--help') {
       console.log(`IPL Studio Benchmark Harness
@@ -71,6 +75,7 @@ Options:
   --timeout-pass <ms>                     per-pass LLM timeout (default: 120000)
   --timeout-run <ms>                      command execution timeout (default: 30000)
   --python <venvDir|exe>                  resolve \`python\` via a venv Scripts dir or a direct exe path
+  --repair-passes <n>                     self-healing repair passes after a FAIL (0 = off, default: 3)
   --quiet                                 suppress streaming logs
   --help                                  this help`);
       process.exit(0);
@@ -264,6 +269,14 @@ interface RunResult {
   totalBytes: number;
   files: string[];
   artifactXml: string;
+  /** 0 = first-try PASS; 1..N = repair passes needed; -1 = failed even after repairs. */
+  repairsToSuccess: number;
+  /** Human-readable descriptions of each deterministic/LLM repair applied. */
+  repairDetails: string[];
+  /** Original first-try status before any repair attempt (for trend reporting). */
+  firstTryStatus: RunStatus;
+  /** Full stderr/stdout captured from the failing verify command. */
+  failureOutput?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -434,7 +447,7 @@ function resolvePythonCommand(command: string, pythonPath?: string): string {
   return command.replace(/^python(3|3\.\d+)?/, `"${pathResolve(pythonPath)}"`);
 }
 
-async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{ status: RunStatus; detail: string }> {
+async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{ status: RunStatus; detail: string; output?: string }> {
   const allFiles = readdirSync(runDir, { recursive: true }) as string[];
   const allContent = allFiles
     .filter(f => !f.endsWith('.txt'))
@@ -485,9 +498,9 @@ async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{
       if (retried) {
         const retry = runCommand(runDir, retried.command, args.timeoutRunMs, args.pythonPath);
         if (retry.exitCode === 0) return { status: 'PASS', detail: `verified OK (entry discovered as ${retried.entry})` };
-        return { status: 'FAIL', detail: `${spec.verify.command} failed (${run.output.slice(0, 120)}) — retried ${retried.command}: ${retry.output.slice(0, 160) || `exit ${retry.exitCode}`}` };
+        return { status: 'FAIL', detail: `${spec.verify.command} failed (${run.output.slice(0, 120)}) — retried ${retried.command}: ${retry.output.slice(0, 160) || `exit ${retry.exitCode}`}`, output: `${run.output}\n--- retried ---\n${retry.output}` };
       }
-      return { status: 'FAIL', detail: `exit code ${run.exitCode}: ${run.output.slice(0, 200)}` };
+      return { status: 'FAIL', detail: `exit code ${run.exitCode}: ${run.output.slice(0, 200)}`, output: run.output };
     }
   }
 
@@ -520,6 +533,149 @@ function retryWithDiscoveredEntry(command: string, allFiles: string[]): { comman
 }
 
 // ---------------------------------------------------------------------------
+// Self-healing repair loop
+// ---------------------------------------------------------------------------
+
+function readRunFiles(runDir: string): DeterministicRepair[] {
+  const all = readdirSync(runDir, { recursive: true }) as string[];
+  return all
+    .filter(f => !f.endsWith('.txt'))
+    .map(f => {
+      try {
+        return { relativePath: f, content: readFileSync(pathResolve(runDir, f), 'utf8') };
+      } catch {
+        return null;
+      }
+    })
+    .filter((f): f is DeterministicRepair => f !== null);
+}
+
+/**
+ * Attempts up to `repairPasses` self-healing passes on a failing run:
+ *  1. LLM-independent deterministic fixes (ES-module strip, Tailwind CDN) —
+ *     no tokens spent if this resolves it.
+ *  2. LLM repair via refineIPLArtifact fed with the captured failure output.
+ * Returns the final verify result plus repair bookkeeping.
+ */
+async function repairAndVerify(
+  spec: BenchSpec,
+  runDir: string,
+  args: CliArgs,
+  config: LLMConfig,
+  firstTry: { status: RunStatus; detail: string; output?: string }
+): Promise<{ v: { status: RunStatus; detail: string; output?: string }; repairsToSuccess: number; repairDetails: string[]; firstTryStatus: RunStatus }> {
+  const repairDetails: string[] = [];
+  let v = firstTry;
+
+  for (let pass = 1; pass <= args.repairPasses; pass++) {
+    // Pass 1 deterministic: rewrite files in place from disk.
+    const files = readRunFiles(runDir);
+    const det = applyDeterministicRepairs(files);
+    if (det.applied.length > 0) {
+      for (const f of det.files) {
+        writeFileSync(pathResolve(runDir, f.relativePath), f.content, 'utf8');
+      }
+      repairDetails.push(...det.applied.map(a => `pass ${pass} [deterministic]: ${a}`));
+      v = await verify(spec, runDir, args);
+      if (v.status === 'PASS') return { v, repairsToSuccess: pass, repairDetails, firstTryStatus: firstTry.status };
+    }
+
+    // LLM repair pass.
+    if (args.mode !== 'mock') {
+      const existingXml = readRunFiles(runDir)
+        .map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`)
+        .join('\n\n');
+      const prompt = `THE CODE FAILED TO EXECUTE. ANALYZE AND FIX THE FILES SO THE SCRIPT RUNS WITHOUT ERROR:\n\nConsole Log Output:\n${(v.output ?? v.detail).slice(0, 2000)}`;
+      try {
+        const fixed = await withTimeout(
+          refineIPLArtifact(existingXml, prompt, spec.targetLang, config, () => {}, () => {}),
+          args.timeoutPerPassMs,
+          `repair pass ${pass}`
+        );
+        const existingFiles = parseMultiFileXml(existingXml);
+        const updated = parseMultiFileXml(fixed, existingFiles);
+        if (updated.length > 0) {
+          for (const f of updated) {
+            mkdirSync(pathResolve(runDir, pathResolve(f.relativePath, '..')), { recursive: true });
+            writeFileSync(pathResolve(runDir, f.relativePath), f.content, 'utf8');
+          }
+          repairDetails.push(`pass ${pass} [llm]: refineIPLArtifact applied (${updated.length} files)`);
+          v = await verify(spec, runDir, args);
+          if (v.status === 'PASS') return { v, repairsToSuccess: pass, repairDetails, firstTryStatus: firstTry.status };
+        }
+      } catch (err: any) {
+        repairDetails.push(`pass ${pass} [llm]: failed (${err.message})`);
+      }
+    }
+  }
+
+  return { v, repairsToSuccess: -1, repairDetails, firstTryStatus: firstTry.status };
+}
+
+// ---------------------------------------------------------------------------
+// History + trend
+// ---------------------------------------------------------------------------
+
+interface HistoryEntry {
+  runId: string;
+  date: string;
+  mode: string;
+  model: string;
+  endpoint: string;
+  specs: Array<{
+    id: string;
+    firstTryStatus: RunStatus;
+    finalStatus: RunStatus;
+    repairsToSuccess: number;
+    totalMs: number;
+  }>;
+}
+
+function loadHistory(historyPath: string): HistoryEntry[] {
+  try {
+    const raw = readFileSync(historyPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Returns a per-spec trend line comparing this run's first-try PASS rate to the last N runs. */
+function buildTrendSection(historyPath: string, runId: string, results: RunResult[], model: string): string[] {
+  const history = loadHistory(historyPath).filter(h => h.model === model && h.runId !== runId);
+  const lines: string[] = ['## Trend', ''];
+  if (history.length === 0) {
+    lines.push('_No prior runs recorded for this model — first history entry._');
+    return lines;
+  }
+
+  const lastRuns = history.slice(-10);
+  const bySpec = new Map<string, RunResult[]>();
+  for (const r of results) {
+    const arr = bySpec.get(r.specId) ?? [];
+    arr.push(r);
+    bySpec.set(r.specId, arr);
+  }
+
+  lines.push('| Spec | Prev runs | Prev first-try PASS% | This run | Δ |');
+  lines.push('| :--- | :---: | :---: | :---: | :---: |');
+  for (const [id, runs] of bySpec) {
+    const prevSpecs = lastRuns.flatMap(h => h.specs).filter(s => s.id === id);
+    if (prevSpecs.length === 0) continue;
+    const prevPass = prevSpecs.filter(s => s.firstTryStatus === 'PASS').length;
+    const prevPct = Math.round((prevPass / prevSpecs.length) * 100);
+    const curPass = runs.filter(r => r.firstTryStatus === 'PASS').length;
+    const curPct = Math.round((curPass / runs.length) * 100);
+    const delta = curPct - prevPct;
+    const arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '—';
+    lines.push(`| ${id} | ${prevSpecs.length} | ${prevPct}% | ${curPct}% | ${arrow}${Math.abs(delta)} |`);
+  }
+  lines.push('');
+  return lines;
+}
+
+// ---------------------------------------------------------------------------
 // Report
 // ---------------------------------------------------------------------------
 
@@ -543,10 +699,12 @@ function buildReport(args: CliArgs, config: LLMConfig, results: RunResult[]): st
 
   lines.push('## Summary');
   lines.push('');
-  lines.push('| Spec | Runs | PASS | WARN | FAIL | Avg total (ms) | Avg files | Avg size (KB) |');
-  lines.push('| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |');
+  lines.push('| Spec | Runs | PASS | WARN | FAIL | Avg total (ms) | Avg files | Avg size (KB) | Repairs |');
+  lines.push('| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |');
   let totalPass = 0;
   let totalRuns = 0;
+  let totalFirstTryFail = 0;
+  let totalRepairedToPass = 0;
   for (const [id, runs] of bySpec) {
     const pass = runs.filter(r => r.status === 'PASS').length;
     const warn = runs.filter(r => r.status === 'WARN').length;
@@ -556,10 +714,21 @@ function buildReport(args: CliArgs, config: LLMConfig, results: RunResult[]): st
     const avgMs = Math.round(runs.reduce((s, r) => s + r.totalMs, 0) / runs.length);
     const avgFiles = Math.round(runs.reduce((s, r) => s + r.fileCount, 0) / runs.length);
     const avgKB = Math.round((runs.reduce((s, r) => s + r.totalBytes, 0) / runs.length) / 1024);
-    lines.push(`| ${id} | ${runs.length} | ${pass} | ${warn} | ${fail} | ${avgMs} | ${avgFiles} | ${avgKB} |`);
+    const repairLabel = runs.map(r => r.repairsToSuccess).join('/');
+    lines.push(`| ${id} | ${runs.length} | ${pass} | ${warn} | ${fail} | ${avgMs} | ${avgFiles} | ${avgKB} | ${repairLabel} |`);
+    for (const r of runs) {
+      if (r.firstTryStatus === 'FAIL') {
+        totalFirstTryFail++;
+        if (r.status === 'PASS') totalRepairedToPass++;
+      }
+    }
   }
   lines.push('');
   lines.push(`**Overall first-try PASS rate**: ${totalRuns ? `${Math.round((totalPass / totalRuns) * 100)}% (${totalPass}/${totalRuns})` : 'n/a'}`);
+  if (totalFirstTryFail > 0) {
+    lines.push(`**Success-after-repair rate**: ${Math.round((totalRepairedToPass / totalFirstTryFail) * 100)}% (${totalRepairedToPass}/${totalFirstTryFail} failed first-try runs recovered by repair)`);
+  }
+  lines.push('_Repairs column: `0` = first-try PASS, `1..N` = repair passes needed, `-1` = failed even after repair. Values are per run/iteration._');
   lines.push('');
 
   lines.push('## Detailed Runs');
@@ -569,6 +738,11 @@ function buildReport(args: CliArgs, config: LLMConfig, results: RunResult[]): st
     lines.push(`### ${r.specName} — run ${r.iteration} ${icon} **${r.status}** (${r.totalMs} ms, ${r.fileCount} files, ${(r.totalBytes / 1024).toFixed(1)} KB)`);
     lines.push('');
     lines.push(`- **Detail**: ${r.statusDetail}`);
+    lines.push(`- **First try**: ${r.firstTryStatus} · **Repairs to success**: ${r.repairsToSuccess}`);
+    if (r.repairDetails.length > 0) {
+      lines.push(`- **Repairs applied**:`);
+      for (const d of r.repairDetails) lines.push(`  - ${d}`);
+    }
     if (args.mode !== 'mock') {
       lines.push(`- **Pass 1**: ${r.pass1.ms} ms · ≈ ${r.pass1.approxTokens} tokens`);
       lines.push(`- **Pass 2**: ${r.pass2.ms} ms · ≈ ${r.pass2.approxTokens} tokens`);
@@ -643,7 +817,8 @@ async function main(): Promise<number> {
         const result: RunResult = {
           specId: spec.id, specName: spec.name, iteration: i, status: 'FAIL', statusDetail: `generation error: ${genError}`,
           pass1: { ms: 0, chars: 0, approxTokens: 0 }, pass2: { ms: 0, chars: 0, approxTokens: 0 },
-          totalMs: Date.now() - start, fileCount: 0, totalBytes: 0, files: [], artifactXml: ''
+          totalMs: Date.now() - start, fileCount: 0, totalBytes: 0, files: [], artifactXml: '',
+          repairsToSuccess: -1, repairDetails: [], firstTryStatus: 'FAIL'
         };
         results.push(result);
         log(args, result.statusDetail, 'error');
@@ -651,26 +826,65 @@ async function main(): Promise<number> {
       }
 
       const written = writeArtifact(runDir, gen.xml);
-      const v = await verify(spec, runDir, args);
+      const firstTry = await verify(spec, runDir, args);
+
+      // Self-healing: try to repair failing runs (deterministic + LLM) up to --repair-passes.
+      let v = firstTry;
+      let repairsToSuccess = 0;
+      let repairDetails: string[] = [];
+      if (firstTry.status === 'FAIL' && args.repairPasses > 0 && args.mode !== 'mock') {
+        const repaired = await repairAndVerify(spec, runDir, args, config, firstTry);
+        v = repaired.v;
+        repairsToSuccess = repaired.repairsToSuccess;
+        repairDetails = repaired.repairDetails;
+      } else if (firstTry.status === 'FAIL') {
+        repairsToSuccess = -1;
+      }
 
       const result: RunResult = {
         specId: spec.id, specName: spec.name, iteration: i, status: v.status, statusDetail: v.detail,
         pass1: gen.pass1, pass2: gen.pass2,
         totalMs: Date.now() - start,
         fileCount: written.files.length, totalBytes: written.totalBytes, files: written.files,
-        artifactXml: gen.xml
+        artifactXml: gen.xml,
+        repairsToSuccess, repairDetails, firstTryStatus: firstTry.status,
+        failureOutput: v.output
       };
       results.push(result);
-      log(args, `${v.status} — ${v.detail} (${result.totalMs} ms, ${written.files.length} files)`, v.status === 'PASS' ? 'success' : v.status === 'WARN' ? 'warn' : 'error');
+      const repairNote = repairDetails.length > 0 ? ` · repaired (${repairsToSuccess} pass${repairsToSuccess === 1 ? '' : 'es'})` : '';
+      log(args, `${v.status} — ${v.detail}${repairNote} (${result.totalMs} ms, ${written.files.length} files)`, v.status === 'PASS' ? 'success' : v.status === 'WARN' ? 'warn' : 'error');
     }
     console.log('');
   }
 
-  const report = buildReport(args, config, results);
+  // Persist run history for trend/regression reporting.
+  const historyPath = pathResolve(root, 'history.json');
+  const history: HistoryEntry[] = loadHistory(historyPath);
+  history.push({
+    runId,
+    date: new Date().toISOString(),
+    mode: args.mode,
+    model: config.model,
+    endpoint: config.externalEndpoint || config.lmStudioEndpoint || config.localEndpoint || '',
+    specs: results.map(r => ({
+      id: r.specId,
+      firstTryStatus: r.firstTryStatus,
+      finalStatus: r.status,
+      repairsToSuccess: r.repairsToSuccess,
+      totalMs: r.totalMs
+    }))
+  });
+  // Keep only the last 50 runs.
+  if (history.length > 50) history.splice(0, history.length - 50);
+  writeFileSync(historyPath, JSON.stringify(history, null, 2), 'utf8');
+
+  let report = buildReport(args, config, results);
+  report += '\n' + buildTrendSection(historyPath, runId, results, config.model).join('\n') + '\n';
   const reportPath = pathResolve(root, `report-${runId}.md`);
   mkdirSync(root, { recursive: true });
   writeFileSync(reportPath, report, 'utf8');
   console.log(`Report written to ${reportPath}`);
+  console.log(`History: ${history.length} run(s) in ${historyPath}`);
   console.log('');
 
   const failed = results.some(r => r.status === 'FAIL');

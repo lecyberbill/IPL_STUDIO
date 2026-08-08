@@ -44,6 +44,15 @@ All notable changes to **IPL Studio** are documented in this file.
 - **Prompt builders exported** from `llmGenerator.ts` (`buildLangInstruction`, `buildPass1Prompt`, `buildPass2Prompt`) enabling per-pass measurement in the harness.
 - **Real-endpoint validation** against `deepseek-chat`: first real run **60% first-try PASS, 0 FAIL** (WARNs only from missing local Python and a `node-hello` entry-point miss). Phase 4 acceptance criteria met.
 
+### 🤖 Self-Healing Repair & Metrics (Phase 5)
+- **Deterministic pre-repair (`src/engine/deterministicRepair.ts`)**: LLM-independent fixes for the two documented cloud failure modes — strips `type="module"` from `<script>` in HTML (CORS/`file://` hazard) and injects the Tailwind CDN when `class=` attributes are used without it. No tokens spent when these resolve the failure.
+- **Benchmark repair loop**: `--repair-passes <n>` (default 3) — on a first-try FAIL the harness first applies deterministic fixes, then calls `refineIPLArtifact` fed with the captured stderr, up to `n` passes. Each run records `repairsToSuccess` (`0` = first-try PASS, `1..N` = passes needed, `-1` = never recovered) plus per-pass repair details.
+- **Repair metrics in the report**: summary gains a **Repairs** column and **Success-after-repair rate**; detailed runs list every deterministic/LLM repair applied with the pass number.
+- **`output/benchmark/history.json` + Trend section**: every run is persisted (last 50 kept); the report compares each spec's first-try PASS% against the previous runs for this model with ▲/▼ regression markers.
+- **Pre-generation IPL quick-fixes (`src/engine/iplQuickFix.ts`)**: before a spec reaches the model, fixable diagnostics (unterminated string, unclosed block) are applied deterministically on a copy — the model receives clean input while the user's editor buffer is never modified; unresolved advisories still pass through (rails, not walls). Wired into `runGeneration`.
+- **`autoDebugAndFix` upgrade**: the in-IDE self-healing loop now runs deterministic pre-repair *before* spending an LLM repair call.
+- **`vitest.config.ts`**: test discovery restricted to `src/**/*.test.ts` so benchmark artifacts in `output/` (e.g. a generated `test/greeter.test.js`) never leak into the suite. Now **49 tests across 5 suites**.
+
 ### 🌍 Internationalization (French → English)
 - Translated all remaining French UI strings, comments, tutorials (`iplTutorialLessons.ts` fully rewritten), artifact content, and config comments to English.
 
