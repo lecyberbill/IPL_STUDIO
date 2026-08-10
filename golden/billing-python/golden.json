@@ -1,0 +1,22 @@
+{
+  "id": "billing-python",
+  "name": "Billing invoice (structured JSON behaviour)",
+  "targetLang": "python",
+  "command": "python main.py",
+  "assert": {
+    "exitCode": 0,
+    "stdoutRegex": "\"currency\": \"EUR\"",
+    "jsonInOutput": [
+      { "path": "items.length", "equals": 2 },
+      { "path": "items.0.name", "equals": "Keyboard" },
+      { "path": "items.0.price", "equals": 49.9 },
+      { "path": "items.1.quantity", "equals": 2 },
+      { "path": "subtotal", "equals": 88.9 },
+      { "path": "tax", "equals": 17.78 },
+      { "path": "total", "equals": 106.68 },
+      { "path": "total", "gt": 0 },
+      { "path": "total", "lt": 200 },
+      { "path": "currency", "equals": "EUR" }
+    ]
+  }
+}

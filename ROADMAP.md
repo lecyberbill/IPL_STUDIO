@@ -154,6 +154,17 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 
 **Status**: 🟢 done — build, 133 tests and lint green; dev-server smoke test boots clean.
 
+### 🎯 Behavioral Assertions (golden oracles)
+
+**Objective**: Tests must prove *what the generated app does*, not just that it runs — the honest proof that an IPL spec's intent was translated exactly.
+
+- `src/engine/behaviorAssert.ts`: pure, declarative `BehaviorAssert` (exit code, stdout contains/regex, JSON-path asserts `equals/matches/gt/lt/arrayLength` with tolerant JSON extraction). Shared by the golden runner and the benchmark harness — 14 unit tests.
+- `golden/billing-python/`: frozen invoice app verified against strict JSON behaviour (the "oracle" fixture).
+- Benchmark specs can declare `verify.assert` (runtime-output checks); `typed-order`/`node-hello` now require the spec's data to actually surface at runtime. Mock mode emits the same needles so the behavior path is validated offline.
+- Benchmark `python` resolution now probes `python → python3 → py` (Windows `py` fallback).
+
+**Status**: 🟢 done — 148 tests across 12 suites, `--mode mock` 5/5 PASS.
+
 ---
 
 ## ⬜ Phase 9 — Packaging & Distribution

@@ -1,0 +1,26 @@
+add entity InvoiceItem {
+  name: text,
+  price: number,
+  quantity: number
+}
+
+compute subtotal from items {
+  where: quantity > 0
+}
+
+add entity Invoice {
+  currency: options("EUR", "USD"),
+  taxRate: number
+}
+
+compute total from invoice {
+  includes: tax
+}
+
+for item in items {
+  set item.lineTotal = compute(item.price * item.quantity)
+}
+
+send invoice to screen {
+  format: "json"
+}

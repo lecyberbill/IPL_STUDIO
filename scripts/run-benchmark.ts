@@ -28,6 +28,8 @@ import { callLLM, buildPass1Prompt, buildPass2Prompt, refineIPLArtifact, extract
 import type { LLMConfig, TargetLanguage } from '../src/engine/llmGenerator.ts';
 import { applyDeterministicRepairs } from '../src/engine/deterministicRepair.ts';
 import type { DeterministicRepair } from '../src/engine/deterministicRepair.ts';
+import { evaluateBehavior } from '../src/engine/behaviorAssert.ts';
+import type { BehaviorAssert } from '../src/engine/behaviorAssert.ts';
 
 // ---------------------------------------------------------------------------
 // CLI options
@@ -119,6 +121,7 @@ interface BenchSpec {
     marker?: string;
     markerCaseInsensitive?: boolean;
     forbid?: string[];
+    assert?: BehaviorAssert;
   };
 }
 
@@ -166,7 +169,12 @@ listen event on "checkout:completed" {
     set orderData.status = "pending"
   }
 }`,
-    verify: { command: 'python main.py' }
+    verify: {
+      command: 'python main.py',
+      // Behavioral proof: the generated app must actually process the order
+      // data from the spec (not just run) — same oracle as the typed-order golden.
+      assert: { stdoutContains: ['A-1001', 'processing'] }
+    }
   },
   {
     id: 'weather',
@@ -240,7 +248,12 @@ add message {
 compute timestamp from system
 send message to screen
 return success`,
-    verify: { command: 'node index.js', marker: 'Hello World' }
+    verify: {
+      command: 'node index.js',
+      marker: 'Hello World',
+      // Behavioral proof: the CLI must actually print the greeting at runtime.
+      assert: { stdoutContains: ['Hello World'] }
+    }
   }
 ];
 
@@ -303,10 +316,14 @@ function approxTokens(chars: number): number {
 /** Renders a canned artifact (mock mode) that should PASS the spec's checks. */
 function buildMockArtifact(spec: BenchSpec): string {
   const marker = spec.verify.marker ?? 'IPL Studio';
+  // Emit the behavioral needles too, so the mock (an oracle) satisfies the same
+  // runtime assertions the real generated apps are measured against.
+  const needles = (spec.verify.assert?.stdoutContains ?? []).map(n => n.replace(/"/g, '\\"'));
   if (spec.verify.command?.startsWith('python')) {
     return [
       '<file path="main.py">',
       `print("${marker}")`,
+      ...needles.map(n => `print("${n}")`),
       'print("IPL Studio 2-Pass generator: mock artifact")',
       '</file>'
     ].join('\n');
@@ -315,6 +332,7 @@ function buildMockArtifact(spec: BenchSpec): string {
     return [
       '<file path="index.js">',
       `console.log("${marker}");`,
+      ...needles.map(n => `console.log("${n}");`),
       '</file>'
     ].join('\n');
   }
@@ -424,27 +442,39 @@ function runCommand(cwd: string, command: string, timeoutMs: number, pythonPath?
 /**
  * Resolves a `python`/`python3` prefix in a shell command to a concrete
  * interpreter: a venv `Scripts` dir is prepended to PATH (or the venv's
- * `bin` on POSIX), otherwise a direct exe path replaces the command.
+ * `bin` on POSIX), otherwise a direct exe path replaces the command. With no
+ * explicit path, the first actually-present interpreter is probed
+ * (`python` -> `python3` -> `py`), mirroring the golden runner so Python specs
+ * are testable on machines that only ship `py`.
  */
 function resolvePythonCommand(command: string, pythonPath?: string): string {
-  if (!pythonPath) return command;
   if (!/^python(3|3\.\d+)?\b/.test(command)) return command;
-  try {
-    const isDir = existsSync(pythonPath) && statSync(pythonPath).isDirectory();
-    if (isDir) {
-      const pythons = ['python.exe', 'python3.exe', 'python', 'python3']
-        .map(name => pathResolve(pythonPath, name))
-        .find(p => existsSync(p));
-      if (pythons) {
-        const dirs = pathResolve(pythons, '..');
-        process.env.PATH = `${dirs}${process.platform === 'win32' ? ';' : ':'}${process.env.PATH ?? ''}`;
+  if (pythonPath) {
+    try {
+      const isDir = existsSync(pythonPath) && statSync(pythonPath).isDirectory();
+      if (isDir) {
+        const pythons = ['python.exe', 'python3.exe', 'python', 'python3']
+          .map(name => pathResolve(pythonPath, name))
+          .find(p => existsSync(p));
+        if (pythons) {
+          const dirs = pathResolve(pythons, '..');
+          process.env.PATH = `${dirs}${process.platform === 'win32' ? ';' : ':'}${process.env.PATH ?? ''}`;
+        }
+        return command;
       }
-      return command;
+    } catch {
+      // fall through to direct exe handling
     }
-  } catch {
-    // fall through to direct exe handling
+    return command.replace(/^python(3|3\.\d+)?/, `"${pathResolve(pythonPath)}"`);
   }
-  return command.replace(/^python(3|3\.\d+)?/, `"${pathResolve(pythonPath)}"`);
+  const candidates = ['python', 'python3', 'py'];
+  for (const c of candidates) {
+    const probe = spawnSync(c, ['--version'], { encoding: 'utf8', windowsHide: true });
+    if (probe.status === 0) {
+      return command.replace(/^python(3|3\.\d+)?/, c);
+    }
+  }
+  return command;
 }
 
 async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{ status: RunStatus; detail: string; output?: string }> {
@@ -485,6 +515,9 @@ async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{
     if (run.exitCode === 127 || run.exitCode === 9009) {
       return { status: 'WARN', detail: `toolchain not available (${spec.verify.command} not found on this machine)` };
     }
+
+    let commandOutput = run.output;
+    let commandExit = run.exitCode;
     if (run.exitCode !== 0) {
       if (/is not recognized as an internal|n'est pas reconnu|command not found|not recognized|ENOENT/i.test(run.output)) {
         return { status: 'WARN', detail: `toolchain not available (${spec.verify.command} not found on this machine)` };
@@ -497,10 +530,24 @@ async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{
       const retried = retryWithDiscoveredEntry(spec.verify.command, allFiles);
       if (retried) {
         const retry = runCommand(runDir, retried.command, args.timeoutRunMs, args.pythonPath);
-        if (retry.exitCode === 0) return { status: 'PASS', detail: `verified OK (entry discovered as ${retried.entry})` };
-        return { status: 'FAIL', detail: `${spec.verify.command} failed (${run.output.slice(0, 120)}) — retried ${retried.command}: ${retry.output.slice(0, 160) || `exit ${retry.exitCode}`}`, output: `${run.output}\n--- retried ---\n${retry.output}` };
+        if (retry.exitCode === 0) {
+          commandOutput = retry.output;
+          commandExit = retry.exitCode;
+        } else {
+          return { status: 'FAIL', detail: `${spec.verify.command} failed (${run.output.slice(0, 120)}) — retried ${retried.command}: ${retry.output.slice(0, 160) || `exit ${retry.exitCode}`}`, output: `${run.output}\n--- retried ---\n${retry.output}` };
+        }
+      } else {
+        return { status: 'FAIL', detail: `exit code ${run.exitCode}: ${run.output.slice(0, 200)}`, output: run.output };
       }
-      return { status: 'FAIL', detail: `exit code ${run.exitCode}: ${run.output.slice(0, 200)}`, output: run.output };
+    }
+
+    // Behavioral assertions on the successful run's actual output (not just the
+    // presence of a marker): exit code, regex, stdin-fed lines, JSON paths.
+    if (spec.verify.assert) {
+      const { failures } = evaluateBehavior(commandOutput, '', commandExit, spec.verify.assert);
+      if (failures.length > 0) {
+        return { status: 'FAIL', detail: `behavior failed: ${failures.join('; ')}`, output: commandOutput };
+      }
     }
   }
 

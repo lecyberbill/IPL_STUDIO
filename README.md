@@ -156,7 +156,7 @@ Never expose this server to an untrusted network.
 npm test        # one-shot
 npm run test:watch
 ```
-**133 tests across 11 suites** cover the IPL parser, the semantic analyzer, the reference index (go-to-def), the grammar signature, the store slices, the reusable dev-server middleware, and golden execution fixtures.
+**148 tests across 12 suites** cover the IPL parser, the semantic analyzer, the reference index (go-to-def), the grammar signature, the behavioral assertions (exit code / stdout / structured-JSON checks), the store slices, the reusable dev-server middleware, and golden execution fixtures.
 
 ### 5. Run the Automated Benchmark Harness
 ```bash

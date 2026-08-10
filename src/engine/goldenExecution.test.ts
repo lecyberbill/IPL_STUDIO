@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { parseMultiFileXml } from './artifactGenerator';
+import { evaluateBehavior } from './behaviorAssert';
+import type { BehaviorAssert } from './behaviorAssert';
 
 /**
  * Golden execution tests — the "does the generated app actually run?" proof.
@@ -13,7 +15,9 @@ import { parseMultiFileXml } from './artifactGenerator';
  *     of the parser itself),
  *  2. the resulting files are written to a temp dir,
  *  3. the configured command is executed,
- *  4. exit code + stdout are asserted against golden.json.
+ *  4. the output is checked against golden.json — exit code, stdout contains /
+ *     regex, stdin-fed lines, and structured JSON-path assertions
+ *     (evaluateBehavior).
  *
  * The artifacts are frozen outputs (no LLM involved) so the suite is
  * deterministic. Fixtures requiring a missing runtime (e.g. python) are
@@ -22,17 +26,12 @@ import { parseMultiFileXml } from './artifactGenerator';
 
 const GOLDEN_ROOT = path.resolve(process.cwd(), 'golden');
 
-interface GoldenAssert {
-  exitCode?: number;
-  stdoutContains?: string[];
-}
-
 interface GoldenSpec {
   id: string;
   name: string;
   targetLang: string;
   command: string;
-  assert: GoldenAssert;
+  assert: BehaviorAssert;
 }
 
 interface RuntimeInfo {
@@ -90,6 +89,7 @@ function runGolden(g: GoldenSpec, runtime: RuntimeInfo): { exitCode: number | nu
       cwd: runDir,
       shell: true,
       timeout: 15_000,
+      input: g.assert.stdinLines?.join('\n'),
       encoding: 'utf8',
       windowsHide: true
     });
@@ -115,11 +115,9 @@ describe('golden execution (frozen artifacts must actually run)', () => {
       const fullOutput = `${stdout}\n${stderr}`.trim();
 
       expect(fullOutput, `exit code was ${exitCode}`).not.toBe('');
-      expect(exitCode, `expected exit ${g.assert.exitCode ?? 0}, got ${exitCode}. Output:\n${fullOutput}`).toBe(g.assert.exitCode ?? 0);
 
-      for (const needle of g.assert.stdoutContains ?? []) {
-        expect(fullOutput, `stdout did not contain "${needle}". Output:\n${fullOutput}`).toContain(needle);
-      }
+      const { failures } = evaluateBehavior(stdout, stderr, exitCode, g.assert);
+      expect(failures, `Behavior failures.\nOutput:\n${fullOutput}`).toEqual([]);
     });
   }
 });

@@ -106,6 +106,14 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## 🚧 [Unreleased]
 
+### 🎯 Behavioral Assertions — tests prove *what the app does*, not just that it runs
+- **New pure evaluator `src/engine/behaviorAssert.ts`** (14 unit tests): a declarative `BehaviorAssert` verifies exit code, stdout `contains`/`regex`, and **structured JSON-path assertions** (`equals`, `matches`, `gt/lt`, `arrayLength`, nested paths like `items.0.name`, array `length`) with tolerant JSON extraction (whole output, or the largest `{...}` block when logs surround the payload).
+- **New golden fixture `golden/billing-python/`**: a real invoice app whose frozen artifact is verified against strict JSON behaviour (`items.length = 2`, `subtotal = 88.9`, `total = 106.68`, `currency = "EUR"`, `total > 0`) — the frozen-oracle proof that the DSL's intent is translated exactly, not just executed.
+- **Golden runner upgraded**: `goldenExecution.test.ts` now checks every fixture through `evaluateBehavior` and feeds optional `stdinLines` to the spawned process.
+- **Benchmark harness upgraded**: `run-benchmark.ts` specs can declare `verify.assert`; `typed-order` and `node-hello` now require the *runtime output* to contain the spec's data (`A-1001`/`processing`, `Hello World`) — not just a marker in the files. The mock oracle emits the same needles so `--mode mock` validates the behavior path offline.
+- **Benchmark python resolution fixed**: `runCommand` now probes `python` → `python3` → `py` (mirroring the golden runner), so Python specs run on machines that only ship `py`.
+- Suite grows to **148 tests across 12 suites**.
+
 ### 📦 Bundle & Performance Budget
 - **App entry chunk: 4.79 MB → 299 kB** (gzip 1.24 MB → 82.8 kB). `build.rolldownOptions.output.codeSplitting` groups isolate `monaco-vendor` (4.3 MB, cacheable), `react-vendor` (300 kB), `xterm-vendor` (280 kB) and `ui-vendor` (19.6 kB) into their own chunks — the critical path is now the tiny app shell + parallel vendor downloads.
 - **4 `INEFFECTIVE_DYNAMIC_IMPORT` warnings eliminated**: `generationSlice`/`diskSlice` used `await import()` on engine modules that were already statically imported elsewhere, so the dynamic imports never created chunks — they are now plain static imports (behavior unchanged, build output clean).

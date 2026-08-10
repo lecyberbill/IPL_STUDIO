@@ -1,0 +1,36 @@
+<file path="main.py">
+import json
+from dataclasses import dataclass
+
+
+@dataclass
+class InvoiceItem:
+    name: str
+    price: float
+    quantity: int
+
+
+def build_invoice():
+    items = [
+        InvoiceItem("Keyboard", 49.90, 1),
+        InvoiceItem("Mouse", 19.50, 2),
+    ]
+    subtotal = round(sum(i.price * i.quantity for i in items), 2)
+    tax = round(subtotal * 0.20, 2)
+    total = round(subtotal + tax, 2)
+    return {
+        "currency": "EUR",
+        "subtotal": subtotal,
+        "tax": tax,
+        "total": total,
+        "items": [
+            {"name": i.name, "price": i.price, "quantity": i.quantity}
+            for i in items
+        ],
+    }
+
+
+if __name__ == "__main__":
+    invoice = build_invoice()
+    print(json.dumps(invoice, indent=2))
+</file>
