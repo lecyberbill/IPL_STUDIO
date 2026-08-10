@@ -4,7 +4,9 @@ import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 import { useIdeStore } from '../store/useIdeStore';
 import { defaultOutputDir } from '../engine/paths';
-import { Play, Terminal as TerminalIcon, Trash2, RefreshCw, Bot } from 'lucide-react';
+import { isCommandAllowed } from '../engine/security';
+import { apiFetch } from '../services/api';
+import { Play, Terminal as TerminalIcon, Trash2, RefreshCw, Bot, ShieldAlert } from 'lucide-react';
 
 export const TerminalPanel: React.FC = () => {
   const terminalRef = useRef<HTMLDivElement>(null);
@@ -13,6 +15,7 @@ export const TerminalPanel: React.FC = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [commandInput, setCommandInput] = useState('');
   const [clarificationInput, setClarificationInput] = useState('');
+  const [pendingConfirmCommand, setPendingConfirmCommand] = useState<string | null>(null);
 
   const { projects, activeProjectId, targetLang, writeArtifactToDisk, autoDebugAndFix, answerClarification, pendingClarification, addLog } = useIdeStore();
   const activeProject = projects.find(p => p.id === activeProjectId);
@@ -80,17 +83,8 @@ export const TerminalPanel: React.FC = () => {
     };
   }, []);
 
-  const runProjectCommand = async (customCmd?: string) => {
+  const runProjectCommand = async (customCmd?: string, confirmed = false) => {
     if (isRunning) return;
-    setIsRunning(true);
-
-    const term = xtermInstance.current;
-    if (term) {
-      term.clear();
-      term.writeln('\x1b[1;34m[Disk] Writing project artifact files to disk...\x1b[0m');
-    }
-
-    await writeArtifactToDisk();
 
     let cmdToRun = customCmd || commandInput.trim();
     if (!cmdToRun) {
@@ -103,20 +97,42 @@ export const TerminalPanel: React.FC = () => {
       else cmdToRun = 'python main.py';
     }
 
+    // Allow-list: commands outside the recognized set need explicit approval.
+    if (!confirmed && !isCommandAllowed(cmdToRun)) {
+      setPendingConfirmCommand(cmdToRun);
+      return;
+    }
+
+    setIsRunning(true);
+
+    const term = xtermInstance.current;
+    if (term) {
+      term.clear();
+      term.writeln('\x1b[1;34m[Disk] Writing project artifact files to disk...\x1b[0m');
+    }
+
+    await writeArtifactToDisk();
+
     if (term) {
       term.writeln(`\x1b[1;32m$ ${cmdToRun}\x1b[0m`);
       term.writeln(`\x1b[90mExecuting inside ${outputDir}...\x1b[0m\n`);
     }
 
     try {
-      const response = await fetch('/api/run-command', {
+      const response = await apiFetch('/api/run-command', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           command: cmdToRun,
           cwd: outputDir
         })
       });
+
+      if (response.status === 403) {
+        const errData = await response.json();
+        term?.writeln(`\r\n\x1b[1;31m[Blocked by server policy: ${errData.error}]\x1b[0m`);
+        addLog(`Command blocked by server policy: ${errData.error}`, 'error');
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(`HTTP Error ${response.status}`);
@@ -226,6 +242,35 @@ export const TerminalPanel: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Command approval — the command is not in the recognized allow-list */}
+      {pendingConfirmCommand && (
+        <div className="px-3 py-2 border-b border-[#2a2f42] bg-[#1a1410]">
+          <div className="text-[11px] text-orange-300 font-semibold mb-1 flex items-center gap-1">
+            <ShieldAlert size={12} /> Command requires your approval
+          </div>
+          <div className="text-[11px] text-gray-300 font-mono mb-2 break-all">$ {pendingConfirmCommand}</div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const cmd = pendingConfirmCommand;
+                setPendingConfirmCommand(null);
+                runProjectCommand(cmd, true);
+              }}
+              disabled={isRunning}
+              className="px-3 py-1 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-black font-bold rounded text-[11px] transition-all shadow"
+            >
+              Allow once
+            </button>
+            <button
+              onClick={() => setPendingConfirmCommand(null)}
+              className="px-3 py-1 bg-[#161922] border border-[#2a2f42] hover:bg-[#1e2230] text-gray-300 font-semibold rounded text-[11px] transition-all"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Clarification prompt — the agent paused because the LLM needs a precision */}
       {pendingClarification && (

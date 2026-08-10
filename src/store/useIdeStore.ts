@@ -6,6 +6,7 @@ import { DEFAULT_LLM_CONFIG, generateIPL } from '../engine/llmGenerator';
 import type { SyntaxErrorItem, IPLVerb } from '../engine/iplGrammar';
 import { validateIPLCode } from '../engine/iplGrammar';
 import { defaultOutputDir } from '../engine/paths';
+import { apiFetch } from '../services/api';
 
 export interface LogEntry {
   id: string;
@@ -566,14 +567,37 @@ export const useIdeStore = create<IDEState>()(
           const { buildProjectArtifact } = await import('../engine/artifactGenerator');
           const artifact = buildProjectArtifact(proj.name, targetLang, generatedCode, code);
 
-          const response = await fetch('/api/write-artifact', {
+          const performWrite = (): Promise<Response> => apiFetch('/api/write-artifact', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               outputDir: targetDir,
               files: artifact.files
             })
           });
+
+          let response = await performWrite();
+
+          // Sandbox: external output folders require an explicit user confirmation
+          // before the server will write there. Ask once, persist server-side, retry.
+          if (response.status === 403) {
+            const errData = await response.json();
+            if (errData.code === 'PATH_CONFIRMATION_REQUIRED' && errData.path) {
+              const confirmed = window.confirm(
+                `Allow IPL Studio to write into the external folder:\n\n${errData.path}\n\n`
+                + 'This directory is outside the project workspace. You already selected it as this project\'s output folder. Confirm to continue.'
+              );
+              if (confirmed) {
+                await apiFetch('/api/confirm-path', {
+                  method: 'POST',
+                  body: JSON.stringify({ path: errData.path })
+                });
+                response = await performWrite();
+              } else {
+                addLog('Disk write cancelled: external output directory was not confirmed.', 'warn');
+                return false;
+              }
+            }
+          }
 
           if (response.ok) {
             const data = await response.json();
@@ -600,9 +624,8 @@ export const useIdeStore = create<IDEState>()(
           : defaultOutputDir(proj.name);
 
         try {
-          const response = await fetch('/api/read-disk', {
+          const response = await apiFetch('/api/read-disk', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ outputDir: targetDir })
           });
 
@@ -922,11 +945,15 @@ export const useIdeStore = create<IDEState>()(
 
           let outputLog = '';
           try {
-            const response = await fetch('/api/run-command', {
+            const response = await apiFetch('/api/run-command', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ command: cmdToRun, cwd: outputDir })
             });
+            if (response.status === 403) {
+              const errData = await response.json();
+              addLog(`[Security] Command blocked: ${errData.error}`, 'error');
+              return false;
+            }
             const text = await response.text();
             outputLog = text;
           } catch (err: any) {
@@ -1069,11 +1096,15 @@ export const useIdeStore = create<IDEState>()(
           addLog(`[Coding Agent 🤖] Re-running "${cmdToRun}" to verify...`, 'info');
           let outputLog = '';
           try {
-            const response = await fetch('/api/run-command', {
+            const response = await apiFetch('/api/run-command', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ command: cmdToRun, cwd: outputDir })
             });
+            if (response.status === 403) {
+              const errData = await response.json();
+              addLog(`[Security] Command blocked: ${errData.error}`, 'error');
+              return false;
+            }
             outputLog = await response.text();
           } catch (err: any) {
             outputLog = err.message;

@@ -114,6 +114,33 @@ npm run dev
 ```
 Open your browser at [http://localhost:5173](http://localhost:5173).
 
+### 3b. Secure the Dev Server (Phase 8)
+
+The in-app terminal / disk / git endpoints (`/api/run-command`, `/api/write-artifact`,
+`/api/read-disk`, `/api/confirm-path`, `/api/git/*`) are only active on the local
+dev server and are hardened out of the box:
+
+- **Loopback-only**: requests with a non-`localhost` `Host` header are rejected
+  (DNS-rebinding guard, enforced twice — Vite's `allowedHosts` + our middleware).
+- **Token auth (optional)**: set `IPL_DEV_TOKEN` (env or `.env`) to require the
+  `X-IPL-Token` header on every API call. The browser tab attaches it automatically.
+- **External write confirmation**: writing outside the project workspace now
+  requires an explicit user confirmation (the app asks once, then retries).
+- **Command allow-list (optional)**: set `IPL_ALLOWED_COMMANDS=node,python` (comma
+  separated) to restrict `/api/run-command` server-side. Without it, the terminal
+  panel still flags commands outside its recognized set and asks for approval.
+
+Disable the dev APIs entirely (unless auth is configured) with:
+
+```bash
+npm run dev:secure      # sets IPL_PRODUCTION=1, boots Vite normally
+# or: IPL_PRODUCTION=1 npm run dev
+```
+
+Without `IPL_DEV_TOKEN`, `dev:secure` refuses every API call with `403`; with a
+token configured the endpoints stay usable by the app but remain token-guarded.
+Never expose this server to an untrusted network.
+
 ### 4. Run the Test Suite
 ```bash
 npm test        # one-shot

@@ -109,8 +109,10 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 - Command execution allow-list + confirmation in the terminal panel.
 
 **Acceptance criteria**:
-- [ ] A `--production` flag disables all dev endpoints unless auth is configured.
-- [ ] No endpoint writes outside an explicit, user-confirmed target directory.
+- [x] A `--production` flag disables all dev endpoints unless auth is configured.
+- [x] No endpoint writes outside an explicit, user-confirmed target directory.
+
+**Status**: 🟢 done — loopback-only guard (DNS-rebinding: Host + cross-origin Origin), optional token auth (`IPL_DEV_TOKEN` via `X-IPL-Token` header), `--production`/`IPL_PRODUCTION=1`/`npm run dev:secure` disables every dev endpoint unless a token is set, external writes require an explicit confirmation (`/api/confirm-path` + 403 `PATH_CONFIRMATION_REQUIRED` retry in the UI), optional server-side command allow-list (`IPL_ALLOWED_COMMANDS`) plus a client-side confirmation for unrecognized commands in the terminal panel. All calls route through `src/services/api.ts` (`apiFetch`).
 
 ---
 

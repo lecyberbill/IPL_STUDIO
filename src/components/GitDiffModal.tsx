@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { DiffEditor } from '@monaco-editor/react';
 import { useIdeStore } from '../store/useIdeStore';
 import { defaultOutputDir } from '../engine/paths';
+import { apiFetch } from '../services/api';
 import { GitCompare, X, GitCommit, RefreshCw, FileText } from 'lucide-react';
 
 interface GitDiffModalProps {
@@ -24,11 +25,11 @@ export const GitDiffModal: React.FC<GitDiffModalProps> = ({ isOpen, onClose }) =
   const fetchGitData = async () => {
     setIsLoading(true);
     try {
-      const statusRes = await fetch(`/api/git/status?cwd=${encodeURIComponent(outputDir)}`);
+      const statusRes = await apiFetch(`/api/git/status?cwd=${encodeURIComponent(outputDir)}`);
       const statusJson = await statusRes.json();
       setGitStatus(statusJson.status || statusJson.error || 'No git status');
 
-      const diffRes = await fetch(`/api/git/diff?cwd=${encodeURIComponent(outputDir)}`);
+      const diffRes = await apiFetch(`/api/git/diff?cwd=${encodeURIComponent(outputDir)}`);
       const diffJson = await diffRes.json();
       setGitDiffRaw(diffJson.diff || 'No pending git changes.');
     } catch (err: any) {
@@ -50,9 +51,8 @@ export const GitDiffModal: React.FC<GitDiffModalProps> = ({ isOpen, onClose }) =
 
     setIsCommitting(true);
     try {
-      const res = await fetch('/api/git/commit', {
+      const res = await apiFetch('/api/git/commit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           cwd: outputDir,
           message: commitMessage.trim()
