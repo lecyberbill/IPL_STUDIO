@@ -31,16 +31,34 @@ Contrat `verify.assert` : `currency="EUR"`, `vehicles.length=2`, `vehicles.0.pla
 | 2026-08-10 14:14 | local | `gpt-oss-20b` | FAIL | FAIL | -1 | ~11 min | Même bug reproductible `.config`→`..config` ; `main.py` déplacé dans `src/`. `python src/main.py` casse les imports `from src.*` (src hors sys.path). |
 | 2026-08-10 14:28 | local | `gpt-oss-20b` | FAIL | FAIL | -1 | ~7 min | Après fix déterministe d'import (pass 1 rewrote `.config`→`..config` ✓), mais `main.py` dans `src/` non lançable par le harness ; quand on le lance via `python -m src.main` il tourne mais avec de **mauvaises valeurs** (exit_minute=480 → cost=40/32 au lieu de 8.0/6.4) : le modèle a régénéré des données hors contrat. |
 | 2026-08-10 14:41 | local | `gpt-oss-20b` | FAIL | FAIL | -1 | ~6 min | Nouvelle variation : imports absolus `from models.vehicle` au lieu de `from src.models.vehicle` → ModuleNotFoundError même avec `python -m src.main`. Le modèle est **instable** : 1 run conforme sur 4, chacun avec des erreurs de code différentes. |
+| 2026-08-10 14:53 | local | `gpt-oss-20b` | **PASS** | FAIL | 3 | ~5 min | **Premier succès local** : les 3 fixes harness (fence ouvrante, import relatif `.config`→`..config`, retry `python -m`) ont suffi à mettre le code sur les rails, puis 3 passes LLM de réparation ont convergé. JSON goldénique (`AB-123` 8.0, `VIP-7` 6.4, `grandTotal` 14.4). |
 
 ### Synthèse
 
 - **Cloud** (`deepseek-chat`) : 1/1 PASS — le droit à l'erreur (2 réparations) suffit quand le contrat comportemental est communiqué.
-- **Local** : 0/9 PASS. Tous les modèles locaux génèrent du code structurellement plausible mais échouent sur :
+- **Local** : 1/10 PASS (gpt-oss-20b 14:53, via 3 réparations). Tous les modèles locaux génèrent du code structurellement plausible mais échouent sur :
   1. le **`main()` d'exécution complet** reproduisant les données exactes de la spec (plates, taux, taux VIP),
   2. la **sortie JSON conforme au contrat** (absence d'array `vehicles`, `grandTotal`, mauvais type),
   3. la **non-pollution du stdout** (artefacts d'exemple imprimés à l'import).
 - **Le contexte n'était pas le goulot** : le passage 8000 → 16k/32k n'a pas suffi ; le plafond est la capacité du modèle à produire un programme autonome conforme.
-- **`gpt-oss-20b` est le candidat local le plus proche** : 1 run sur 4 était conforme (run 14:02), bloqué uniquement par des erreurs mécaniques désormais corrigées dans le harness. Mais le modèle est **instable** d'un run à l'autre (imports relatifs/absolus incohérents, données hors contrat régénérées).
+- **`gpt-oss-20b` est le candidat local le plus proche** : 1 run sur 4 était conforme (run 14:02), bloqué uniquement par des erreurs mécaniques désormais corrigées dans le harness. Mais le modèle est **instable** d'un run à l'autre (imports relatifs/absolus incohérents, données hors contrat régénérées). Avec les 3 fixes harness, un run de réparation a finalement **convergé (PASS, 14:53)**.
+
+### Coût en tokens : IPL vs prompt naturel
+
+L'IPL est conçu pour **économiser des tokens** par rapport à un prompt en langage naturel de même intention. Mesure réelle (comptage approximatif `chars/4`, ~1 token par mot) :
+
+| Input | Longueur | ~Tokens (chars/4) |
+| :--- | :---: | :---: |
+| Spec IPL `parking` (32 lignes structurées, `golden/parking-python/spec.ipl`) | 847 chars | ~211 |
+| Prompt naturel équivalent rédigé comme le ferait un développeur | 1 251 chars | ~312 |
+
+- Le prompt naturel de référence exprime le même contrat (2 entités, événement `vehicle:exit`, contrainte `exitMinute > entryMinute`, formules, remise VIP, format JSON, données de démo `AB-123`/`VIP-7` avec coûts attendus 8.0/6.4/14.4) en ~312 tokens. La spec IPL encode la même information en ~211 tokens : **~32 % d'économie à l'entrée**.
+- L'économie vient surtout de la **structure compacte** (sections dédiées, types, formules, format de sortie) qui élimine la redondance de la prose (prépositions, formulation, reprise du sujet). Elle s'amplifie avec la complexité : plus un scénario a d'entités/règles, plus la prose se redouble, alors que l'IPL croît presque linéairement.
+- **Mesure honnête** : sur ce scénario simple, l'économie est modérée (~1/3). L'écart se joue vraiment sur 3 leviers complémentaires :
+  1. **Entrée (spec)** : ~211 vs ~312 tokens.
+  2. **Réparation** : le prompt de réparation sérialise le contrat `verify.assert` (JSON) — identique en taille pour les deux modes, mais l'IPL l'exprime nativement dans la spec au lieu de le répéter en prose.
+  3. **Sortie** : la spec IPL guide une sortie structurée (le générateur a un contrat explicite), ce qui réduit les allers-retours de réparation (le run PASS local 14:53 a convergé en 3 passes).
+- **À mesurer ensuite** : économie réelle en tokens de sortie + taux de succès one-shot sur les 32 specs du corpus, pas seulement le scénario parking.
 
 ### Fixes harness dérivés de ce diagnostic
 
