@@ -618,15 +618,27 @@ async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{
         return { status: 'WARN', detail: `entry missing (${spec.verify.command}) — generated app may be browser-based` };
       }
       // The entry file may live in a subdirectory (e.g. src/main.py). Retry with
-      // the discovered path before failing.
+      // the discovered path(s) before failing.
       const retried = retryWithDiscoveredEntry(spec.verify.command, allFiles);
       if (retried) {
-        const retry = runCommand(runDir, retried.command, args.timeoutRunMs, args.pythonPath);
-        if (retry.exitCode === 0) {
-          commandOutput = retry.output;
-          commandExit = retry.exitCode;
-        } else {
-          return { status: 'FAIL', detail: `${spec.verify.command} failed (${run.output.slice(0, 120)}) — retried ${retried.command}: ${retry.output.slice(0, 160) || `exit ${retry.exitCode}`}`, output: `${run.output}\n--- retried ---\n${retry.output}` };
+        let retryOk = false;
+        let lastRetryOutput = '';
+        for (const attempt of retried) {
+          const retry = runCommand(runDir, attempt.command, args.timeoutRunMs, args.pythonPath);
+          lastRetryOutput = retry.output;
+          if (retry.exitCode === 0) {
+            commandOutput = retry.output;
+            commandExit = retry.exitCode;
+            retryOk = true;
+            break;
+          }
+        }
+        if (!retryOk) {
+          return {
+            status: 'FAIL',
+            detail: `${spec.verify.command} failed (${run.output.slice(0, 120)}) — retried ${retried.map(a => a.command).join(' | ')}: ${lastRetryOutput.slice(0, 160) || 'non-zero exit'}`,
+            output: `${run.output}\n--- retried ---\n${lastRetryOutput}`
+          };
         }
       } else {
         return { status: 'FAIL', detail: `exit code ${run.exitCode}: ${run.output.slice(0, 200)}`, output: run.output };
@@ -652,8 +664,13 @@ async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{
  * the command to use the discovered path. As a last resort, try the shallowest
  * conventional entry file (main/app/index) so a structurally different but
  * runnable app is measured as runnable rather than misnamed.
+ *
+ * For Python entry files that live inside a package (a directory with an
+ * `__init__.py`), also emit a `python -m <pkg.module>` variant: `python
+ * src/main.py` puts `src/` on sys.path, which breaks `from src.* import ...`
+ * imports, whereas `python -m src.main` keeps the run root on sys.path.
  */
-function retryWithDiscoveredEntry(command: string, allFiles: string[]): { command: string; entry: string } | null {
+function retryWithDiscoveredEntry(command: string, allFiles: string[]): { command: string; entry: string }[] | null {
   const m = /^((?:python(?:3|3\.\d+)?|node)\s+)([\w./-]+\.\w+)(.*)$/.exec(command);
   if (!m) return null;
   const ext = m[2].endsWith('.py') ? '.py' : '.js';
@@ -667,8 +684,29 @@ function retryWithDiscoveredEntry(command: string, allFiles: string[]): { comman
         .filter(f => /(^|[\\/])(main|app|index)(\.\w+)?$/.test(f.replace(/\\/g, '/')))
   ).sort((a, b) => depth(a) - depth(b));
   if (candidates.length === 0) return null;
-  const entry = candidates[0].replace(/\\/g, '/');
-  return { command: `${m[1]}${entry}${m[3]}`, entry };
+
+  const retries: { command: string; entry: string }[] = [];
+  const root = (f: string) => f.replace(/[\\/]/g, '/');
+  for (const c of candidates) {
+    const entry = root(c);
+    const direct = `${m[1]}${entry}${m[3]}`;
+    retries.push({ command: direct, entry });
+    if (ext === '.py') {
+      const parts = entry.split('/');
+      const fileName = parts.pop();
+      const pkgDir = parts.join('/');
+      if (pkgDir && fileName && !fileName.endsWith('.pyc')) {
+        const pkgRoot = parts.slice(0, -1);
+        const pkgModule = [...parts, fileName.replace(/\.py$/, '')].join('.');
+        const isPackage = (dir: string) => allFiles.some(f => root(f) === `${dir}/__init__.py`);
+        // Only the `-m` form is useful when the file lives inside a package.
+        if (isPackage(pkgDir) || pkgRoot.some(dir => isPackage(dir))) {
+          retries.push({ command: `${m[1]}-m ${pkgModule}${m[3]}`, entry });
+        }
+      }
+    }
+  }
+  return retries;
 }
 
 // ---------------------------------------------------------------------------

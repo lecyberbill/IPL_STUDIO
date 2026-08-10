@@ -67,8 +67,51 @@ export function applyDeterministicRepairs(files: DeterministicRepair[]): Determi
       }
     }
 
+    if (/\.py$/i.test(f.relativePath)) {
+      const fixedImports = fixPythonRelativeImports(content, f.relativePath, files);
+      if (fixedImports !== content) {
+        applied.push(`${f.relativePath}: rewrote relative import that referenced a module in a sibling directory`);
+        content = fixedImports;
+      }
+    }
+
     return { relativePath: f.relativePath, content };
   });
 
   return { files: repaired, applied };
+}
+
+/**
+ * Fixes Python relative imports like `from .config import X` in
+ * `src/models/foo.py` when `config.py` actually lives in the parent directory
+ * (`src/config.py`), i.e. the module referenced by `.config` does not exist in
+ * the current package but does exist in the parent. Only rewrites when the
+ * target is verifiably resolvable, so a legitimate sibling import is untouched.
+ */
+function fixPythonRelativeImports(content: string, relativePath: string, files: DeterministicRepair[]): string {
+  const parts = relativePath.split(/[\\/]/);
+  const fileName = parts.pop();
+  if (!fileName || !fileName.endsWith('.py')) return content;
+  if (fileName === '__init__.py') return content;
+  if (parts.length === 0) return content;
+
+  const currentPkg = parts.join('/');
+  const parentPkg = parts.slice(0, -1).join('/');
+  const has = (pkg: string, module: string) => {
+    const asFile = files.some(f => f.relativePath.replace(/[\\/]/g, '/') === `${pkg}/${module}.py`);
+    const asPkg = files.some(f => f.relativePath.replace(/[\\/]/g, '/').startsWith(`${pkg}/${module}/`));
+    return asFile || asPkg;
+  };
+
+  // `from .X import ...` -> `from ..X import ...` when X is only in the parent.
+  return content.replace(
+    /^(\s*)from\s+\.([A-Za-z_][\w.]*)\s+import\b/gm,
+    (m, indent: string, moduleChain: string) => {
+      const [first] = moduleChain.split('.');
+      const siblingExists = has(currentPkg, first);
+      const parentExists = parentPkg !== '' && has(parentPkg, first);
+      if (siblingExists || !parentExists) return m;
+      return `${indent}from ..${moduleChain} import`;
+    }
+  );
 }

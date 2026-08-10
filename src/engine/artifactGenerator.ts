@@ -107,6 +107,9 @@ export function parseMultiFileXml(rawOutput: string, existingFiles: ProjectArtif
     
     // Clean up trailing markdown code fences if any
     rawContent = rawContent.replace(/```\s*$/i, '');
+    // Clean up a leading markdown code fence ("```python\n") if the model
+    // wrapped the whole file content in a fence.
+    rawContent = rawContent.replace(/^\s*```[a-zA-Z0-9_+-]*\s*\n/i, '');
 
     const cleanContent = rawContent.trim();
     if (current.path && cleanContent) {
