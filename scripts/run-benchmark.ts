@@ -741,16 +741,13 @@ async function repairAndVerify(
         );
 
         // The model cannot fix confidently without a precision. In the harness
-        // there is no user to answer — record it honestly instead of guessing.
+        // there is no user to answer — a clarification request is a failed
+        // repair pass (the model discusses instead of fixing), not a terminal
+        // WARN that awaits human input. Record it and consume the pass.
         const clarification = extractClarificationRequest(fixed);
         if (clarification) {
           repairDetails.push(`pass ${pass} [llm]: NEED_CLARIFICATION — ${clarification}`);
-          return {
-            v: { status: 'WARN', detail: `clarification requested by model: ${clarification}` },
-            repairsToSuccess: -1,
-            repairDetails,
-            firstTryStatus: firstTry.status
-          };
+          continue;
         }
 
         const existingFiles = parseMultiFileXml(existingXml);
@@ -840,6 +837,12 @@ function buildTrendSection(historyPath: string, runId: string, results: RunResul
 // Report
 // ---------------------------------------------------------------------------
 
+function endpointForMode(config: LLMConfig, mode: LLMConfig['mode']): string {
+  if (mode === 'external') return config.externalEndpoint;
+  if (mode === 'lmstudio') return config.lmStudioEndpoint || config.localEndpoint;
+  return config.localEndpoint;
+}
+
 function buildReport(args: CliArgs, config: LLMConfig, results: RunResult[]): string {
   const lines: string[] = [];
   lines.push('# 📊 IPL Studio — Automated Benchmark Report');
@@ -847,7 +850,7 @@ function buildReport(args: CliArgs, config: LLMConfig, results: RunResult[]): st
   lines.push(`- **Date**: ${new Date().toISOString()}`);
   lines.push(`- **Engine**: 2-Pass LLM Generator (Pass 1 topology + Pass 2 XML)`);
   lines.push(`- **Mode**: ${args.mode}${args.mode === 'mock' ? ' (offline pipeline smoke test)' : ''}`);
-  if (args.mode !== 'mock') lines.push(`- **Model**: ${config.model} · **Endpoint**: ${config.externalEndpoint || config.lmStudioEndpoint || config.localEndpoint}`);
+  if (args.mode !== 'mock') lines.push(`- **Model**: ${config.model} · **Endpoint**: ${endpointForMode(config, args.mode)}`);
   lines.push(`- **Iterations per spec**: ${args.iterations}`);
   lines.push('');
 
@@ -955,7 +958,7 @@ async function main(): Promise<number> {
   const runId = new Date().toISOString().replace(/[:.]/g, '-');
 
   console.log(`IPL Studio Benchmark — mode=${args.mode} iterations=${args.iterations}`);
-  if (args.mode !== 'mock') console.log(`Model: ${config.model} · Endpoint: ${config.externalEndpoint || config.lmStudioEndpoint || config.localEndpoint}`);
+  if (args.mode !== 'mock') console.log(`Model: ${config.model} · Endpoint: ${endpointForMode(config, args.mode)}`);
   console.log('');
 
   const results: RunResult[] = [];
@@ -1026,7 +1029,7 @@ async function main(): Promise<number> {
     date: new Date().toISOString(),
     mode: args.mode,
     model: config.model,
-    endpoint: config.externalEndpoint || config.lmStudioEndpoint || config.localEndpoint || '',
+    endpoint: endpointForMode(config, args.mode),
     specs: results.map(r => ({
       id: r.specId,
       firstTryStatus: r.firstTryStatus,
