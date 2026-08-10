@@ -218,6 +218,13 @@ describe('settingsSlice', () => {
     expect(store.getState().rightSidebarWidth).toBe(950);
   });
 
+  it('completeWelcome persists the first-run onboarding flag', () => {
+    const store = createTestStore();
+    expect(store.getState().hasSeenWelcome).toBe(false);
+    store.getState().completeWelcome();
+    expect(store.getState().hasSeenWelcome).toBe(true);
+  });
+
   it('setPolyglotConfig persists the config onto the active project', () => {
     const store = createTestStore();
     const custom = { ...DEFAULT_POLYGLOT_CONFIG, autoDecide: false };
@@ -240,6 +247,25 @@ describe('generationSlice', () => {
   it('answerClarification returns false when no clarification is pending', async () => {
     const store = createTestStore();
     expect(await store.getState().answerClarification('yes')).toBe(false);
+  });
+
+  it('clearGenerationError dismisses a surfaced generation error', () => {
+    const store = createTestStore();
+    expect(store.getState().generationError).toBeNull();
+    store.setState({ generationError: 'boom' });
+    store.getState().clearGenerationError();
+    expect(store.getState().generationError).toBeNull();
+  });
+
+  it('runGeneration surfaces and then clears generation errors', async () => {
+    const store = createTestStore();
+    // Force pass 2 (the streaming call) to reject: same config, stubbed fetch.
+    vi.mocked(fetch).mockRejectedValue(new Error('connection refused'));
+    await store.getState().runGeneration();
+    expect(store.getState().generationError).toBe('connection refused');
+    // A new run clears the previous error (even if it fails again it re-surfaces).
+    store.getState().clearGenerationError();
+    expect(store.getState().generationError).toBeNull();
   });
 });
 

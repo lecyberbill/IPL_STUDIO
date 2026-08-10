@@ -10,6 +10,7 @@ import { ProjectModal } from './components/ProjectModal';
 import { GitDiffModal } from './components/GitDiffModal';
 import { PolyglotModal } from './components/PolyglotModal';
 import { TutorialModal } from './tutorial';
+import { WelcomeModal } from './components/WelcomeModal';
 import { useIdeStore } from './store/useIdeStore';
 
 export const App: React.FC = () => {
@@ -115,6 +116,9 @@ export const App: React.FC = () => {
       <PolyglotModal />
       <GitDiffModal isOpen={isGitModalOpen} onClose={toggleGitModal} />
       <TutorialModal isOpen={isTutorialOpen} onClose={toggleTutorial} />
+
+      {/* First-run onboarding (auto-dismissed permanently once seen) */}
+      <WelcomeModal />
     </div>
   );
 };

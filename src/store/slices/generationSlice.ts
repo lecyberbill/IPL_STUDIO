@@ -8,6 +8,8 @@ export interface GenerationSlice {
   generatedCode: string;
   isGenerating: boolean;
   pendingClarification: ClarificationRequest | null;
+  generationError: string | null;
+  clearGenerationError: () => void;
   runGeneration: () => Promise<void>;
   requestLLMCorrection: (userPrompt: string) => Promise<{ textReply: string; codeChanged: boolean }>;
   autoDebugAndFix: (customCmd?: string) => Promise<boolean>;
@@ -19,11 +21,14 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
   generatedCode: '',
   isGenerating: false,
   pendingClarification: null,
+  generationError: null,
+
+  clearGenerationError: () => set({ generationError: null }),
 
   runGeneration: async () => {
     const { code, targetLang, llmConfig, polyglotConfig, addLog, projects, activeProjectId } = get();
     const activeProj = projects.find(p => p.id === activeProjectId);
-    set({ isGenerating: true });
+    set({ isGenerating: true, generationError: null });
 
     try {
       // Phase 7: build the project union deterministically, rooted at
@@ -76,10 +81,12 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
         polyglotConfig
       );
 
-      set({ generatedCode: result, isGenerating: false });
+      set({ generatedCode: result, isGenerating: false, generationError: null });
       await get().writeArtifactToDisk();
     } catch (err: any) {
-      addLog(`Generation error: ${err.message}`, 'error');
+      const message = err?.message || 'Unknown generation error';
+      addLog(`Generation error: ${message}`, 'error');
+      set({ isGenerating: false, generationError: message });
     } finally {
       set({ isGenerating: false });
     }

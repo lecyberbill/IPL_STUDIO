@@ -132,9 +132,20 @@ export const ChatPanel: React.FC = () => {
         ))}
 
         {isGenerating && (
-          <div className="flex items-center space-x-2 p-3 bg-[#161922] border border-[#2a2f42] rounded-xl text-cyan-400 text-xs animate-pulse select-none">
-            <RefreshCw size={14} className="animate-spin" />
-            <span>LLM Architect is thinking...</span>
+          <div className="flex items-start space-x-2 select-none">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 text-black font-bold flex items-center justify-center shrink-0 shadow-md">
+              <Bot size={14} />
+            </div>
+            <div className="max-w-[85%] rounded-xl p-3 bg-[#161922] border border-[#2a2f42] text-xs space-y-2">
+              <div className="flex items-center space-x-2 text-cyan-400">
+                <RefreshCw size={13} className="animate-spin" />
+                <span>LLM Architect is thinking...</span>
+              </div>
+              <div className="space-y-1.5">
+                <div className="h-2.5 w-3/4 rounded bg-[#1e2230] animate-pulse" />
+                <div className="h-2.5 w-1/2 rounded bg-[#1e2230] animate-pulse" />
+              </div>
+            </div>
           </div>
         )}
 

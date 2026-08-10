@@ -133,6 +133,17 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 - `.github/workflows/release.yml`: `workflow_dispatch` with a semver input (`x.y.z`, `v` prefix added automatically). Validates the version, bumps `package.json`, moves `## 🚧 [Unreleased]` to `## [x.y.z] - <date>` (extracting the release notes, refusing an empty section), commits + tags + pushes `vx.y.z`, then `gh release create` with the notes file.
 - Guarded by `concurrency: release` (serializes manual releases, no auto-release on push — commits stay CI-only).
 
+### 🎨 UX Finishing Pass (onboarding, errors, templates)
+
+**Objective**: A first-time user can go from empty editor to a running generated app without hunting for features.
+
+- One-time first-run `WelcomeModal` (persisted) with 3-step loop + shortcuts to the tutorial and project manager.
+- Generation/LLM failures surface in a dismissible banner over Project Files with an **Open Settings** shortcut (`generationError` store field).
+- Project Manager template gallery (6 starter templates with icons + descriptions).
+- Skeleton loading states (generation overlay + chat typing) and helpful empty states (Logs, Source Tree).
+
+**Status**: 🟢 done — shipped in `d2a***` (UX finishing pass), covered by 3 new store tests (133 total).
+
 ---
 
 ## ⬜ Phase 9 — Packaging & Distribution

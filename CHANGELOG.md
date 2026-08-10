@@ -106,6 +106,13 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## 🚧 [Unreleased]
 
+### 🎨 UX Finishing Pass — onboarding, errors & empty states
+- **First-run onboarding** (`WelcomeModal.tsx`): a one-time welcome overlay (persisted via `hasSeenWelcome`, auto-dismissed forever once closed) walks new users through the 3-step loop — write the IPL spec, pick a target stack, generate/run/self-heal — with direct shortcuts to the tutorial and project manager.
+- **LLM errors are now impossible to miss**: `runGeneration` failures (missing API key, unreachable endpoint, HTTP errors) are captured in a new `generationError` store field and surfaced as a dismissible error banner over the Project Files panel with a one-click **Open Settings ⚙️** action — no more errors buried in the Logs tab.
+- **Template gallery** in the Project Manager: the 3 inline starter snippets become a 2×3 gallery (Data CRUD, REST/Event API, Auth & Security, Chat Bot, IoT/Telemetry, Blank Project), each with icon, one-line description and a real starter spec.
+- **Skeletons & empty states**: the generation overlay now shows a shimmering file skeleton, the chat shows a typing skeleton while the LLM thinks, and the Logs / Source Tree panels render helpful empty-state hints instead of blank space.
+- Store: `generationError` + `clearGenerationError` + `hasSeenWelcome`/`completeWelcome` wired into the slice store with 3 new tests (133 total across 11 suites).
+
 
 ## 🚀 [v1.2.0] — 2026-08-06 (Architectural Pure Intent Release)
 

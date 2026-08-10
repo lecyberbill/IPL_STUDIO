@@ -4,22 +4,24 @@ import { useIdeStore } from '../store/useIdeStore';
 import { buildProjectArtifact, downloadProjectZip } from '../engine/artifactGenerator';
 import { defaultOutputDir } from '../engine/paths';
 import { ChatPanel } from './ChatPanel';
-import { 
-  Code, 
-  Copy, 
-  Check, 
-  Package, 
-  Save, 
-  FileCode2, 
-  Folder, 
-  FolderSearch, 
+import {
+  Code,
+  Copy,
+  Check,
+  Package,
+  Save,
+  FileCode2,
+  Folder,
+  FolderSearch,
   HardDrive,
   MessageSquare,
   RefreshCw,
   ChevronLeft,
   ChevronRight,
   FileText,
-  Settings
+  Settings,
+  AlertCircle,
+  X
 } from 'lucide-react';
 
 function getLanguageFromFilename(filename?: string): string {
@@ -81,7 +83,9 @@ export const TargetInspector: React.FC = () => {
     writeArtifactToDisk,
     readArtifactFromDisk,
     customTargets,
-    rightSidebarWidth
+    rightSidebarWidth,
+    generationError,
+    clearGenerationError
   } = useIdeStore();
 
   const [activePanelTab, setActivePanelTab] = useState<'files' | 'chat'>('files');
@@ -361,6 +365,35 @@ export const TargetInspector: React.FC = () => {
 
           {/* Code Viewer Area */}
           <div className="flex-1 min-h-0 overflow-hidden relative">
+            {generationError && !isGenerating && (
+              <div className="absolute inset-x-0 top-0 z-20 m-2 bg-rose-950/80 border border-rose-500/50 rounded-lg shadow-xl backdrop-blur-sm">
+                <div className="px-3 py-2.5 flex items-start space-x-2">
+                  <AlertCircle size={16} className="text-rose-400 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11px] font-bold text-rose-300 tracking-wide uppercase">Generation failed</div>
+                    <div className="text-[11px] text-rose-200/90 mt-0.5 break-words select-text">{generationError}</div>
+                  </div>
+                  <button
+                    onClick={clearGenerationError}
+                    className="p-1 text-rose-300/70 hover:text-white hover:bg-rose-500/20 rounded transition-colors shrink-0"
+                    title="Dismiss error"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                <div className="px-3 pb-2.5 flex items-center space-x-2">
+                  <button
+                    onClick={toggleSettings}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 text-purple-300 text-[11px] rounded font-semibold transition-colors"
+                  >
+                    <Settings size={12} />
+                    <span>Open Settings ⚙️</span>
+                  </button>
+                  <span className="text-[10px] text-rose-300/60 font-mono">Check your LLM key / endpoint in Settings, then press Generate again.</span>
+                </div>
+              </div>
+            )}
+
             {isGenerating ? (
               <div className="h-full flex flex-col items-center justify-center p-6 text-center space-y-3 bg-[#0f1117]/80 backdrop-blur-xs">
                 <div className="w-10 h-10 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
@@ -371,6 +404,12 @@ export const TargetInspector: React.FC = () => {
                   Pass 1: Topology & Module Structure<br/>
                   Pass 2: Multi-file XML Generation & Streaming
                 </p>
+                {/* Skeleton file preview while waiting for the first stream chunk */}
+                <div className="w-full max-w-xs space-y-2 pt-1">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="h-3 rounded bg-[#1e2230] animate-pulse" style={{ width: `${85 - i * 15}%` }} />
+                  ))}
+                </div>
                 <div className="flex items-center space-x-2 pt-2">
                   <button
                     onClick={() => useIdeStore.setState({ isGenerating: false })}

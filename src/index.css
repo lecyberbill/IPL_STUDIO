@@ -58,3 +58,9 @@
 .generating-glow {
   animation: glowPulse 1.5s infinite ease-in-out;
 }
+
+/* Modal entrance animation */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}

@@ -94,6 +94,14 @@ export const ConsolePanel: React.FC = () => {
             <DiagnosticsPanel />
           ) : (
             <div className="h-full overflow-y-auto p-3 space-y-1.5 font-mono text-xs select-text">
+              {logs.length === 0 && (
+                <div className="h-full flex flex-col items-center justify-center text-center text-gray-500">
+                  <Info size={22} className="text-gray-600 mb-2" />
+                  <p className="text-[11px] text-gray-500 max-w-sm">
+                    No IDE system activity yet. Generate a project or run a command to see diagnostic logs here.
+                  </p>
+                </div>
+              )}
               {logs.map((log) => (
                 <div key={log.id} className="flex items-start space-x-2 text-gray-300 leading-tight">
                   <span className="text-[10px] text-gray-500 shrink-0 font-sans">{log.time}</span>

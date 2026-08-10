@@ -1,7 +1,67 @@
 import React, { useState } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
 import { defaultOutputDir } from '../engine/paths';
-import { FolderPlus, X, HardDrive, Trash2, Check, Edit2, Play, Folder } from 'lucide-react';
+import { FolderPlus, X, HardDrive, Trash2, Check, Edit2, Play, Folder, Database, Webhook, ShieldCheck, Bot, Cpu, FileCode } from 'lucide-react';
+
+interface ProjectTemplate {
+  id: string;
+  name: string;
+  description: string;
+  icon: React.ReactNode;
+  accent: string;
+  code: (name: string) => string;
+}
+
+const PROJECT_TEMPLATES: ProjectTemplate[] = [
+  {
+    id: 'crud',
+    name: 'Data CRUD',
+    description: 'Entities, stores, typed fields & filters',
+    icon: <Database size={16} className="text-cyan-400" />,
+    accent: 'cyan',
+    code: (name) => `// Project IPL Spec: ${name}\nadd entity item {\n  name: "SampleItem",\n  price: 99.99\n}\nread item from itemStore {\n  where: id == targetId\n}`,
+  },
+  {
+    id: 'api',
+    name: 'REST / Event API',
+    description: 'Listeners, handlers & response payloads',
+    icon: <Webhook size={16} className="text-purple-400" />,
+    accent: 'purple',
+    code: (name) => `// API Spec: ${name}\nlisten event on "api_request" {\n  action: "processData"\n}\ncompute response {\n  status: 200,\n  message: "Success"\n}`,
+  },
+  {
+    id: 'auth',
+    name: 'Auth & Security',
+    description: 'Users, permissions & access control',
+    icon: <ShieldCheck size={16} className="text-emerald-400" />,
+    accent: 'emerald',
+    code: (name) => `// Auth Spec: ${name}\nadd user {\n  email: "user@domain.com",\n  passwordHash: "secret"\n}\nif user.isAuthorized {\n  return token\n}`,
+  },
+  {
+    id: 'chatbot',
+    name: 'Chat Bot',
+    description: 'Conversation flows & intent routing',
+    icon: <Bot size={16} className="text-indigo-400" />,
+    accent: 'indigo',
+    code: (name) => `// Chat Bot Spec: ${name}\nlisten event on "message:received" {\n  read content from event {\n    where: content != ""\n  }\n  if (content.startsWith("/help")) {\n    send helpMenu to content.from\n  } else {\n    send reply to content.from {\n      message: "Echo: " + content.text\n    }\n  }\n}`,
+  },
+  {
+    id: 'iot',
+    name: 'IoT / Telemetry',
+    description: 'Device ingest, thresholds & alerts',
+    icon: <Cpu size={16} className="text-rose-400" />,
+    accent: 'rose',
+    code: (name) => `// IoT Spec: ${name}\nadd device {\n  id: "sensor-01",\n  temperature: 23.5\n}\nlisten event on "telemetry:ingested" {\n  read reading from event {\n    where: reading.temperature != null\n  }\n  if (reading.temperature > 80) {\n    send alert to ops {\n      message: "Overheating: " + reading.id\n    }\n  }\n}`,
+  },
+  {
+    id: 'blank',
+    name: 'Blank Project',
+    description: 'Start from an empty editor',
+    icon: <FileCode size={16} className="text-gray-400" />,
+    accent: 'gray',
+    code: (name) => `// New IPL Project: ${name}\nadd item {\n  name: "${name}"\n}\n`,
+  },
+];
 
 export const ProjectModal: React.FC = () => {
   const { 
@@ -19,7 +79,7 @@ export const ProjectModal: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
   const [projectName, setProjectName] = useState('');
   const [customOutputDir, setCustomOutputDir] = useState('');
-  const [templateType, setTemplateType] = useState<'crud' | 'api' | 'auth'>('crud');
+  const [templateId, setTemplateId] = useState<string>('crud');
 
   // Inline editing state for rename in management tab
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -29,25 +89,20 @@ export const ProjectModal: React.FC = () => {
 
   const safeName = projectName.trim().toLowerCase().replace(/[^a-z0-9]/g, '_') || 'my_project';
   const suggestedOutputDir = defaultOutputDir(safeName);
+  const selectedTemplate = PROJECT_TEMPLATES.find(t => t.id === templateId) || PROJECT_TEMPLATES[0];
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!projectName.trim()) return;
 
-    let templateCode = '';
-    if (templateType === 'crud') {
-      templateCode = `// Project IPL Spec: ${projectName}\nadd item {\n  name: "SampleItem",\n  price: 99.99\n}\nread item from itemStore {\n  where: id == targetId\n}`;
-    } else if (templateType === 'api') {
-      templateCode = `// API Spec: ${projectName}\nlisten event on "api_request" {\n  action: "processData"\n}\ncompute response {\n  status: 200,\n  message: "Success"\n}`;
-    } else {
-      templateCode = `// Auth Spec: ${projectName}\nadd user {\n  email: "user@domain.com",\n  passwordHash: "secret"\n}\nif user.isAuthorized {\n  return token\n}`;
-    }
+    const templateCode = selectedTemplate.code(projectName.trim());
 
     const finalOutputDir = customOutputDir.trim() || suggestedOutputDir;
     createProject(projectName.trim(), templateCode, finalOutputDir);
-    addLog(`New project "${projectName.trim()}" created. Disk path: ${finalOutputDir}`, 'success');
+    addLog(`New project "${projectName.trim()}" created from template "${selectedTemplate.name}". Disk path: ${finalOutputDir}`, 'success');
     setProjectName('');
     setCustomOutputDir('');
+    setTemplateId('crud');
     toggleProjectModal();
   };
 
@@ -164,42 +219,37 @@ export const ProjectModal: React.FC = () => {
                 <label className="block text-gray-400 font-semibold mb-1.5 uppercase text-[10px] tracking-wider">
                   Starter Specification Template
                 </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setTemplateType('crud')}
-                    className={`p-2.5 rounded-lg border text-center font-medium transition-all ${
-                      templateType === 'crud'
-                        ? 'bg-cyan-500/10 border-cyan-500 text-cyan-300'
-                        : 'bg-[#0f1117] border-[#2a2f42] text-gray-400 hover:border-gray-600'
-                    }`}
-                  >
-                    Data CRUD
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setTemplateType('api')}
-                    className={`p-2.5 rounded-lg border text-center font-medium transition-all ${
-                      templateType === 'api'
-                        ? 'bg-cyan-500/10 border-cyan-500 text-cyan-300'
-                        : 'bg-[#0f1117] border-[#2a2f42] text-gray-400 hover:border-gray-600'
-                    }`}
-                  >
-                    REST / Event API
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setTemplateType('auth')}
-                    className={`p-2.5 rounded-lg border text-center font-medium transition-all ${
-                      templateType === 'auth'
-                        ? 'bg-cyan-500/10 border-cyan-500 text-cyan-300'
-                        : 'bg-[#0f1117] border-[#2a2f42] text-gray-400 hover:border-gray-600'
-                    }`}
-                  >
-                    Auth & Security
-                  </button>
+                <div className="grid grid-cols-2 gap-2">
+                  {PROJECT_TEMPLATES.map((t) => {
+                    const isSelected = templateId === t.id;
+                    const activeClass = {
+                      cyan: 'border-cyan-500 bg-cyan-500/10 text-cyan-300',
+                      purple: 'border-purple-500 bg-purple-500/10 text-purple-300',
+                      emerald: 'border-emerald-500 bg-emerald-500/10 text-emerald-300',
+                      indigo: 'border-indigo-500 bg-indigo-500/10 text-indigo-300',
+                      rose: 'border-rose-500 bg-rose-500/10 text-rose-300',
+                      gray: 'border-gray-500 bg-gray-500/10 text-gray-300'
+                    }[t.accent];
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setTemplateId(t.id)}
+                        className={`p-2.5 rounded-lg border text-left transition-all ${
+                          isSelected
+                            ? activeClass
+                            : 'bg-[#0f1117] border-[#2a2f42] text-gray-400 hover:border-gray-600'
+                        }`}
+                        title={t.description}
+                      >
+                        <div className="flex items-center space-x-1.5 mb-1">
+                          {t.icon}
+                          <span className="font-bold text-xs">{t.name}</span>
+                        </div>
+                        <p className="text-[10px] opacity-80 leading-tight">{t.description}</p>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

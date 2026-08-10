@@ -56,6 +56,10 @@ export interface IDEState {
   editorViewMode: 'text' | 'blocks';
   syntaxErrors: SyntaxErrorItem[];
   editorInstance: monaco.editor.IStandaloneCodeEditor | null;
+  /** Last generation / LLM failure surfaced to the UI, or null when none. */
+  generationError: string | null;
+  /** Dismiss the current generation error banner. */
+  clearGenerationError: () => void;
 
   // Polyglot Stack Config
   polyglotConfig: PolyglotConfig;
@@ -82,6 +86,9 @@ export interface IDEState {
   isGitModalOpen: boolean;
   isTutorialOpen: boolean;
   toggleTutorial: () => void;
+  /** First-run onboarding: set to true once the welcome modal has been dismissed. */
+  hasSeenWelcome: boolean;
+  completeWelcome: () => void;
 
   // Layout & Resizing
   leftSidebarWidth: number;

@@ -63,6 +63,13 @@ export const SourceFileTree: React.FC = () => {
 
       {/* Files List */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        {fileKeys.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 p-4">
+            <FilePlus size={20} className="text-gray-600 mb-2" />
+            <p className="text-[11px] text-gray-500">No IPL source files yet.</p>
+            <p className="text-[10px] text-gray-600 mt-1">Click <span className="text-cyan-400">+</span> above to create one.</p>
+          </div>
+        )}
         {fileKeys.map((fileName) => {
           const isActive = fileName === activeSourceFile;
           return (

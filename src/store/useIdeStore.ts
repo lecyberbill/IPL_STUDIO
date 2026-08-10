@@ -53,6 +53,7 @@ export const useIdeStore = create<IDEState>()(
         targetLang: state.targetLang,
         polyglotConfig: state.polyglotConfig,
         customTargets: state.customTargets,
+        hasSeenWelcome: state.hasSeenWelcome,
         leftSidebarWidth: state.leftSidebarWidth,
         rightSidebarWidth: state.rightSidebarWidth
       }),
