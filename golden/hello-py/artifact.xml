@@ -1,0 +1,9 @@
+<file path="main.py">
+def main():
+    print("Hello from IPL Studio")
+    print("exit code 0")
+
+
+if __name__ == "__main__":
+    main()
+</file>

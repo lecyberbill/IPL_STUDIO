@@ -1,0 +1,10 @@
+{
+  "id": "hello-node",
+  "name": "Hello World (Node CLI)",
+  "targetLang": "javascript",
+  "command": "node index.js",
+  "assert": {
+    "exitCode": 0,
+    "stdoutContains": ["Hello from IPL Studio (Node)"]
+  }
+}

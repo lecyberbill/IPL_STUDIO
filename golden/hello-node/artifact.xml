@@ -1,0 +1,6 @@
+<file path="index.js">
+const greeting = "Hello from IPL Studio (Node)";
+
+console.log(greeting);
+console.log("exit code 0");
+</file>

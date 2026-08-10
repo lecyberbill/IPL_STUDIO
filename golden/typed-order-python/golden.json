@@ -1,0 +1,10 @@
+{
+  "id": "typed-order-python",
+  "name": "Typed E-Commerce Order (business logic)",
+  "targetLang": "python",
+  "command": "python main.py",
+  "assert": {
+    "exitCode": 0,
+    "stdoutContains": ["A-1001", "Alice", "processing", "B-2002", "Bob", "pending"]
+  }
+}

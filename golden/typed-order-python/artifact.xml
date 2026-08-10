@@ -1,0 +1,27 @@
+﻿<file path="main.py">
+from dataclasses import dataclass
+
+
+@dataclass
+class Order:
+    order_id: str
+    customer_name: str
+    total_amount: float
+    is_paid: bool
+    status: str
+
+
+def process_order(order: Order) -> str:
+    if order.is_paid:
+        order.status = "processing"
+    else:
+        order.status = "pending"
+    return f"Order {order.order_id} for {order.customer_name}: {order.status}"
+
+
+if __name__ == "__main__":
+    paid = Order("A-1001", "Alice", 59.90, True, "pending")
+    print(process_order(paid))
+    unpaid = Order("B-2002", "Bob", 19.95, False, "pending")
+    print(process_order(unpaid))
+</file>

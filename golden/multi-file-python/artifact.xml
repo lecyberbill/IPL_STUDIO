@@ -1,0 +1,11 @@
+<file path="main.py">
+from greeter import greet
+
+
+if __name__ == "__main__":
+    print(greet("IPL Studio"))
+</file>
+<file path="greeter.py">
+def greet(name):
+    return "Hello from " + name
+</file>

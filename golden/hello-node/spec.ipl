@@ -1,0 +1,7 @@
+add message {
+  text: "Hello from IPL Studio (Node)",
+  target: "console"
+}
+compute timestamp from system
+send message to screen
+return success

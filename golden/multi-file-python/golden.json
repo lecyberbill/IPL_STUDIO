@@ -1,0 +1,10 @@
+{
+  "id": "multi-file-python",
+  "name": "Multi-file Python (submodule import)",
+  "targetLang": "python",
+  "command": "python main.py",
+  "assert": {
+    "exitCode": 0,
+    "stdoutContains": ["Hello from IPL Studio"]
+  }
+}

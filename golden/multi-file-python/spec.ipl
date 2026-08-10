@@ -1,0 +1,8 @@
+import "greeter.ipl"
+
+add message {
+  text: "Hello from IPL Studio",
+  target: "console"
+}
+send message to screen
+return success
