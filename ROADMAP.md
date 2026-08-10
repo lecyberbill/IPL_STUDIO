@@ -126,6 +126,13 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 
 **Status**: 🟢 done — CI live on push/PR/manual trigger. The historical `:qg` benchmark quality-gate remains folded into Phase 10's scorecard (as initially planned), independent of this generic green/red gate.
 
+### 📦 Versioned Release pipeline
+
+**Objective**: One manual command turns the current `main` into a tagged GitHub Release with clean changelog notes.
+
+- `.github/workflows/release.yml`: `workflow_dispatch` with a semver input (`x.y.z`, `v` prefix added automatically). Validates the version, bumps `package.json`, moves `## 🚧 [Unreleased]` to `## [x.y.z] - <date>` (extracting the release notes, refusing an empty section), commits + tags + pushes `vx.y.z`, then `gh release create` with the notes file.
+- Guarded by `concurrency: release` (serializes manual releases, no auto-release on push — commits stay CI-only).
+
 ---
 
 ## ⬜ Phase 9 — Packaging & Distribution

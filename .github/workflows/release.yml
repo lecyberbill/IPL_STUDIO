@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (semver, e.g. 1.3.0 — the leading "v" is added automatically)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+# Releases are rare and manual: never let two runs interleave.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Tag + GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate the version
+        id: version
+        run: |
+          V="${{ github.event.inputs.version }}"
+          V="${V#v}"
+          if ! [[ "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid version '$V' — expected a semver like 1.3.0"
+            exit 1
+          fi
+          echo "VERSION=$V" >> "$GITHUB_ENV"
+          echo "TAG=v$V" >> "$GITHUB_ENV"
+
+      - name: Bump package.json version
+        run: |
+          node - <<'JS'
+          const fs = require('fs');
+          const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          p.version = process.env.VERSION;
+          fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+          console.log('package.json version ->', p.version);
+          JS
+
+      - name: Move CHANGELOG [Unreleased] to the versioned section
+        run: |
+          python3 - <<'PY'
+          import io, os
+          from datetime import date
+
+          with io.open('CHANGELOG.md', encoding='utf-8') as f:
+              content = f.read()
+
+          marker = '## 🚧 [Unreleased]'
+          if marker not in content:
+              raise SystemExit('No [Unreleased] section found in CHANGELOG.md')
+
+          start = content.index(marker)
+          body_start = start + len(marker)
+          end = content.index('\n---', body_start)
+          body = content[body_start:end].strip()
+          notes = '\n'.join(line for line in body.split('\n') if line.strip()).strip()
+          if not notes:
+              raise SystemExit('The [Unreleased] section is empty — nothing to release.')
+
+          version = os.environ['VERSION']
+          today = date.today().isoformat()
+          replacement = f'## [{version}] - {today}\n\n{notes}\n\n---\n\n## 🚧 [Unreleased]\n'
+
+          new_content = content[:start] + replacement + content[end + len('\n---'):]
+          with io.open('CHANGELOG.md', 'w', encoding='utf-8', newline='\n') as f:
+              f.write(new_content)
+
+          with io.open('/tmp/release-notes.md', 'w', encoding='utf-8') as f:
+              f.write(notes + '\n')
+          print('CHANGELOG: [Unreleased] ->', 'v' + version)
+          PY
+
+      - name: Commit, tag and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json CHANGELOG.md
+          git commit -m "chore(release): v$VERSION"
+          git tag "$TAG"
+          git push origin main
+          git push origin "$TAG"
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$TAG" \
+            --title "v$VERSION" \
+            --notes-file /tmp/release-notes.md

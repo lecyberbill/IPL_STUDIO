@@ -6,6 +6,9 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## 🚧 [Unreleased]
 
+### 📦 Versioned Release Pipeline
+- **`.github/workflows/release.yml`**: one manual `workflow_dispatch` with a semver input (`x.y.z`, `v` added automatically) turns the current `main` into a tagged GitHub Release — validates the version, bumps `package.json`, moves `## 🚧 [Unreleased]` to `## [x.y.z] - <date>` (release notes extracted, empty section refused), commits + tags + pushes `vx.y.z`, then creates the Release with the notes. Serialized via `concurrency: release` (no auto-release on push).
+
 ### 🧪 Store Unit Tests — the business logic is now locked down
 - **New `src/store/store.test.ts` (24 tests)**: builds the exact same slice composition as `useIdeStore` (via `createStore` from `zustand/vanilla`, no persist/localStorage) and asserts real cross-slice behavior end-to-end — `logsSlice` (cap 100), `editorSlice` (`setCode` syncing `sourceFiles[activeSourceFile]`, `setTargetLang`, snippet insertion), `projectsSlice` (create/delete guard/fallback, rename, output dir, per-file map + `main.ipl` protection, switch), `settingsSlice` (LLM config merge, modal toggles, custom-target id derivation, sidebar clamping, per-project polyglot config), `generationSlice` (pending-clarification lifecycle, `answerClarification` guard), and `diskSlice` (write-artifact posts the parsed artifact incl. the always-appended `source/main.ipl`, empty-folder read, no-op guard) with `fetch` stubbed.
 - **Monaco stub for Node tests**: `src/test/mocks/monaco-editor.ts` replaces the real package at Vitest runtime (its ESM touches `window` at import); TypeScript still resolves types from the real package. Wired via `resolve.alias` in `vitest.config.ts`.
