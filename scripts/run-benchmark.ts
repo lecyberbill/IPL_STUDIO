@@ -633,7 +633,9 @@ async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{
         }
         if (!retryOk) {
           if (/cannot find module|No module named|ModuleNotFound/i.test(`${run.output} ${lastRetryOutput}`)) {
-            return { status: 'WARN', detail: `entry missing (${spec.verify.command}) — retried ${retried.map(a => a.command).join(' | ')}: ${lastRetryOutput.slice(0, 160)}; generated app may be browser-based or need missing deps` };
+            const deps = diagnoseMissingDeps(`${run.output}\n${lastRetryOutput}`, allFiles, runDir);
+            const extra = deps ? ` deps: ${deps}` : '';
+            return { status: 'WARN', detail: `entry missing (${spec.verify.command}) — retried ${retried.map(a => a.command).join(' | ')}: ${lastRetryOutput.slice(0, 160)}; generated app may be browser-based or need missing deps.${extra}` };
           }
           return {
             status: 'FAIL',
@@ -642,8 +644,10 @@ async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{
           };
         }
       } else {
-        if (/cannot find module/i.test(run.output)) {
-          return { status: 'WARN', detail: `entry missing (${spec.verify.command}) — generated app may be browser-based` };
+        if (/cannot find module|No module named|ModuleNotFound/i.test(run.output)) {
+          const deps = diagnoseMissingDeps(run.output, allFiles, runDir);
+          const extra = deps ? ` deps: ${deps}` : '';
+          return { status: 'WARN', detail: `entry missing (${spec.verify.command}) — generated app may be browser-based.${extra}` };
         }
         return { status: 'FAIL', detail: `exit code ${run.exitCode}: ${run.output.slice(0, 200)}`, output: run.output };
       }
@@ -711,6 +715,122 @@ function retryWithDiscoveredEntry(command: string, allFiles: string[]): { comman
     }
   }
   return retries;
+}
+
+// ---------------------------------------------------------------------------
+// Missing-dependency diagnosis (report-only, never installs anything)
+// ---------------------------------------------------------------------------
+
+/**
+ * Language manifests that declare runtime dependencies, keyed by manifest file
+ * name (basename). The harness only READS these to tell the user which of the
+ * missing modules are already declared (and therefore installable) versus
+ * undeclared. It never installs anything on its own.
+ */
+const DEP_MANIFESTS: { pattern: RegExp; parse: (content: string) => string[] }[] = [
+  {
+    // Python: requirements.txt — one package per line, optional version spec.
+    pattern: /(^|[\\/])requirements\.txt$/i,
+    parse: (c) => c.split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => l.split(/[<>=~!;[]/)[0].trim().toLowerCase()).filter(Boolean)
+  },
+  {
+    // Node: package.json — dependencies/devDependencies/optionalDependencies.
+    pattern: /(^|[\\/])package\.json$/i,
+    parse: (c) => {
+      try {
+        const pkg = JSON.parse(c);
+        return Object.keys({ ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}), ...(pkg.optionalDependencies || {}), ...(pkg.peerDependencies || {}) }).map(d => d.toLowerCase());
+      } catch { return []; }
+    }
+  },
+  {
+    // Rust: Cargo.toml — package names under [dependencies].
+    pattern: /(^|[\\/])Cargo\.toml$/i,
+    parse: (c) => {
+      const names: string[] = [];
+      const inDeps = c.split(/\r?\n/).some(l => /^\[dependencies\]/i.test(l.trim()));
+      for (const line of c.split(/\r?\n/)) {
+        if (/^\[/i.test(line.trim())) continue;
+        const m = line.match(/^\s*([a-zA-Z0-9_-]+)\s*=/);
+        if (m && (inDeps || /^\[dev-dependencies\]/i.test(line) === false)) names.push(m[1].toLowerCase());
+      }
+      return names;
+    }
+  },
+  {
+    // Go: go.mod — `require module` / `require (\n module v1.2.3`.
+    pattern: /(^|[\\/])go\.mod$/i,
+    parse: (c) => c.match(/require\s+([\w./-]+)/g)?.map(m => m.replace(/^require\s+/, '').toLowerCase()) ?? []
+  }
+];
+
+/**
+ * Reads declared dependencies from any manifest files present in the run dir.
+ * Returns the full declaration blob (path + names) for the report, never
+ * modifying anything.
+ */
+export function readDeclaredDeps(allFiles: string[], runDir: string): { manifest: string; declared: string[] }[] {
+  const results: { manifest: string; declared: string[] }[] = [];
+  for (const f of allFiles) {
+    const rel = f.replace(/[\\/]/g, '/');
+    const def = DEP_MANIFESTS.find(d => d.pattern.test(rel));
+    if (!def) continue;
+    let content = '';
+    try { content = readFileSync(pathResolve(runDir, f), 'utf8'); } catch { continue; }
+    results.push({ manifest: rel, declared: def.parse(content) });
+  }
+  return results;
+}
+
+/**
+ * Extracts the names of missing modules/deps from a failed run's output. Each
+ * entry is the module the runtime said it could not find (Python ModuleNotFound,
+ * Node cannot find module, Cargo missing crate...). Returns an empty array when
+ * the output carries no such signal.
+ */
+export function extractMissingModules(output: string): string[] {
+  const found = new Set<string>();
+  const lower = output;
+  // Python
+  for (const m of lower.matchAll(/No module named ['"]([^'"]+)['"]/gi)) found.add(m[1].toLowerCase());
+  // Node
+  for (const m of lower.matchAll(/Cannot find module ['"]([^'"]+)['"]/gi)) found.add(m[1].toLowerCase());
+  // Rust — E0432 unresolved import (`serde::Serialize`, `crate::foo`, ...)
+  for (const m of lower.matchAll(/unresolved import\s+[^\n]*?`?([a-zA-Z0-9_]+)::/gi)) found.add(m[1].toLowerCase());
+  // Rust — cannot find crate
+  for (const m of lower.matchAll(/cannot find crate [`'"]?([a-zA-Z0-9_]+)[`'"]?/gi)) found.add(m[1].toLowerCase());
+  // Go — no required module provides package
+  for (const m of lower.matchAll(/no required module provides package[:\s]+([a-zA-Z0-9_./-]+)/gi)) {
+    const pkg = m[1].split('/').pop()?.toLowerCase();
+    if (pkg) found.add(pkg);
+  }
+  return [...found];
+}
+
+/**
+ * Builds a human-readable report of missing modules vs declared dependencies.
+ * This is DIAGNOSIS ONLY — the harness never installs anything. The report is
+ * meant for a human to review, as requested ("installer sans human in the loop
+ * non"). Returns null when the output contains no missing-module signal.
+ */
+function diagnoseMissingDeps(output: string, allFiles: string[], runDir: string): string | null {
+  const missing = extractMissingModules(output);
+  if (missing.length === 0) return null;
+  const manifests = readDeclaredDeps(allFiles, runDir);
+  const declared = new Set(manifests.flatMap(m => m.declared));
+
+  const declaredMissing = missing.filter(m => declared.has(m));
+  const undeclaredMissing = missing.filter(m => !declared.has(m));
+
+  const lines: string[] = [];
+  if (manifests.length > 0) {
+    lines.push(`declared in ${manifests.map(m => m.manifest).join(', ')}: ${declaredMissing.length > 0 ? declaredMissing.join(', ') : '(none of the missing ones)'}`);
+  } else {
+    lines.push('no dependency manifest found (requirements.txt / package.json / Cargo.toml / go.mod)');
+  }
+  if (undeclaredMissing.length > 0) lines.push(`missing but UNDECLARED (need manual review + declaration): ${undeclaredMissing.join(', ')}`);
+  lines.push('NO AUTO-INSTALL: review these dependencies and install/verify them manually.');
+  return lines.join(' · ');
 }
 
 // ---------------------------------------------------------------------------
