@@ -125,6 +125,8 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 - `npm publish`-able package with the engine (`iplCore`, `iplParser`, `iplSemantics`, `artifactGenerator`) exposed as a public API (`@ipl-studio/engine`).
 - Offline asset bundle (Monaco workers, Tailwind) for air-gapped use.
 
+**Prerequisite done**: the dev-only API backend + security gate now live in a reusable, Vite-independent module (`src/server/devApiServer.ts` exposing connect-style middlewares via `createDevApiServer`), so the desktop shell can mount the exact same policy on its own `http` server without Vite.
+
 **Acceptance criteria**:
 - [ ] Desktop build launches with dev endpoints bound to `localhost` only.
 - [ ] `@ipl-studio/engine` consumes/generates IPL from a plain Node script (no browser).

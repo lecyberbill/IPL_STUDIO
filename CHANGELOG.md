@@ -6,6 +6,11 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## 🚧 [Unreleased]
 
+### 🔌 Dev-Only API Middleware Extracted to a Reusable Server Module
+- **`vite.config.ts` slimmed down**: the entire dev-only API backend (`/api/write-artifact`, `/api/read-disk`, `/api/run-command`, `/api/confirm-path`, `/api/git/*`) plus its security gate (loopback-only, DNS-rebinding Host check, cross-origin Origin rejection, optional `X-IPL-Token` auth, `--production` disable, external-write confirmation, command allow-list) moved verbatim into **`src/server/devApiServer.ts`**.
+- **Reusable beyond Vite**: `createDevApiServer(options)` now returns plain connect-style middlewares (`securityGate` + `handler`), so the exact same policy can be mounted by the Vite dev server (`artifactDiskWriterPlugin`) *and* by any future Node server — the prerequisite the Phase 9 desktop shell needs. A configurable `workspaceRoot` replaces the hardcoded `process.cwd()`.
+- **10 new tests** (`devApiServer.test.ts`: loopback/cross-origin/token/production gate matrix, workspace writes, external-dir confirm-path flow, path-escape rejection) → now **106 tests across 10 suites**.
+
 ### 🧩 Zustand Store Refactor into Typed Slices
 - **The monolithic `useIdeStore` is now a slim composition of typed slices** under `src/store/`: shared types (`types.ts`, incl. `StoreSlice<T> = StateCreator<IDEState, [], [], T>`), domain defaults (`defaults.ts`: the 5 example projects, custom targets, polyglot config, layout), and per-concern slices (`slices/logsSlice.ts`, `editorSlice.ts`, `projectsSlice.ts`, `settingsSlice.ts`, `generationSlice.ts`, `diskSlice.ts`).
 - **Zero behavioral change**: every action, initial value, and cross-slice call (`setCode` syncing `sourceFiles`, `runGeneration` rooted at `main.ipl`, `switchProject` → `readArtifactFromDisk`, confirm-path retry in `writeArtifactToDisk`, 3-round clarification loop) is preserved byte-for-byte. The public API (`useIdeStore`) and the `ipl-studio-store-v6` persistence shape (partialize + onRehydrateStorage) are unchanged, so no component and no stored session needs migration.
