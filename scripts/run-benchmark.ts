@@ -724,7 +724,15 @@ async function repairAndVerify(
       const existingXml = readRunFiles(runDir)
         .map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`)
         .join('\n\n');
-      const prompt = `THE CODE FAILED TO EXECUTE. ANALYZE AND FIX THE FILES SO THE SCRIPT RUNS WITHOUT ERROR:\n\nConsole Log Output:\n${(v.output ?? v.detail).slice(0, 2000)}`;
+
+      // The fix directive must carry the behavioral contract too: a run that
+      // executes cleanly but outputs the wrong JSON is still a FAIL, and the
+      // model cannot repair it blind. Serialize the assert contract so the
+      // repair knows the target values (currency, vehicle plates, prices...).
+      const contract = spec.verify.assert
+        ? `\n\nEXPECTED RUNTIME BEHAVIOR (verify against actual program output):\n${JSON.stringify(spec.verify.assert, null, 2)}`
+        : '';
+      const prompt = `THE CODE FAILED THE VERIFICATION. ANALYZE THE FAILURE, FIX THE FILES, AND MAKE THE PROGRAM PRODUCE THE EXPECTED RUNTIME BEHAVIOR.\n\nFailure detail:\n${v.detail}\n\nActual program output:\n${(v.output ?? '').slice(0, 3000)}${contract}`;
       try {
         const fixed = await withTimeout(
           refineIPLArtifact(existingXml, prompt, spec.targetLang, config, () => {}, () => {}),
