@@ -6,6 +6,11 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## 🚧 [Unreleased]
 
+### 🧩 Zustand Store Refactor into Typed Slices
+- **The monolithic `useIdeStore` is now a slim composition of typed slices** under `src/store/`: shared types (`types.ts`, incl. `StoreSlice<T> = StateCreator<IDEState, [], [], T>`), domain defaults (`defaults.ts`: the 5 example projects, custom targets, polyglot config, layout), and per-concern slices (`slices/logsSlice.ts`, `editorSlice.ts`, `projectsSlice.ts`, `settingsSlice.ts`, `generationSlice.ts`, `diskSlice.ts`).
+- **Zero behavioral change**: every action, initial value, and cross-slice call (`setCode` syncing `sourceFiles`, `runGeneration` rooted at `main.ipl`, `switchProject` → `readArtifactFromDisk`, confirm-path retry in `writeArtifactToDisk`, 3-round clarification loop) is preserved byte-for-byte. The public API (`useIdeStore`) and the `ipl-studio-store-v6` persistence shape (partialize + onRehydrateStorage) are unchanged, so no component and no stored session needs migration.
+- **Architectural benefit**: the store is now legible and independently testable per slice, and the `generationSlice`/`diskSlice` are self-contained enough to be reused by a future Node-side server module — a prerequisite for the Phase 9 desktop shell. Verified with typecheck, lint (0 errors), the full build, and the suite still green at **96 tests across 9 suites**.
+
 ### 🧠 Typed IPL Parser & Advisory Diagnostics (Milestone 1)
 - **Typed AST Parser (`src/engine/iplParser.ts`)**: Full recursive-descent parser producing `IPLBlockNode` trees with block metadata (`verb`, `target`, `declarationType`, `properties`, `children`). Exposed as `parseIPLToTree`, `treeToIPLCode` (source-preserving round-trip), `validateIPLCode`, and a line-indexed `syntaxErrors` report.
 - **Rails, not walls**: Diagnostic errors are `info | warning` severity only; generation is never blocked. Advisory checks flag `listen event` payloads without `try/catch`, views without `add entity`, and unused verbs — the LLM remains the final interpreter of ambiguity.
