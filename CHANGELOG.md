@@ -6,6 +6,10 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## 🚧 [Unreleased]
 
+### 🤖 GitHub Actions CI (test + lint + build)
+- **`.github/workflows/ci.yml`**: every push to `main` / pull request runs the full quality gate on `ubuntu-latest` — `npm test` (Vitest, with `setup-python` so the python golden fixtures really execute), `npm run lint` (oxlint, 0 errors), and `npm run build` (`tsc -b` + Vite). Trigger `workflow_dispatch` added for manual runs.
+- **`concurrency` guard for the commit-heavy workflow**: runs are grouped per branch (`ci-${{ github.ref }}`) with `cancel-in-progress: true` — when a new commit lands while the previous run is still going, the old run is cancelled and only the latest commit is validated. No more pile-ups, no wasted minutes on stale code.
+
 ### 🔌 Dev-Only API Middleware Extracted to a Reusable Server Module
 - **`vite.config.ts` slimmed down**: the entire dev-only API backend (`/api/write-artifact`, `/api/read-disk`, `/api/run-command`, `/api/confirm-path`, `/api/git/*`) plus its security gate (loopback-only, DNS-rebinding Host check, cross-origin Origin rejection, optional `X-IPL-Token` auth, `--production` disable, external-write confirmation, command allow-list) moved verbatim into **`src/server/devApiServer.ts`**.
 - **Reusable beyond Vite**: `createDevApiServer(options)` now returns plain connect-style middlewares (`securityGate` + `handler`), so the exact same policy can be mounted by the Vite dev server (`artifactDiskWriterPlugin`) *and* by any future Node server — the prerequisite the Phase 9 desktop shell needs. A configurable `workspaceRoot` replaces the hardcoded `process.cwd()`.

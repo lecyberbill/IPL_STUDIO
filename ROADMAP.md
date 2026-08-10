@@ -99,7 +99,7 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 
 ---
 
-## ⬜ Phase 8 — Security Hardening
+## ✅ Phase 8 — Security Hardening
 
 **Objective**: Make the dev-only APIs safe to deploy.
 
@@ -113,6 +113,18 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 - [x] No endpoint writes outside an explicit, user-confirmed target directory.
 
 **Status**: 🟢 done — loopback-only guard (DNS-rebinding: Host + cross-origin Origin), optional token auth (`IPL_DEV_TOKEN` via `X-IPL-Token` header), `--production`/`IPL_PRODUCTION=1`/`npm run dev:secure` disables every dev endpoint unless a token is set, external writes require an explicit confirmation (`/api/confirm-path` + 403 `PATH_CONFIRMATION_REQUIRED` retry in the UI), optional server-side command allow-list (`IPL_ALLOWED_COMMANDS`) plus a client-side confirmation for unrecognized commands in the terminal panel. All calls route through `src/services/api.ts` (`apiFetch`).
+
+---
+
+## ✅ Continuous Integration (quality gate)
+
+**Objective**: Never merge a commit that breaks the gates.
+
+**Scope**:
+- `.github/workflows/ci.yml` runs `npm test` (Vitest, incl. golden execution fixtures via `setup-python`), `npm run lint` (oxlint, 0 errors), and `npm run build` (`tsc -b` + Vite) on every push to `main` and every pull request.
+- **`concurrency` guard** (group `ci-${{ github.ref }}`, `cancel-in-progress: true`) tuned for the commit-heavy workflow: only the latest commit on a branch is ever validated — an in-progress run is cancelled as soon as a newer push arrives, so runs never pile up and GitHub never queues stale builds.
+
+**Status**: 🟢 done — CI live on push/PR/manual trigger. The historical `:qg` benchmark quality-gate remains folded into Phase 10's scorecard (as initially planned), independent of this generic green/red gate.
 
 ---
 
