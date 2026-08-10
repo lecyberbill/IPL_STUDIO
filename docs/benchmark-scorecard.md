@@ -32,11 +32,14 @@ Contrat `verify.assert` : `currency="EUR"`, `vehicles.length=2`, `vehicles.0.pla
 | 2026-08-10 14:28 | local | `gpt-oss-20b` | FAIL | FAIL | -1 | ~7 min | Après fix déterministe d'import (pass 1 rewrote `.config`→`..config` ✓), mais `main.py` dans `src/` non lançable par le harness ; quand on le lance via `python -m src.main` il tourne mais avec de **mauvaises valeurs** (exit_minute=480 → cost=40/32 au lieu de 8.0/6.4) : le modèle a régénéré des données hors contrat. |
 | 2026-08-10 14:41 | local | `gpt-oss-20b` | FAIL | FAIL | -1 | ~6 min | Nouvelle variation : imports absolus `from models.vehicle` au lieu de `from src.models.vehicle` → ModuleNotFoundError même avec `python -m src.main`. Le modèle est **instable** : 1 run conforme sur 4, chacun avec des erreurs de code différentes. |
 | 2026-08-10 14:53 | local | `gpt-oss-20b` | **PASS** | FAIL | 3 | ~5 min | **Premier succès local** : les 3 fixes harness (fence ouvrante, import relatif `.config`→`..config`, retry `python -m`) ont suffi à mettre le code sur les rails, puis 3 passes LLM de réparation ont convergé. JSON goldénique (`AB-123` 8.0, `VIP-7` 6.4, `grandTotal` 14.4). |
+| 2026-08-10 15:26 | local | `gpt-oss-20b` (6 SPECS) | 4/6 | — | — | ~15 min | **Run multi-spec** : `hello` PASS one-shot, `form` PASS one-shot, `weather` PASS (1 réparation), `parking` PASS (2 réparations), `node-hello` WARN (bug harness : entry `src/index.js` non découverte, corrigé après), `typed-order` FAIL (over-engineering : Flask+SQLAlchemy+SMTP, deps absentes). First-try PASS 67% (4/6). |
+| 2026-08-10 15:45 | local | `gpt-oss-20b` | node-hello PASS | PASS | 0 | ~50 s | Après fix du retry « entry missing » → `src/index.js` découvert : **PASS one-shot** (le code était correct, seul le harness ne le lançait pas). |
+| 2026-08-10 15:46 | local | `gpt-oss-20b` | typed-order FAIL | FAIL | -1 | ~7 min | Re-run : le modèle **persiste** à générer une stack web (Flask + SQLAlchemy ORM + SMTP + tests pytest) pour une spec simple. `main.py` produit le contrat (`A-1001`, `processing`) mais nécessite `pip install flask sqlalchemy pytest` — deps tierces absentes de l'environnement. Échec comportemental du modèle, pas du harness. |
 
 ### Synthèse
 
 - **Cloud** (`deepseek-chat`) : 1/1 PASS — le droit à l'erreur (2 réparations) suffit quand le contrat comportemental est communiqué.
-- **Local** : 1/10 PASS (gpt-oss-20b 14:53, via 3 réparations). Tous les modèles locaux génèrent du code structurellement plausible mais échouent sur :
+- **Local** : 1/10 PASS sur le parking (gpt-oss-20b 14:53, via 3 réparations). Sur les 6 SPECS (run 15:26) : 4/6 PASS final, first-try 67%. Tous les modèles locaux génèrent du code structurellement plausible mais échouent sur :
   1. le **`main()` d'exécution complet** reproduisant les données exactes de la spec (plates, taux, taux VIP),
   2. la **sortie JSON conforme au contrat** (absence d'array `vehicles`, `grandTotal`, mauvais type),
   3. la **non-pollution du stdout** (artefacts d'exemple imprimés à l'import).
@@ -69,7 +72,29 @@ La comparaison « spec IPL vs prompt naturel » ci-dessus compare une spec **com
 - **Pollution du contexte** : l'historique de dialogue contient des formulations ambiguës, des allers-retours et des réponses non productives qui **dégradent la qualité** des générations suivantes (le modèle réutilise du bruit), et qui sont re-comptés en tokens à chaque appel suivant.
 - L'IPL évite exactement ce cycle : la précision (types, contraintes, formules, format de sortie, valeurs attendues) est **encodée une fois** dans la structure de la spec, pas négociée au fil du dialogue. Le contrat comportemental est le même objet à chaque passe de réparation, sans historique de bavardage.
 - **Difficilement quantifiable, mais logique** : le vrai coût d'un prompt naturel n'est pas les ~312 tokens initiaux, mais 312 + N aller-retours × (contexte croissant + réponse + bruit), où N est le nombre de précisions que l'humain doit apporter pour arriver au même niveau de spécificité que la spec IPL. C'est cet effet multiplicatif que l'IPL élimine.
-- **À mesurer ensuite** : économie réelle en tokens de sortie + taux de succès one-shot sur les 32 specs du corpus, pas seulement le scénario parking.
+
+### Coût de convergence (tokens de sortie) — mesure réelle
+
+Le one-shot n'est pas l'objectif (irréaliste en pratique) : le vrai critère est le **coût de convergence** — combien de passes de réparation, de tokens de sortie et de temps pour arriver au PASS. Mesures réelles sur `gpt-oss-20b` (6 SPECS, run 15:26 + re-runs 15:45/15:46) :
+
+| Spec | Langage | Statut final | Réparations | Temps | Tokens Pass 1 | Tokens Pass 2 |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| `hello` | html | PASS one-shot | 0 | 37 s | 287 | 1 578 |
+| `form` | js | PASS one-shot | 0 | 51 s | ~300 | ~1 600 |
+| `weather` | html | PASS | 1 | 1 min 53 s | ~300 | ~1 600 |
+| `node-hello` | js | PASS one-shot | 0 | 50 s | ~300 | ~1 600 |
+| `parking` | python | PASS | 2 | 4 min 05 s | 287 | 1 578 |
+| `typed-order` | python | FAIL | -1 | 7 min | ~300 | ~1 600 |
+
+Observations :
+- **Les targets HTML/JS one-shot passent** (~50 s, 2 tokens de sortie par passe) ; **le python a besoin de 2-3 passes de réparation** pour converger (parking) ou échoue (typed-order).
+- Le **coût de convergence réel est dominé par les passes de réparation** : chaque passe = re-génération (existingXml + prompt réparation + contrat) ≈ le double d'une génération initiale. Pour parking : 1 génération + 2-3 réparations ≈ **~4× le coût one-shot**.
+- **`typed-order` : échec d'over-engineering** — le modèle construit Flask + SQLAlchemy ORM + SMTP + tests pytest pour une spec simple, rendant le programme non exécutable sans `pip install` de deps tierces. Le `main.py` produit pourtant le contrat (`A-1001`, `processing`). Mode d'échec distinct : ce n'est pas une erreur de syntaxe ni de contrat, c'est un **choix de stack non exécutable dans l'environnement d'exécution**.
+- La réparation LLM n'a pas corrigé typed-order : elle réécrit les fichiers mais reproduit la même stack. Une piste (hors scope de cette mesure) : contraindre le générateur à « stdlib only / zéro dépendance tierce » dans le prompt de Pass 2.
+
+### Taille réelle des specs du corpus (parsing déterministe)
+
+Les 36 specs de `corpus/` (24 single + 5 edge + 7 projects) sont **beaucoup plus petites** que les SPECS de génération : moyenne 234 chars (~58 tokens), max 822 (`21-ecommerce.ipl`). L'économie de tokens de l'IPL est donc surtout pertinente sur des scénarios de **taille réelle** (parking 847 chars, e-commerce ~820), pas sur les micro-specs de parsing.
 
 ### Fixes harness dérivés de ce diagnostic
 
@@ -78,6 +103,7 @@ La comparaison « spec IPL vs prompt naturel » ci-dessus compare une spec **com
 | Nettoyage de la fence markdown **ouvrante** (` ```python `) | `src/engine/artifactGenerator.ts` (`parseMultiFileXml`) | Les .py wrappés dans une fence ne sont plus syntaxiquement invalides (2 fichiers cassés dans le run 14:02). |
 | Rewrite d'import relatif Python `.X`→`..X` quand le module n'existe que dans le parent | `src/engine/deterministicRepair.ts` | Corrige le bug reproductible `src/models/parking_garage.py` → `from .config` au lieu de `from ..config`. Vérifiable : ne touche pas les imports légitimes. |
 | Retry `python -m <pkg.module>` pour un `main.py` dans un package | `scripts/run-benchmark.ts` (`retryWithDiscoveredEntry`) | `python src/main.py` met `src/` dans sys.path et casse `from src.* import` ; `python -m src.main` garde la racine sur sys.path. |
+| Retry avant WARN « entry missing » (`node index.js` → `src/index.js`) | `scripts/run-benchmark.ts` (verify) | `node-hello` générait `src/index.js` (correct, exit 0) mais le harness concluait WARN sans tenter le retry. Désormais le retry est tenté pour tous les échecs de commande, et le WARN n'est émis que si le retry échoue aussi. |
 
 ### Leçons pour le harness
 

@@ -614,11 +614,9 @@ async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{
       if (/is not recognized as an internal|n'est pas reconnu|command not found|not recognized|ENOENT/i.test(run.output)) {
         return { status: 'WARN', detail: `toolchain not available (${spec.verify.command} not found on this machine)` };
       }
-      if (/cannot find module/i.test(run.output)) {
-        return { status: 'WARN', detail: `entry missing (${spec.verify.command}) — generated app may be browser-based` };
-      }
-      // The entry file may live in a subdirectory (e.g. src/main.py). Retry with
-      // the discovered path(s) before failing.
+      // The entry file may live in a subdirectory (e.g. src/main.py or
+      // src/index.js). Retry with the discovered path(s) before failing —
+      // "cannot find module" may just mean the entry is not at the run root.
       const retried = retryWithDiscoveredEntry(spec.verify.command, allFiles);
       if (retried) {
         let retryOk = false;
@@ -634,6 +632,9 @@ async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{
           }
         }
         if (!retryOk) {
+          if (/cannot find module|No module named|ModuleNotFound/i.test(`${run.output} ${lastRetryOutput}`)) {
+            return { status: 'WARN', detail: `entry missing (${spec.verify.command}) — retried ${retried.map(a => a.command).join(' | ')}: ${lastRetryOutput.slice(0, 160)}; generated app may be browser-based or need missing deps` };
+          }
           return {
             status: 'FAIL',
             detail: `${spec.verify.command} failed (${run.output.slice(0, 120)}) — retried ${retried.map(a => a.command).join(' | ')}: ${lastRetryOutput.slice(0, 160) || 'non-zero exit'}`,
@@ -641,6 +642,9 @@ async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{
           };
         }
       } else {
+        if (/cannot find module/i.test(run.output)) {
+          return { status: 'WARN', detail: `entry missing (${spec.verify.command}) — generated app may be browser-based` };
+        }
         return { status: 'FAIL', detail: `exit code ${run.exitCode}: ${run.output.slice(0, 200)}`, output: run.output };
       }
     }
