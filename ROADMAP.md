@@ -142,7 +142,7 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 - Project Manager template gallery (6 starter templates with icons + descriptions).
 - Skeleton loading states (generation overlay + chat typing) and helpful empty states (Logs, Source Tree).
 
-**Status**: 🟢 done — shipped in `d2a***` (UX finishing pass), covered by 3 new store tests (133 total).
+**Status**: 🟢 done — shipped in `df03e7c` (UX finishing pass), covered by 3 new store tests (133 total).
 
 ---
 
