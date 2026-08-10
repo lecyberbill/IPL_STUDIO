@@ -106,6 +106,12 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## 🚧 [Unreleased]
 
+### 📦 Bundle & Performance Budget
+- **App entry chunk: 4.79 MB → 299 kB** (gzip 1.24 MB → 82.8 kB). `build.rolldownOptions.output.codeSplitting` groups isolate `monaco-vendor` (4.3 MB, cacheable), `react-vendor` (300 kB), `xterm-vendor` (280 kB) and `ui-vendor` (19.6 kB) into their own chunks — the critical path is now the tiny app shell + parallel vendor downloads.
+- **4 `INEFFECTIVE_DYNAMIC_IMPORT` warnings eliminated**: `generationSlice`/`diskSlice` used `await import()` on engine modules that were already statically imported elsewhere, so the dynamic imports never created chunks — they are now plain static imports (behavior unchanged, build output clean).
+- `chunkSizeWarningLimit: 5000` acknowledges monaco-editor as a known, cacheable outlier (all language contributions + editor core) rather than app code.
+- Build, 133 tests and lint all green; dev-server smoke test boots clean (home 200, API mounted).
+
 ### 🎨 UX Finishing Pass — onboarding, errors & empty states
 - **First-run onboarding** (`WelcomeModal.tsx`): a one-time welcome overlay (persisted via `hasSeenWelcome`, auto-dismissed forever once closed) walks new users through the 3-step loop — write the IPL spec, pick a target stack, generate/run/self-heal — with direct shortcuts to the tutorial and project manager.
 - **LLM errors are now impossible to miss**: `runGeneration` failures (missing API key, unreachable endpoint, HTTP errors) are captured in a new `generationError` store field and surfaced as a dismissible error banner over the Project Files panel with a one-click **Open Settings ⚙️** action — no more errors buried in the Logs tab.

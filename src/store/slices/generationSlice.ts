@@ -1,5 +1,9 @@
 import { apiFetch } from '../../services/api';
-import { generateIPL } from '../../engine/llmGenerator';
+import { generateIPL, refineIPLArtifact, extractClarificationRequest } from '../../engine/llmGenerator';
+import { parseMultiFileXml } from '../../engine/artifactGenerator';
+import { resolveIPLProject, validateIPLProject } from '../../engine/iplGrammar';
+import { applyIPLQuickFixes } from '../../engine/iplQuickFix';
+import { applyDeterministicRepairs } from '../../engine/deterministicRepair';
 import { defaultOutputDir } from '../../engine/paths';
 import type { ClarificationRequest } from '../types';
 import type { StoreSlice } from '../types';
@@ -42,7 +46,6 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
       }
       const projectRoot = baseFiles?.['main.ipl'] ?? code;
 
-      const { resolveIPLProject, validateIPLProject } = await import('../../engine/iplGrammar');
       const project = resolveIPLProject(projectRoot, baseFiles, 'main.ipl');
 
       // Cross-file advisory checks: duplicate declarations and unknown
@@ -58,7 +61,6 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
       // Pre-generation repair: apply fixable diagnostics (unterminated
       // string, unclosed block) on a copy of the merged union so the model
       // receives clean input. The user's editor buffer is never modified.
-      const { applyIPLQuickFixes } = await import('../../engine/iplQuickFix');
       const preRepair = applyIPLQuickFixes(project.code);
       let unifiedCode = preRepair.code;
       if (preRepair.applied.length > 0) {
@@ -98,9 +100,6 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
 
     set({ isGenerating: true });
     try {
-      const { refineIPLArtifact } = await import('../../engine/llmGenerator');
-      const { parseMultiFileXml } = await import('../../engine/artifactGenerator');
-
       const rawResult = await refineIPLArtifact(
         generatedCode || '',
         userPrompt.trim(),
@@ -211,11 +210,6 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
 
       set({ isGenerating: true });
       try {
-        const { parseMultiFileXml } = await import('../../engine/artifactGenerator');
-        const { applyDeterministicRepairs } = await import('../../engine/deterministicRepair');
-
-        // 1. Try LLM-independent deterministic fixes first (ES-module hazard,
-        //    missing Tailwind CDN) — no tokens spent if this resolves it.
         const currentFiles = parseMultiFileXml(get().generatedCode || '');
         const deterministic = applyDeterministicRepairs(currentFiles);
         if (deterministic.applied.length > 0) {
@@ -229,7 +223,6 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
         }
 
         // 2. Deterministic repair didn't apply — spend an LLM repair call.
-        const { refineIPLArtifact, extractClarificationRequest } = await import('../../engine/llmGenerator');
         const promptCorrection = `THE CODE FAILED TO EXECUTE IN THE TERMINAL WITH THE FOLLOWING ERROR. ANALYZE AND FIX THE FILES SO THE SCRIPT RUNS WITHOUT ERROR:\n\nConsole Log Output:\n${outputLog.substring(0, 2000)}`;
 
         const fixedResult = await refineIPLArtifact(
@@ -289,9 +282,6 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
     set({ isGenerating: true });
 
     try {
-      const { refineIPLArtifact, extractClarificationRequest } = await import('../../engine/llmGenerator');
-      const { parseMultiFileXml } = await import('../../engine/artifactGenerator');
-
       const promptCorrection = `THE CODE FAILED TO EXECUTE IN THE TERMINAL WITH THE FOLLOWING ERROR. ANALYZE AND FIX THE FILES SO THE SCRIPT RUNS WITHOUT ERROR.\n\nConsole Log Output:\n${errorLog}\n\nYou asked for a clarification:\n"${question}"\n\nUSER PRECISION (use it to decide the fix):\n"${answer}"`;
 
       const fixedResult = await refineIPLArtifact(

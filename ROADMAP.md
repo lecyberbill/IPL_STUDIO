@@ -144,6 +144,16 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 
 **Status**: 🟢 done — shipped in `df03e7c` (UX finishing pass), covered by 3 new store tests (133 total).
 
+### 📦 Bundle & Performance Budget
+
+**Objective**: Keep the critical path lean; isolate heavy vendors into cacheable chunks.
+
+- App entry chunk dropped **4.79 MB → 299 kB** (gzip 1.24 MB → 82.8 kB) via `codeSplitting.groups` (`monaco-vendor`, `react-vendor`, `xterm-vendor`, `ui-vendor`).
+- 4 `INEFFECTIVE_DYNAMIC_IMPORT` warnings removed (engine modules already statically imported → plain static imports).
+- `chunkSizeWarningLimit: 5000` documents monaco-editor (~4 MB) as a cacheable outlier.
+
+**Status**: 🟢 done — build, 133 tests and lint green; dev-server smoke test boots clean.
+
 ---
 
 ## ⬜ Phase 9 — Packaging & Distribution

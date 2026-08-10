@@ -1,4 +1,5 @@
 import { apiFetch } from '../../services/api';
+import { buildProjectArtifact } from '../../engine/artifactGenerator';
 import { defaultOutputDir } from '../../engine/paths';
 import type { StoreSlice } from '../types';
 
@@ -23,7 +24,6 @@ export const diskSlice: StoreSlice<DiskSlice> = (set, get) => ({
     }
 
     try {
-      const { buildProjectArtifact } = await import('../../engine/artifactGenerator');
       const artifact = buildProjectArtifact(proj.name, targetLang, generatedCode, code);
 
       const performWrite = (): Promise<Response> => apiFetch('/api/write-artifact', {

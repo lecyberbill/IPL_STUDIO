@@ -61,6 +61,41 @@ export default defineConfig(({ mode }) => {
       '__IPL_SYSTEM_ENVS__': JSON.stringify(combinedEnvs),
       'process.env': JSON.stringify(combinedEnvs),
       '__IPL_DEV_TOKEN__': JSON.stringify(devToken)
+    },
+    build: {
+      // monaco-editor is ~4 MB and inherently large (all language contributions
+      // + editor core). It is now isolated into its own cacheable chunk
+      // (monaco-vendor) so the app entry stays tiny (~300 kB). The limit below
+      // acknowledges that monaco is a known, cacheable outlier — not app code.
+      chunkSizeWarningLimit: 5000,
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              {
+                name: 'monaco-vendor',
+                test: /node_modules[\\/](monaco-editor|@monaco-editor)/,
+                priority: 30
+              },
+              {
+                name: 'xterm-vendor',
+                test: /node_modules[\\/](xterm|xterm-addon-fit)/,
+                priority: 30
+              },
+              {
+                name: 'react-vendor',
+                test: /node_modules[\\/](react|react-dom|scheduler|zustand)/,
+                priority: 20
+              },
+              {
+                name: 'ui-vendor',
+                test: /node_modules[\\/](lucide-react|@tailwindcss)/,
+                priority: 15
+              }
+            ]
+          }
+        }
+      }
     }
   }
 })
