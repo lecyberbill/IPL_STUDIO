@@ -6,6 +6,9 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## 🚧 [Unreleased]
 
+### 🛠️ Dev Server: dependency scan restricted to the app entry
+- Vite's dependency optimizer now only crawls `index.html` (`optimizeDeps.entries`). Without this, every `*.html` under the project root was scanned — including stale benchmark artifacts in `output/` whose `<script src="app.js">` targets don't exist — which broke dependency pre-bundling at every dev server startup with a scary "Failed to run dependency scan" error. Verified: server boots cleanly even with `output/` present, home 200, API mounted.
+
 ### 🤖 GitHub Actions CI (test + lint + build)
 - **`.github/workflows/ci.yml`**: every push to `main` / pull request runs the full quality gate on `ubuntu-latest` — `npm test` (Vitest, with `setup-python` so the python golden fixtures really execute), `npm run lint` (oxlint, 0 errors), and `npm run build` (`tsc -b` + Vite). Trigger `workflow_dispatch` added for manual runs.
 - **`concurrency` guard for the commit-heavy workflow**: runs are grouped per branch (`ci-${{ github.ref }}`) with `cancel-in-progress: true` — when a new commit lands while the previous run is still going, the old run is cancelled and only the latest commit is validated. No more pile-ups, no wasted minutes on stale code.

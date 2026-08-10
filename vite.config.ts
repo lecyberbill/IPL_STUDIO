@@ -50,6 +50,13 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, './src')
       }
     },
+    // Only scan the app's own entry for dependency pre-bundling. Without this,
+    // Vite crawls every *.html under the project root — including benchmark
+    // artifacts in output/ whose <script src="app.js"> targets don't exist,
+    // which breaks the dependency scan at dev server startup.
+    optimizeDeps: {
+      entries: ['index.html']
+    },
     define: {
       '__IPL_SYSTEM_ENVS__': JSON.stringify(combinedEnvs),
       'process.env': JSON.stringify(combinedEnvs),
