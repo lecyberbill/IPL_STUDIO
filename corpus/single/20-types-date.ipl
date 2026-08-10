@@ -1,0 +1,15 @@
+add entity Event {
+  startsAt: date,
+  endsAt: date,
+  publishedAt: date,
+  reminderAt: date
+}
+
+read upcoming from calendar {
+  where: startsAt > now
+}
+
+send reminder to attendees {
+  when: startsAt,
+  cancelBy: endsAt
+}

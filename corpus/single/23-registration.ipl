@@ -1,0 +1,26 @@
+add entity Account {
+  email: text,
+  password: text,
+  termsAccepted: boolean,
+  createdAt: date,
+  role: options("user", "moderator", "admin")
+}
+
+listen event on "user:registered" {
+  try {
+    read user from payload {
+      where: termsAccepted == true
+    }
+    if user.role == "admin" {
+      send approval to owner {
+        message: "Admin account created"
+      }
+    } else {
+      send welcome to user {
+        subject: "Welcome aboard"
+      }
+    }
+  } catch error {
+    set user.role = "user"
+  }
+}

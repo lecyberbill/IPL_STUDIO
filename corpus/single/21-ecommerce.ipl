@@ -1,0 +1,44 @@
+add entity Customer {
+  id: id,
+  name: text,
+  email: text,
+  isVip: boolean,
+  joinedAt: date,
+  tier: options("standard", "vip", "gold")
+}
+
+add entity Order {
+  orderId: id,
+  customerId: id,
+  amount: number,
+  status: options("pending", "paid", "shipped"),
+  lines: list
+}
+
+listen event on "checkout:completed" {
+  try {
+    read order from events {
+      where: amount > 0
+    }
+    if order.customerId == order.customerId {
+      set order.status = "paid"
+    }
+    for line in order.lines {
+      compute discount {
+        formula: line.price * 0.10
+      }
+    }
+    send invoice to Customer {
+      subject: "Your receipt",
+      orderId: order.orderId
+    }
+  } catch error {
+    send alert to support {
+      message: "Checkout flow failed"
+    }
+  }
+}
+
+search vipCustomers in directory {
+  matching: "vip"
+}

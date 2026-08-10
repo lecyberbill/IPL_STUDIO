@@ -1,0 +1,15 @@
+add entity Device {
+  name: text,
+  supportedModes: options("eco", "turbo", "custom"),
+  regions: list,
+  firmwareVersion: number
+}
+
+read device from fleet {
+  where: firmwareVersion > 1
+}
+
+send update to device {
+  modes: device.supportedModes,
+  regions: device.regions
+}

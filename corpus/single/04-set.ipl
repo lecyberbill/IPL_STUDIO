@@ -1,0 +1,7 @@
+read profile from users {
+  where: isActive == true
+}
+
+set profile.mode = "dark"
+set profile.accent = "cyan"
+set profile.unread = 0

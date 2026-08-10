@@ -1,0 +1,9 @@
+add entity Customer {
+  id: id,
+  name: text,
+  age: number,
+  isActive: boolean,
+  createdAt: date,
+  status: options("new", "active", "blocked"),
+  orders: list
+}

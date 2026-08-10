@@ -1,0 +1,12 @@
+add entity Session {
+  id: id,
+  expired: boolean
+}
+
+read stale from sessions {
+  where: expired == true
+}
+
+remove session from activeSessions {
+  where: id == stale.id
+}

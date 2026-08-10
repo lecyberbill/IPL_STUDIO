@@ -22,23 +22,65 @@ export type { IPLBlockNode };
 
 /**
  * Serializes the recursive block tree back to IPL v1.0 text.
+ *
+ * `parseIPLToTree` models `} else {` / `} catch e {` as sibling nodes of their
+ * `if` / `try` (each is its own indented block). To round-trip back to valid
+ * IPL, a continuation node must merge with the closing brace of the block that
+ * was just printed, instead of emitting an orphan `}`.
  */
+function isBlockContinuation(headerText: string): boolean {
+  return /^\}\s*(else|catch)\b/.test(headerText);
+}
+
 export function treeToIPLCode(nodes: IPLBlockNode[], indentLevel = 0): string {
   const indent = '  '.repeat(indentLevel);
-  
-  return nodes.map(node => {
-    const cleanHeader = node.headerText.replace(/\{$/, '').trim();
+  const parts: string[] = [];
+
+  for (const node of nodes) {
+    const header = node.headerText.replace(/\{$/, '').trim();
     const isControlOrLoop = node.verbName === 'if' || node.verbName === 'for' || node.verbName === 'try' || node.verbName === 'listen' || node.category === 'control';
 
-    if (node.children.length > 0 || isControlOrLoop) {
-      const innerCode = node.children.length > 0 
-        ? treeToIPLCode(node.children, indentLevel + 1)
-        : `${indent}  // Nested action block`;
-      return `${indent}${cleanHeader} {\n${innerCode}\n${indent}}`;
-    } else {
-      return `${indent}${cleanHeader}`;
+    if (isBlockContinuation(header)) {
+      // A `} else` / `} catch e` continuation at the start of a fragment has
+      // no owning container here — emit it as a bare orphan line so the
+      // round-trip stays lossy-but-parseable rather than crashing the printer.
+      parts.push(`${indent}${header} {`);
+      continue;
     }
-  }).join('\n\n');
+
+    if (node.children.length > 0 || isControlOrLoop) {
+      // Hoist any trailing continuation children (`} else` / `} catch`) so
+      // they fuse with THIS container's closing brace instead of the
+      // previous sibling's:  `if ... { body } else { body }`.
+      let inner = node.children;
+      const trailingContinuations: IPLBlockNode[] = [];
+      while (inner.length > 0 && isBlockContinuation(inner[inner.length - 1].headerText)) {
+        trailingContinuations.unshift(inner[inner.length - 1]);
+        inner = inner.slice(0, -1);
+      }
+
+      const innerCode = inner.length > 0
+        ? treeToIPLCode(inner, indentLevel + 1)
+        : `${indent}  // Nested action block`;
+      let block = `${indent}${header} {\n${innerCode}\n${indent}}`;
+
+      for (const cont of trailingContinuations) {
+        const contHeader = cont.headerText.replace(/^\}\s*/, '').replace(/\{$/, '').trim();
+        const contChildren = cont.children;
+        const contInner = contChildren.length > 0
+          ? treeToIPLCode(contChildren, indentLevel + 1)
+          : `${indent}  // Nested action block`;
+        block = block.replace(/\n( *)\}$/, '');
+        block += `\n${indent}} ${contHeader} {\n${contInner}\n${indent}}`;
+      }
+
+      parts.push(block);
+    } else {
+      parts.push(`${indent}${header}`);
+    }
+  }
+
+  return parts.join('\n\n');
 }
 
 // ---------------------------------------------------------------------------

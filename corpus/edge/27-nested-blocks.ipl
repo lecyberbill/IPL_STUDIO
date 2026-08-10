@@ -1,0 +1,25 @@
+add entity Order {
+  id: id,
+  amount: number,
+  priority: boolean
+}
+
+read order from queue {
+  where: id == "o-1"
+}
+
+if order.priority == true {
+  for note in order.notes {
+    if note.severity == "high" {
+      try {
+        send escalation to oncall {
+          orderId: order.id
+        }
+      } catch error {
+        set order.status = "escalation_failed"
+      }
+    }
+  }
+} else {
+  set order.status = "queued"
+}

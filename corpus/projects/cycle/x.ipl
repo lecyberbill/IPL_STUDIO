@@ -1,0 +1,5 @@
+import "y.ipl";
+
+add entity X {
+  flag: boolean
+}

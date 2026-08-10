@@ -1,0 +1,14 @@
+add entity Order {
+  orderId: id,
+  customerId: id,
+  productId: id,
+  shipmentId: id
+}
+
+read order from store {
+  where: orderId == "ORD-1234"
+}
+
+read customer from directory {
+  where: customerId == order.customerId
+}

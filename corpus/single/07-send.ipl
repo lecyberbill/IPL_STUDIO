@@ -1,0 +1,13 @@
+add entity User {
+  id: id,
+  email: text
+}
+
+send welcome to User {
+  subject: "Welcome aboard",
+  body: "Your account is ready"
+}
+
+send sms to User {
+  message: "New login detected"
+}

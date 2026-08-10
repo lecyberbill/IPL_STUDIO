@@ -1,0 +1,13 @@
+add entity Query {
+  keyword: text
+}
+
+read matches from index {
+  where: keyword == query
+}
+
+if matches.length > 0 {
+  return matches
+} else {
+  return { empty: true }
+}

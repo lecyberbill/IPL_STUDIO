@@ -1,0 +1,14 @@
+add entity Profile {
+  bio: text,
+  email: text,
+  displayName: text,
+  phoneNumber: text
+}
+
+read profile from accounts {
+  where: email == "alice@example.com"
+}
+
+send welcome to profile {
+  message: profile.displayName
+}

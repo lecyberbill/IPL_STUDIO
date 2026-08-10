@@ -1,0 +1,36 @@
+add entity Location {
+  city: text,
+  country: text,
+  lat: number,
+  lon: number
+}
+
+add entity Forecast {
+  condition: text,
+  temperature: number,
+  humidity: number,
+  windSpeed: number
+}
+
+listen event on "forecast:requested" {
+  try {
+    read location from payload {
+      where: city != ""
+    }
+    search forecast in api {
+      matching: location.city,
+      where: temperature >= 0
+    }
+    compute feelsLike {
+      formula: temperature + (humidity * 0.1)
+    }
+    send response to location {
+      payload: forecast,
+      cached: true
+    }
+  } catch error {
+    send fallback to location {
+      payload: "service unavailable"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+add entity User {
+  id: id,
+  email: text,
+  isAdmin: boolean
+}
+
+read profile from users {
+  where: id == "u-1"
+}
+
+read auditLog from history {
+  where: email == profile.email
+}

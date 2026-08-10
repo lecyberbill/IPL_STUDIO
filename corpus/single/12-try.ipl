@@ -1,0 +1,12 @@
+try {
+  read remoteData from api {
+    where: id == "r-1"
+  }
+  compute result {
+    formula: remoteData.score * 2
+  }
+} catch error {
+  send alert to admin {
+    message: "Remote call failed"
+  }
+}

@@ -1,0 +1,10 @@
+add module Inventory {
+  sku: id,
+  label: text,
+  quantity: number
+}
+
+add view StockDashboard {
+  title: "Live stock levels",
+  refreshInterval: number
+}

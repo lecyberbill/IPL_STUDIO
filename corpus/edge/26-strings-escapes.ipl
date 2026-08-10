@@ -1,0 +1,12 @@
+add entity Post {
+  title: text,
+  body: text
+}
+
+send post to feed {
+  message: "Hello {world} with \"escaped quotes\" and 'apostrophes' and braces {} inside a string"
+}
+
+send post to archive {
+  message: 'single-quoted string with "double" quotes inside'
+}

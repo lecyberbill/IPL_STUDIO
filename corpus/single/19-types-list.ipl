@@ -1,0 +1,11 @@
+add entity Cart {
+  items: list,
+  ownerId: id,
+  tags: list
+}
+
+for item in items {
+  compute lineTotal {
+    formula: item.price * item.quantity
+  }
+}

@@ -1,0 +1,3 @@
+add entity Task { id: id, done: boolean }
+if done == true { return { status: "complete" } } else { return { status: "pending" } }
+for item in tasks { send notify to item { message: "due" } }

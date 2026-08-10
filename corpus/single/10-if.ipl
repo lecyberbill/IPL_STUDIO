@@ -1,0 +1,18 @@
+add entity Order {
+  id: id,
+  isPaid: boolean
+}
+
+read order from queue {
+  where: id == "o-1"
+}
+
+if order.isPaid == true {
+  send receipt to order {
+    channel: "email"
+  }
+} else {
+  send reminder to order {
+    channel: "email"
+  }
+}

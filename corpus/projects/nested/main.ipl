@@ -1,0 +1,9 @@
+import "a.ipl";
+
+add entity App {
+  name: text
+}
+
+read config from settings {
+  where: name == "app"
+}

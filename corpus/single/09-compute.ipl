@@ -1,0 +1,13 @@
+add entity Invoice {
+  subtotal: number,
+  taxRate: number,
+  discount: number
+}
+
+compute total {
+  formula: subtotal + (subtotal * taxRate) - discount
+}
+
+compute roundedTotal {
+  formula: round(total * 100) / 100
+}

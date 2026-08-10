@@ -1,0 +1,15 @@
+add entity Ticket {
+  priority: options("low", "medium", "high", "critical"),
+  state: options("open", "in_progress", "closed"),
+  channel: options("email", "chat", "phone")
+}
+
+read ticket from queue {
+  where: state == "open"
+}
+
+if ticket.priority == "critical" {
+  send pager to oncall {
+    message: "Critical ticket requires attention"
+  }
+}

@@ -1215,6 +1215,8 @@ export function parseIPLToTree(source: string): IPLBlockNode[] {
     const isContainerHeader = last.type === 'lbrace';
     const headerText = isContainerHeader ? trimmed.replace(/\{$/, '').trim() : trimmed;
 
+    const isContinuation = /^\}\s*(else|catch)\b/.test(headerText);
+
     const newNode: IPLBlockNode = {
       id: `node-${Date.now()}-${idCounter++}`,
       verbName: foundVerb?.name,
@@ -1222,6 +1224,38 @@ export function parseIPLToTree(source: string): IPLBlockNode[] {
       headerText,
       children: []
     };
+
+    // A `} else` / `} catch e` line closes the nearest owning `if` / `try`
+    // container (popping it off the stack), attaches itself to that owner as a
+    // sibling block, and opens a new container for its own body. This keeps the
+    // stack depth faithful to the source, so code that follows the
+    // if/try/catch chain (e.g. a top-level `search`) does not leak inside it.
+    if (isContinuation) {
+      const ownerIsIf = /^\}\s*else\b/.test(headerText);
+      let owner: IPLBlockNode | undefined;
+      while (stack.length > 0) {
+        const top = stack[stack.length - 1];
+        const topIsOwner = ownerIsIf
+          ? top.verbName === 'if' || /^\}\s*(else|if)/.test(top.headerText)
+          : top.verbName === 'try' || /^\}\s*catch/.test(top.headerText);
+        if (topIsOwner) {
+          owner = stack.pop();
+          break;
+        }
+        stack.pop();
+      }
+
+      if (owner) {
+        owner.children.push(newNode);
+      } else if (stack.length === 0) {
+        root.push(newNode);
+      } else {
+        stack[stack.length - 1].children.push(newNode);
+      }
+
+      stack.push(newNode);
+      continue;
+    }
 
     if (stack.length === 0) {
       root.push(newNode);

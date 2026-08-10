@@ -1,0 +1,5 @@
+import "does-not-exist.ipl";
+
+add entity Main {
+  name: text
+}

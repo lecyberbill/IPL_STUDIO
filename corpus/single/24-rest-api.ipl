@@ -1,0 +1,31 @@
+add entity Todo {
+  id: id,
+  title: text,
+  done: boolean
+}
+
+listen event on "todo:created" {
+  try {
+    read todo from request {
+      where: title != ""
+    }
+    add todo {
+      id: todo.id,
+      title: todo.title,
+      done: todo.done
+    }
+  } catch error {
+    send errorResponse to caller {
+      status: 422,
+      reason: "invalid payload"
+    }
+  }
+}
+
+search todos in store {
+  matching: "open"
+}
+
+remove done from todos {
+  where: done == true
+}

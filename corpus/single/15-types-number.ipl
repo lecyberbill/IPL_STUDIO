@@ -1,0 +1,14 @@
+add entity Account {
+  balance: number,
+  monthlyLimit: number,
+  creditScore: number,
+  interestRate: number
+}
+
+compute available {
+  formula: monthlyLimit - balance
+}
+
+compute projectedInterest {
+  formula: balance * interestRate
+}

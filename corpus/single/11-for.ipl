@@ -1,0 +1,13 @@
+add entity Order {
+  id: id,
+  amount: number,
+  status: text
+}
+
+for order in orders {
+  if order.amount > 100 {
+    set order.status = "priority"
+  } else {
+    set order.status = "standard"
+  }
+}

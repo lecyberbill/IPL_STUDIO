@@ -10,7 +10,7 @@ export default defineConfig({
     }
   },
   test: {
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'corpus/**/*.test.ts'],
     exclude: ['output/**', 'node_modules/**', 'dist/**']
   }
 });

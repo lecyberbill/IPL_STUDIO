@@ -1,0 +1,15 @@
+// Leading line comment
+add entity User {
+  /* inline block comment */
+  id: id,
+  // trailing comment on a field
+  name: text,
+  email: text
+}
+
+/* Multi-line
+   block comment
+   spanning several lines */
+read user from db {
+  where: email == "a@b.c" // trailing where comment
+}

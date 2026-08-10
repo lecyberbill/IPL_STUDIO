@@ -1,0 +1,16 @@
+listen event on "order:placed" {
+  try {
+    read orderData from event {
+      where: total > 0
+    }
+    send confirmation to orderData {
+      subject: "Order received",
+      orderId: orderData.id
+    }
+    compute shippingCost {
+      formula: orderData.total * 0.10
+    }
+  } catch error {
+    set orderData.status = "failed"
+  }
+}

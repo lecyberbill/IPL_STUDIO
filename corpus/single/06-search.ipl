@@ -1,0 +1,10 @@
+add entity Product {
+  sku: id,
+  name: text,
+  inStock: boolean
+}
+
+search results in catalog {
+  matching: "laptop",
+  where: inStock == true
+}

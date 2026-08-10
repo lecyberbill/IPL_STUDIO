@@ -1,0 +1,15 @@
+add entity Account {
+  isVerified: boolean,
+  isBlocked: boolean,
+  hasMfa: boolean
+}
+
+read account from accounts {
+  where: isVerified == true
+}
+
+if account.isBlocked == false {
+  send accessGranted to account {
+    scope: "full"
+  }
+}
