@@ -42,6 +42,7 @@ Contrat `verify.assert` : `currency="EUR"`, `vehicles.length=2`, `vehicles.0.pla
   3. la **non-pollution du stdout** (artefacts d'exemple imprimés à l'import).
 - **Le contexte n'était pas le goulot** : le passage 8000 → 16k/32k n'a pas suffi ; le plafond est la capacité du modèle à produire un programme autonome conforme.
 - **`gpt-oss-20b` est le candidat local le plus proche** : 1 run sur 4 était conforme (run 14:02), bloqué uniquement par des erreurs mécaniques désormais corrigées dans le harness. Mais le modèle est **instable** d'un run à l'autre (imports relatifs/absolus incohérents, données hors contrat régénérées). Avec les 3 fixes harness, un run de réparation a finalement **convergé (PASS, 14:53)**.
+- **Raison d'être de l'IPL (rapport tokens)** : un prompt naturel « complet » coûte ~312 tokens (vs ~211 pour la spec) **mais** un humain n'écrit jamais ce prompt d'un bloc — chaque précision est un aller-retour qui coûte du contexte croissant + une réponse + du bruit en plus. C'est cet effet multiplicatif (difficilement quantifiable mais logique) que l'IPL élimine en encodant la précision une fois dans la structure de la spec. Détail et chiffres dans la section « Coût en tokens ».
 
 ### Coût en tokens : IPL vs prompt naturel
 
@@ -58,6 +59,16 @@ L'IPL est conçu pour **économiser des tokens** par rapport à un prompt en lan
   1. **Entrée (spec)** : ~211 vs ~312 tokens.
   2. **Réparation** : le prompt de réparation sérialise le contrat `verify.assert` (JSON) — identique en taille pour les deux modes, mais l'IPL l'exprime nativement dans la spec au lieu de le répéter en prose.
   3. **Sortie** : la spec IPL guide une sortie structurée (le générateur a un contrat explicite), ce qui réduit les allers-retours de réparation (le run PASS local 14:53 a convergé en 3 passes).
+
+#### Le vrai coût caché : la précision en prose coûte des allers-retours
+
+La comparaison « spec IPL vs prompt naturel » ci-dessus compare une spec **complète** à un prompt naturel **qui contient déjà toutes les précisions**. Or un humain n'écrit jamais ce prompt d'un bloc : il découvre, précise, corrige. Chaque précision supplémentaire est un **aller-retour**, et chaque aller-retour coûte des tokens **en entrée ET en sortie**, plus il **pollue le contexte** :
+
+- **Entrée** : chaque message suivant ré-envoie tout l'historique accumulé (le contexte ne cesse de grossir). Le coût marginal d'une précision = taille de l'historique + la précision elle-même, pas seulement la précision.
+- **Sortie** : le modèle répond à chaque clarification (parfois longuement, comme le montrent les runs WARN « clarification » du harness — réponses non productives qui discutent au lieu de coder).
+- **Pollution du contexte** : l'historique de dialogue contient des formulations ambiguës, des allers-retours et des réponses non productives qui **dégradent la qualité** des générations suivantes (le modèle réutilise du bruit), et qui sont re-comptés en tokens à chaque appel suivant.
+- L'IPL évite exactement ce cycle : la précision (types, contraintes, formules, format de sortie, valeurs attendues) est **encodée une fois** dans la structure de la spec, pas négociée au fil du dialogue. Le contrat comportemental est le même objet à chaque passe de réparation, sans historique de bavardage.
+- **Difficilement quantifiable, mais logique** : le vrai coût d'un prompt naturel n'est pas les ~312 tokens initiaux, mais 312 + N aller-retours × (contexte croissant + réponse + bruit), où N est le nombre de précisions que l'humain doit apporter pour arriver au même niveau de spécificité que la spec IPL. C'est cet effet multiplicatif que l'IPL élimine.
 - **À mesurer ensuite** : économie réelle en tokens de sortie + taux de succès one-shot sur les 32 specs du corpus, pas seulement le scénario parking.
 
 ### Fixes harness dérivés de ce diagnostic
