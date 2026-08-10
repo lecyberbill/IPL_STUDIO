@@ -1,16 +1,26 @@
-# ⚡ IPL Studio v1.0 — Intent Programming Language IDE & Autonomous Agent
+# ⚡ IPL Studio v1.3.0 — Intent Programming Language IDE & Autonomous Agent
 
 [![Vite](https://img.shields.io/badge/Vite-8.x-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![React](https://img.shields.io/badge/React-19.x-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-4.x-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Changelog](https://img.shields.io/badge/Release_Notes-v1.2.0-blue.svg?style=for-the-badge)](CHANGELOG.md)
+[![Changelog](https://img.shields.io/badge/Release_Notes-v1.3.0-blue.svg?style=for-the-badge)](CHANGELOG.md)
 [![LLM Agent Guide](https://img.shields.io/badge/Agent_Prompt-IPL_Guide-purple.svg?style=for-the-badge)](IPL_AGENT_GUIDE.md)
 [![Benchmark Suite](https://img.shields.io/badge/Benchmark-Hello_World-orange.svg?style=for-the-badge)](BENCHMARK_HELLO_WORLD.md)
 [![Roadmap](https://img.shields.io/badge/Roadmap-Phases_4--10-teal.svg?style=for-the-badge)](ROADMAP.md)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
 > **IPL Studio** is an AI-powered polyglot, intent-based IDE with autonomous agentic capabilities. It transforms high-level declarative specifications written in **IPL (Intent Programming Language)** into runnable, multi-file codebases (Rust, Python, Node.js, Go, C++, HTML5, Java, etc.) written directly to disk.
+
+---
+
+## ✨ v1.3.0 Highlights
+
+- **Versioned Release Pipeline** — one manual `workflow_dispatch` turns `main` into a tagged GitHub Release: semver validation, `package.json` + `package-lock.json` bump, CHANGELOG `[Unreleased]` → `[x.y.z] - date`, tag + `gh release create` (see `ROADMAP.md → Versioned Release pipeline`).
+- **UX Finishing Pass** — one-time first-run onboarding (`WelcomeModal`), dismissible generation-error banner with an **Open Settings** shortcut, a 6-template project gallery, skeleton loading states, and helpful empty states.
+- **Bundle & Performance Budget** — app entry chunk **4.79 MB → 299 kB** (gzip 1.24 MB → 82.8 kB): `codeSplitting.groups` isolate monaco/react/xterm/ui into cacheable vendor chunks, and the 4 `INEFFECTIVE_DYNAMIC_IMPORT` warnings are gone. `monaco-editor` (~4 MB) is a documented, cacheable outlier.
+- **Reusable dev-server middleware** — the API + security gate live in a Vite-independent module (`src/server/devApiServer.ts`) so the future desktop shell can mount the exact same policy (Phase 9 prerequisite).
+- **CI hardening** — `concurrency: ci-${{ github.ref }}` (cancel-in-progress) keeps commit-heavy pushes fast; the store test suite is now environment-independent (no `.env` / machine API key required).
 
 ---
 
@@ -146,7 +156,7 @@ Never expose this server to an untrusted network.
 npm test        # one-shot
 npm run test:watch
 ```
-38 tests cover the IPL parser, the semantic analyzer, and the data-driven grammar signature.
+**133 tests across 11 suites** cover the IPL parser, the semantic analyzer, the reference index (go-to-def), the grammar signature, the store slices, the reusable dev-server middleware, and golden execution fixtures.
 
 ### 5. Run the Automated Benchmark Harness
 ```bash
@@ -187,9 +197,10 @@ IPL_STUDIO/
 ├── output/                   # Physical disk target folder for generated projects
 ├── scripts/                  # Dev utilities (gen-agent-guide.ts, run-benchmark.ts → npm run bench)
 ├── src/
-│   ├── components/           # UI components (Monaco, Terminal, Git, Chat, Inspector, etc.)
+│   ├── components/           # UI components (Monaco, Terminal, Git, Chat, Inspector, Welcome, etc.)
 │   ├── engine/               # LLM Code Generator engine, IPL Grammar, typed parser, Artifact Generator
-│   ├── store/                # Zustand global store (IDE State, Layout Persistence)
+│   ├── server/               # Reusable dev-api middleware (createDevApiServer) — Vite-independent security gate
+│   ├── store/                # Zustand store split into slices (editor, projects, settings, generation, disk, logs) + persist
 │   ├── App.tsx               # Main IDE Layout
 │   └── main.tsx              # React Entrypoint
 ├── vite.config.ts            # Vite config & API Middlewares (/api/run-command, /api/read-disk, /api/write-artifact)

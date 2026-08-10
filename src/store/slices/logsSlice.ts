@@ -13,7 +13,7 @@ export const logsSlice: StoreSlice<LogsSlice> = (set) => ({
       id: 'init-1',
       time: new Date().toLocaleTimeString(),
       type: 'info',
-      text: 'IPL Studio v1.0 initialized with persistent multi-project manager.'
+      text: 'IPL Studio v1.3.0 initialized with persistent multi-project manager.'
     }
   ],
 

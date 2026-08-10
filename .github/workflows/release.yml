@@ -38,14 +38,20 @@ jobs:
           echo "VERSION=$V" >> "$GITHUB_ENV"
           echo "TAG=v$V" >> "$GITHUB_ENV"
 
-      - name: Bump package.json version
+      - name: Bump package.json + package-lock.json version
         run: |
           node - <<'JS'
           const fs = require('fs');
-          const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-          p.version = process.env.VERSION;
-          fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
-          console.log('package.json version ->', p.version);
+          const v = process.env.VERSION;
+          for (const file of ['package.json', 'package-lock.json']) {
+            const p = JSON.parse(fs.readFileSync(file, 'utf8'));
+            p.version = v;
+            if (file === 'package-lock.json' && p.packages && p.packages['']) {
+              p.packages[''].version = v;
+            }
+            fs.writeFileSync(file, JSON.stringify(p, null, 2) + '\n');
+            console.log(`${file} version ->`, v);
+          }
           JS
 
       - name: Move CHANGELOG [Unreleased] to the versioned section
@@ -86,7 +92,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json CHANGELOG.md
+          git add package.json package-lock.json CHANGELOG.md
           git commit -m "chore(release): v$VERSION"
           git tag "$TAG"
           git push origin main

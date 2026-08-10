@@ -49,7 +49,7 @@ export const Navbar: React.FC = () => {
           <div>
             <h1 className="font-bold text-white text-sm tracking-wider flex items-center space-x-1.5">
               <span>IPL STUDIO</span>
-              <span className="text-[10px] bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-500/30 font-mono">v1.0</span>
+              <span className="text-[10px] bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-500/30 font-mono">v1.3.0</span>
             </h1>
             <p className="text-[10px] text-gray-400 font-mono">Intent Programming Language IDE</p>
           </div>

@@ -1,9 +1,9 @@
 @echo off
-title IPL Studio IDE v1.0 - Launching...
+title IPL Studio IDE v1.3.0 - Launching...
 cls
 
 echo ===================================================
-echo     IPL Studio v1.0 - IDE Atelier d'Intention
+echo     IPL Studio v1.3.0 - IDE Atelier d'Intention
 echo ===================================================
 echo.
 echo Lancement du serveur de developpement IPL Studio...
