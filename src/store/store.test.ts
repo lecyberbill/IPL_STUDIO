@@ -260,6 +260,10 @@ describe('generationSlice', () => {
   it('runGeneration surfaces and then clears generation errors', async () => {
     const store = createTestStore();
     // Force pass 2 (the streaming call) to reject: same config, stubbed fetch.
+    // A customApiKey makes the flow environment-independent: without it the
+    // generator short-circuits with a missing-key error before reaching fetch
+    // (CI has no .env, so VITE_DP_API_KEY is undefined there).
+    store.getState().setLLMConfig({ customApiKey: 'ci-test-key' });
     vi.mocked(fetch).mockRejectedValue(new Error('connection refused'));
     await store.getState().runGeneration();
     expect(store.getState().generationError).toBe('connection refused');
