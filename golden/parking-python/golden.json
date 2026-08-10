@@ -1,0 +1,25 @@
+{
+  "id": "parking-python",
+  "name": "Smart parking garage (dynamic pricing + VIP discount)",
+  "targetLang": "python",
+  "command": "python main.py",
+  "assert": {
+    "exitCode": 0,
+    "stdoutRegex": "\"currency\": \"EUR\"",
+    "jsonInOutput": [
+      { "path": "currency", "equals": "EUR" },
+      { "path": "vehicles.length", "equals": 2 },
+      { "path": "vehicles.0.plate", "equals": "AB-123" },
+      { "path": "vehicles.0.cost", "equals": 8.0 },
+      { "path": "vehicles.0.durationHours", "equals": 2.0 },
+      { "path": "vehicles.0.isVip", "equals": false },
+      { "path": "vehicles.1.plate", "equals": "VIP-7" },
+      { "path": "vehicles.1.isVip", "equals": true },
+      { "path": "vehicles.1.cost", "equals": 6.4 },
+      { "path": "vehicles.1.durationHours", "equals": 2.0 },
+      { "path": "grandTotal", "equals": 14.4 },
+      { "path": "grandTotal", "gt": 0 },
+      { "path": "grandTotal", "lt": 50 }
+    ]
+  }
+}

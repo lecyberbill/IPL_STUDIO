@@ -1,0 +1,42 @@
+add entity Vehicle {
+  plate: text,
+  isVip: boolean,
+  entryMinute: number,
+  exitMinute: number
+}
+
+add entity ParkingGarage {
+  hourlyRate: number,
+  vipDiscountRate: number,
+  currency: options("EUR", "USD")
+}
+
+listen event on "vehicle:exit" {
+  read vehicle from gate {
+    where: exitMinute > entryMinute
+  }
+
+  compute durationHours from vehicle {
+    formula: (exitMinute - entryMinute) / 60
+  }
+
+  if vehicle.isVip == true {
+    compute cost from vehicle {
+      formula: round((durationHours * hourlyRate) * (1 - vipDiscountRate) * 100) / 100
+    }
+  } else {
+    compute cost from vehicle {
+      formula: round((durationHours * hourlyRate) * 100) / 100
+    }
+  }
+
+  send receipt to screen {
+    format: "json",
+    plate: vehicle.plate,
+    cost: cost,
+    durationHours: durationHours,
+    isVip: vehicle.isVip
+  }
+
+  return success
+}

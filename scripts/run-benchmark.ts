@@ -254,6 +254,74 @@ return success`,
       // Behavioral proof: the CLI must actually print the greeting at runtime.
       assert: { stdoutContains: ['Hello World'] }
     }
+  },
+  {
+    id: 'parking',
+    name: 'Smart Parking Garage (dynamic pricing + VIP discount)',
+    targetLang: 'python',
+    code: `add entity Vehicle {
+  plate: text,
+  isVip: boolean,
+  entryMinute: number,
+  exitMinute: number
+}
+
+add entity ParkingGarage {
+  hourlyRate: number,
+  vipDiscountRate: number,
+  currency: options("EUR", "USD")
+}
+
+listen event on "vehicle:exit" {
+  read vehicle from gate {
+    where: exitMinute > entryMinute
+  }
+
+  compute durationHours from vehicle {
+    formula: (exitMinute - entryMinute) / 60
+  }
+
+  if vehicle.isVip == true {
+    compute cost from vehicle {
+      formula: round((durationHours * hourlyRate) * (1 - vipDiscountRate) * 100) / 100
+    }
+  } else {
+    compute cost from vehicle {
+      formula: round((durationHours * hourlyRate) * 100) / 100
+    }
+  }
+
+  send receipt to screen {
+    format: "json",
+    plate: vehicle.plate,
+    cost: cost,
+    durationHours: durationHours,
+    isVip: vehicle.isVip
+  }
+
+  return success
+}`,
+    verify: {
+      command: 'python main.py',
+      // Behavioral proof: the generated app must reproduce the parking garage
+      // semantics from the spec — same oracle as the parking-python golden.
+      assert: {
+        stdoutRegex: '"currency": "EUR"',
+        jsonInOutput: [
+          { path: 'currency', equals: 'EUR' },
+          { path: 'vehicles.length', equals: 2 },
+          { path: 'vehicles.0.plate', equals: 'AB-123' },
+          { path: 'vehicles.0.cost', equals: 8.0 },
+          { path: 'vehicles.0.isVip', equals: false },
+          { path: 'vehicles.1.plate', equals: 'VIP-7' },
+          { path: 'vehicles.1.isVip', equals: true },
+          { path: 'vehicles.1.cost', equals: 6.4 },
+          { path: 'grandTotal', equals: 14.4 },
+          { path: 'grandTotal', gt: 0 },
+          { path: 'grandTotal', lt: 50 }
+        ]
+      }
+    }
   }
 ];
 
@@ -313,19 +381,43 @@ function approxTokens(chars: number): number {
   return Math.ceil(chars / 4);
 }
 
+/**
+ * Mock-mode JSON oracles — the golden truth the generated app must reproduce.
+ * When a spec asserts `jsonInOutput`, the mock emits this exact document so the
+ * offline pipeline smoke test exercises the same structured assertions the real
+ * generated apps are measured against (an oracle, not a hack).
+ */
+const MOCK_JSON_ORACLES: Record<string, unknown> = {
+  parking: {
+    currency: 'EUR',
+    grandTotal: 14.4,
+    vehicles: [
+      { plate: 'AB-123', cost: 8.0, durationHours: 2.0, isVip: false },
+      { plate: 'VIP-7', cost: 6.4, durationHours: 2.0, isVip: true }
+    ]
+  }
+};
+
 /** Renders a canned artifact (mock mode) that should PASS the spec's checks. */
 function buildMockArtifact(spec: BenchSpec): string {
   const marker = spec.verify.marker ?? 'IPL Studio';
   // Emit the behavioral needles too, so the mock (an oracle) satisfies the same
   // runtime assertions the real generated apps are measured against.
   const needles = (spec.verify.assert?.stdoutContains ?? []).map(n => n.replace(/"/g, '\\"'));
+  const jsonOracle = spec.verify.assert?.jsonInOutput?.length ? MOCK_JSON_ORACLES[spec.id] : undefined;
+  // `print(json.dumps(json.loads("..."), indent=2))` keeps the stdoutRegex
+  // (e.g. `"currency": "EUR"`) satisfied by formatting keys/values with spaces.
+  const jsonBody = jsonOracle !== undefined
+    ? `\nprint(json.dumps(json.loads("${JSON.stringify(jsonOracle).replace(/"/g, '\\"')}"), indent=2))`
+    : '';
   if (spec.verify.command?.startsWith('python')) {
     return [
       '<file path="main.py">',
+      ...(jsonBody ? ['import json'] : []),
       `print("${marker}")`,
       ...needles.map(n => `print("${n}")`),
       'print("IPL Studio 2-Pass generator: mock artifact")',
-      '</file>'
+      ...(jsonBody ? [jsonBody] : [])
     ].join('\n');
   }
   if (spec.verify.command?.startsWith('node')) {

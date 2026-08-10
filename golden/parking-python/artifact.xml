@@ -1,0 +1,59 @@
+<file path="main.py">
+import json
+
+
+# IPL Project v1.0 — Smart Parking Garage
+# Spec: golden/parking-python/spec.ipl
+
+
+class Vehicle:
+    def __init__(self, plate, is_vip, entry_minute, exit_minute):
+        self.plate = plate
+        self.is_vip = is_vip
+        self.entry_minute = entry_minute
+        self.exit_minute = exit_minute
+
+
+class ParkingGarage:
+    def __init__(self, hourly_rate, vip_discount_rate, currency):
+        self.hourly_rate = hourly_rate
+        self.vip_discount_rate = vip_discount_rate
+        self.currency = currency
+
+    def compute_receipt(self, vehicle):
+        # compute durationHours from vehicle
+        duration_hours = (vehicle.exit_minute - vehicle.entry_minute) / 60
+
+        # if vehicle.isVip == true → VIP pricing, else standard pricing
+        if vehicle.is_vip:
+            cost = round((duration_hours * self.hourly_rate) * (1 - self.vip_discount_rate) * 100) / 100
+        else:
+            cost = round((duration_hours * self.hourly_rate) * 100) / 100
+
+        return {
+            "plate": vehicle.plate,
+            "cost": cost,
+            "durationHours": duration_hours,
+            "isVip": vehicle.is_vip,
+        }
+
+
+if __name__ == "__main__":
+    garage = ParkingGarage(hourly_rate=4.0, vip_discount_rate=0.2, currency="EUR")
+
+    vehicles = [
+        Vehicle("AB-123", is_vip=False, entry_minute=0, exit_minute=120),
+        Vehicle("VIP-7", is_vip=True, entry_minute=10, exit_minute=130),
+    ]
+
+    receipts = [garage.compute_receipt(v) for v in vehicles]
+    grand_total = round(sum(r["cost"] for r in receipts), 2)
+
+    report = {
+        "currency": garage.currency,
+        "grandTotal": grand_total,
+        "vehicles": receipts,
+    }
+
+    print(json.dumps(report, indent=2))
+</file>
