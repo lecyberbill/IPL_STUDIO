@@ -1,0 +1,57 @@
+// IPL Project v1.3.0 — Coffee Shop
+add entity Drink {
+  name: text,
+  basePrice: number,
+  size: options("small", "medium", "large")
+}
+
+add entity LoyaltyCard {
+  ownerName: text,
+  points: number
+}
+
+add entity Order {
+  drinkName: text,
+  size: options("small", "medium", "large"),
+  hasLoyaltyCard: boolean,
+  basePrice: number
+}
+
+listen event on "order:created" {
+  read order from counter {
+    where: order.drinkName != ""
+  }
+
+  compute sizeMultiplier from order {
+    formula: if(order.size == "small", 1.0, if(order.size == "medium", 1.2, 1.5))
+  }
+
+  compute price from order {
+    formula: round(order.basePrice * sizeMultiplier * 100) / 100
+  }
+
+  if order.hasLoyaltyCard == true {
+    compute finalPrice from order {
+      formula: round((price * 0.9) * 100) / 100
+    }
+    send receipt to screen {
+      format: "json",
+      drinkName: order.drinkName,
+      size: order.size,
+      price: price,
+      finalPrice: finalPrice,
+      loyaltyDiscount: "10%"
+    }
+  } else {
+    send receipt to screen {
+      format: "json",
+      drinkName: order.drinkName,
+      size: order.size,
+      price: price,
+      finalPrice: price,
+      loyaltyDiscount: "none"
+    }
+  }
+
+  return success
+}

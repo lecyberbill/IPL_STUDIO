@@ -1,0 +1,87 @@
+<file path="src/entities.js">
+// Entity classes for the Coffee Shop app (source: golden/coffee-node/spec.ipl)
+
+class Drink {
+  constructor({ name, basePrice, size }) {
+    this.name = name;
+    this.basePrice = basePrice;
+    this.size = size;
+  }
+
+  toJSON() {
+    return { name: this.name, basePrice: this.basePrice, size: this.size };
+  }
+}
+
+class LoyaltyCard {
+  constructor({ ownerName, points }) {
+    this.ownerName = ownerName;
+    this.points = points;
+  }
+
+  toJSON() {
+    return { ownerName: this.ownerName, points: this.points };
+  }
+}
+
+class Order {
+  constructor({ drinkName, size, hasLoyaltyCard, basePrice }) {
+    this.drinkName = drinkName;
+    this.size = size;
+    this.hasLoyaltyCard = hasLoyaltyCard;
+    this.basePrice = basePrice;
+  }
+}
+
+module.exports = { Drink, LoyaltyCard, Order };
+</file>
+<file path="src/orderService.js">
+const { Order } = require('./entities');
+
+class OrderService {
+  constructor() {
+    this.sizeMultipliers = { small: 1.0, medium: 1.2, large: 1.5 };
+    this.loyaltyDiscountRate = 0.1;
+  }
+
+  processOrder(orderData) {
+    const order = new Order(orderData);
+    if (order.drinkName === '') {
+      throw new Error('Order drinkName cannot be empty');
+    }
+    const sizeMultiplier = this.sizeMultipliers[order.size] || 1.0;
+    const price = Math.round(order.basePrice * sizeMultiplier * 100) / 100;
+    const finalPrice = order.hasLoyaltyCard
+      ? Math.round(price * (1 - this.loyaltyDiscountRate) * 100) / 100
+      : price;
+    return {
+      drinkName: order.drinkName,
+      size: order.size,
+      price,
+      finalPrice,
+      loyaltyDiscount: order.hasLoyaltyCard
+    };
+  }
+}
+
+module.exports = OrderService;
+</file>
+<file path="src/index.js">
+const OrderService = require('./orderService');
+
+function main() {
+  const service = new OrderService();
+
+  const orders = [
+    { drinkName: 'Latte', size: 'medium', hasLoyaltyCard: true, basePrice: 3.5 },
+    { drinkName: 'Espresso', size: 'small', hasLoyaltyCard: false, basePrice: 2.0 }
+  ];
+
+  const receipts = orders.map(o => service.processOrder(o));
+  const grandTotal = Math.round(receipts.reduce((sum, r) => sum + r.finalPrice, 0) * 100) / 100;
+
+  console.log(JSON.stringify({ orders: receipts, grandTotal }, null, 2));
+}
+
+main();
+</file>

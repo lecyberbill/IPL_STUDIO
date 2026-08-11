@@ -24,6 +24,11 @@ import { readFileSync, mkdirSync, writeFileSync, readdirSync, rmSync, existsSync
 import { resolve as pathResolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { parseMultiFileXml } from '../src/engine/artifactGenerator.ts';
+import type { ProjectArtifactFile } from '../src/engine/artifactGenerator.ts';
+import { findMissingModuleRefs } from '../src/engine/staticChecker.ts';
+import type { MissingModuleRef } from '../src/engine/staticChecker.ts';
+import { buildReviewPrompt, parseReviewOutput } from '../src/engine/reviewAgent.ts';
+import type { ReviewIssue } from '../src/engine/reviewAgent.ts';
 import { callLLM, buildPass1Prompt, buildPass2Prompt, refineIPLArtifact, extractClarificationRequest, DEFAULT_LLM_CONFIG } from '../src/engine/llmGenerator.ts';
 import type { LLMConfig, TargetLanguage } from '../src/engine/llmGenerator.ts';
 import { applyDeterministicRepairs } from '../src/engine/deterministicRepair.ts';
@@ -46,10 +51,11 @@ interface CliArgs {
   quiet: boolean;
   pythonPath?: string;
   repairPasses: number;
+  reviewPass: boolean;
 }
 
 function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = { mode: 'external', iterations: 1, timeoutPerPassMs: 120_000, timeoutRunMs: 30_000, quiet: false, repairPasses: 3 };
+  const args: CliArgs = { mode: 'external', iterations: 1, timeoutPerPassMs: 120_000, timeoutRunMs: 30_000, quiet: false, repairPasses: 3, reviewPass: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => argv[++i];
@@ -62,6 +68,7 @@ function parseArgs(argv: string[]): CliArgs {
     else if (a === '--timeout-run') args.timeoutRunMs = parseInt(next() || '30000', 10);
     else if (a === '--python') args.pythonPath = next();
     else if (a === '--repair-passes') args.repairPasses = Math.max(0, parseInt(next() || '3', 10));
+    else if (a === '--review') args.reviewPass = true;
     else if (a === '--quiet') args.quiet = true;
     else if (a === '--help') {
       console.log(`IPL Studio Benchmark Harness
@@ -78,6 +85,7 @@ Options:
   --timeout-run <ms>                      command execution timeout (default: 30000)
   --python <venvDir|exe>                  resolve \`python\` via a venv Scripts dir or a direct exe path
   --repair-passes <n>                     self-healing repair passes after a FAIL (0 = off, default: 3)
+  --review                                run the LLM review pass (skeptical code reviewer) after generation
   --quiet                                 suppress streaming logs
   --help                                  this help`);
       process.exit(0);
@@ -322,6 +330,93 @@ listen event on "vehicle:exit" {
         ]
       }
     }
+  },
+  {
+    id: 'coffee',
+    name: 'Coffee Shop Order Management (loyalty pricing)',
+    targetLang: 'javascript',
+    code: `// IPL Project v1.3.0 — Coffee Shop
+add entity Drink {
+  name: text,
+  basePrice: number,
+  size: options("small", "medium", "large")
+}
+
+add entity LoyaltyCard {
+  ownerName: text,
+  points: number
+}
+
+add entity Order {
+  drinkName: text,
+  size: options("small", "medium", "large"),
+  hasLoyaltyCard: boolean,
+  basePrice: number
+}
+
+listen event on "order:created" {
+  read order from counter {
+    where: order.drinkName != ""
+  }
+
+  compute sizeMultiplier from order {
+    formula: if(order.size == "small", 1.0, if(order.size == "medium", 1.2, 1.5))
+  }
+
+  compute price from order {
+    formula: round(order.basePrice * sizeMultiplier * 100) / 100
+  }
+
+  if order.hasLoyaltyCard == true {
+    compute finalPrice from order {
+      formula: round((price * 0.9) * 100) / 100
+    }
+    send receipt to screen {
+      format: "json",
+      drinkName: order.drinkName,
+      size: order.size,
+      price: price,
+      finalPrice: finalPrice,
+      loyaltyDiscount: "10%"
+    }
+  } else {
+    send receipt to screen {
+      format: "json",
+      drinkName: order.drinkName,
+      size: order.size,
+      price: price,
+      finalPrice: price,
+      loyaltyDiscount: "none"
+    }
+  }
+
+  return success
+}`,
+    verify: {
+      command: 'node src/index.js',
+      // Behavioral proof: the generated app must reproduce the coffee shop
+      // pricing contract — size multipliers (1.0/1.2/1.5) and the 10% loyalty
+      // discount — same oracle as the coffee-node golden.
+      assert: {
+        stdoutRegex: '"drinkName"',
+        jsonInOutput: [
+          { path: 'orders.length', equals: 2 },
+          { path: 'orders.0.drinkName', equals: 'Latte' },
+          { path: 'orders.0.size', equals: 'medium' },
+          { path: 'orders.0.price', equals: 4.2 },
+          { path: 'orders.0.finalPrice', equals: 3.78 },
+          { path: 'orders.0.loyaltyDiscount', equals: true },
+          { path: 'orders.1.drinkName', equals: 'Espresso' },
+          { path: 'orders.1.size', equals: 'small' },
+          { path: 'orders.1.price', equals: 2.0 },
+          { path: 'orders.1.finalPrice', equals: 2.0 },
+          { path: 'orders.1.loyaltyDiscount', equals: false },
+          { path: 'grandTotal', equals: 5.78 },
+          { path: 'grandTotal', gt: 0 },
+          { path: 'grandTotal', lt: 10 }
+        ]
+      }
+    }
   }
 ];
 
@@ -395,6 +490,13 @@ const MOCK_JSON_ORACLES: Record<string, unknown> = {
       { plate: 'AB-123', cost: 8.0, durationHours: 2.0, isVip: false },
       { plate: 'VIP-7', cost: 6.4, durationHours: 2.0, isVip: true }
     ]
+  },
+  coffee: {
+    grandTotal: 5.78,
+    orders: [
+      { drinkName: 'Latte', size: 'medium', price: 4.2, finalPrice: 3.78, loyaltyDiscount: true },
+      { drinkName: 'Espresso', size: 'small', price: 2.0, finalPrice: 2.0, loyaltyDiscount: false }
+    ]
   }
 };
 
@@ -421,10 +523,12 @@ function buildMockArtifact(spec: BenchSpec): string {
     ].join('\n');
   }
   if (spec.verify.command?.startsWith('node')) {
+    const nodeJson = jsonOracle !== undefined ? `const data = ${JSON.stringify(jsonOracle)};\nconsole.log(JSON.stringify(data, null, 2));` : '';
     return [
       '<file path="index.js">',
       `console.log("${marker}");`,
       ...needles.map(n => `console.log("${n}");`),
+      ...(nodeJson ? [nodeJson] : []),
       '</file>'
     ].join('\n');
   }
@@ -505,7 +609,7 @@ async function generateMock(spec: BenchSpec): Promise<GenerationOutput> {
 // Disk write + verification
 // ---------------------------------------------------------------------------
 
-function writeArtifact(runDir: string, xml: string): { files: string[]; totalBytes: number } {
+function writeArtifact(runDir: string, xml: string): { files: string[]; totalBytes: number; parsed: ProjectArtifactFile[] } {
   const parsed = parseMultiFileXml(xml);
   const files: string[] = [];
   let totalBytes = 0;
@@ -518,7 +622,7 @@ function writeArtifact(runDir: string, xml: string): { files: string[]; totalByt
     files.push(f.relativePath);
     totalBytes += Buffer.byteLength(f.content, 'utf8');
   }
-  return { files, totalBytes };
+  return { files, totalBytes, parsed };
 }
 
 function runCommand(cwd: string, command: string, timeoutMs: number, pythonPath?: string): { exitCode: number | null; output: string; timedOut: boolean } {
@@ -863,10 +967,17 @@ async function repairAndVerify(
   runDir: string,
   args: CliArgs,
   config: LLMConfig,
-  firstTry: { status: RunStatus; detail: string; output?: string }
+  firstTry: { status: RunStatus; detail: string; output?: string },
+  missingRefs?: MissingModuleRef[],
+  reviewIssues?: ReviewIssue[]
 ): Promise<{ v: { status: RunStatus; detail: string; output?: string }; repairsToSuccess: number; repairDetails: string[]; firstTryStatus: RunStatus }> {
   const repairDetails: string[] = [];
   let v = firstTry;
+
+  if (missingRefs && missingRefs.length > 0) {
+    repairDetails.push(`static check: ${missingRefs.length} import(s) reference files that are not generated — ${missingRefs.map(m => m.resolved).join(', ')}`);
+  }
+  const reviewHints = reviewIssues?.filter(i => i.severity === 'error' || i.severity === 'warning') ?? [];
 
   for (let pass = 1; pass <= args.repairPasses; pass++) {
     // Pass 1 deterministic: rewrite files in place from disk.
@@ -894,7 +1005,13 @@ async function repairAndVerify(
       const contract = spec.verify.assert
         ? `\n\nEXPECTED RUNTIME BEHAVIOR (verify against actual program output):\n${JSON.stringify(spec.verify.assert, null, 2)}`
         : '';
-      const prompt = `THE CODE FAILED THE VERIFICATION. ANALYZE THE FAILURE, FIX THE FILES, AND MAKE THE PROGRAM PRODUCE THE EXPECTED RUNTIME BEHAVIOR.\n\nFailure detail:\n${v.detail}\n\nActual program output:\n${(v.output ?? '').slice(0, 3000)}${contract}`;
+      const staticHint = missingRefs && missingRefs.length > 0
+        ? `\n\nSTATIC IMPORT CHECK FAILURES (imports that reference files never generated — GENERATE THE MISSING FILES):\n${missingRefs.map(m => `- ${m.specifier} imported in ${m.importer} resolves to missing ${m.resolved}`).join('\n')}`
+        : '';
+      const reviewHint = reviewHints.length > 0
+        ? `\n\nCODE REVIEW FINDINGS (independent reviewer — fix these too):\n${reviewHints.map(r => `- [${r.severity}] ${r.file}: ${r.message}${r.suggestion ? ` (suggested: ${r.suggestion})` : ''}`).join('\n')}`
+        : '';
+      const prompt = `THE CODE FAILED THE VERIFICATION. ANALYZE THE FAILURE, FIX THE FILES, AND MAKE THE PROGRAM PRODUCE THE EXPECTED RUNTIME BEHAVIOR.\n\nFailure detail:\n${v.detail}\n\nActual program output:\n${(v.output ?? '').slice(0, 3000)}${contract}${staticHint}${reviewHint}`;
       try {
         const fixed = await withTimeout(
           refineIPLArtifact(existingXml, prompt, spec.targetLang, config, () => {}, () => {}),
@@ -930,6 +1047,31 @@ async function repairAndVerify(
   }
 
   return { v, repairsToSuccess: -1, repairDetails, firstTryStatus: firstTry.status };
+}
+
+/**
+ * The LLM review pass ("the reviewer who is not an IPL specialist"): after the
+ * artifact is written, a fresh LLM reads the ENTIRE codebase and flags defects
+ * regex cannot see — undefined symbols, mismatched signatures, fields read but
+ * never produced, swallowed errors. Returns a compact summary string (or '' if
+ * the pass is disabled / clean), consumed as a hint by the repair loop.
+ */
+async function runReviewPass(
+  files: ProjectArtifactFile[],
+  args: CliArgs,
+  config: LLMConfig
+): Promise<{ issues: ReviewIssue[]; ms: number }> {
+  const start = Date.now();
+  const prompt = buildReviewPrompt(files);
+  let raw = '';
+  try {
+    raw = await withTimeout(callLLM(prompt, config, () => {}, undefined, { temperature: 0.1 }), args.timeoutPerPassMs, 'review pass');
+  } catch (err: any) {
+    log(args, `review pass failed: ${err.message}`, 'warn');
+    return { issues: [], ms: Date.now() - start };
+  }
+  const issues = parseReviewOutput(raw);
+  return { issues, ms: Date.now() - start };
 }
 
 // ---------------------------------------------------------------------------
@@ -1154,12 +1296,33 @@ async function main(): Promise<number> {
       const written = writeArtifact(runDir, gen.xml);
       const firstTry = await verify(spec, runDir, args);
 
+      // Static "holes in the racket" check — a proactive pass that READS the
+      // generated code and flags imports that reference files never generated
+      // (the recurring `require('./entities')` -> missing entities.js bug).
+      // It runs before behavioral verify so a one-file gap is caught early, and
+      // feeds the same self-healing repair loop when repairs are enabled.
+      const missingRefs = findMissingModuleRefs(written.parsed);
+
+      // Optional LLM review pass: a skeptical non-IPL code reviewer reads the
+      // whole tree and flags defects regex cannot see. Costs one extra LLM call
+      // per run, so it is opt-in via --review.
+      let reviewIssues: ReviewIssue[] = [];
+      if (args.reviewPass && args.mode !== 'mock') {
+        const review = await runReviewPass(written.parsed, args, config);
+        reviewIssues = review.issues;
+        if (reviewIssues.length > 0) {
+          log(args, `review pass: ${reviewIssues.length} issue(s) (${review.ms} ms)`, 'warn');
+        } else {
+          log(args, `review pass: clean (${review.ms} ms)`, 'info');
+        }
+      }
+
       // Self-healing: try to repair failing runs (deterministic + LLM) up to --repair-passes.
       let v = firstTry;
       let repairsToSuccess = 0;
       let repairDetails: string[] = [];
       if (firstTry.status === 'FAIL' && args.repairPasses > 0 && args.mode !== 'mock') {
-        const repaired = await repairAndVerify(spec, runDir, args, config, firstTry);
+        const repaired = await repairAndVerify(spec, runDir, args, config, firstTry, missingRefs, reviewIssues);
         v = repaired.v;
         repairsToSuccess = repaired.repairsToSuccess;
         repairDetails = repaired.repairDetails;

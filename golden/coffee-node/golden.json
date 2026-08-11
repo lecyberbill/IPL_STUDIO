@@ -1,0 +1,26 @@
+{
+  "id": "coffee-node",
+  "name": "Coffee Shop order management (loyalty pricing)",
+  "targetLang": "javascript",
+  "command": "node src/index.js",
+  "assert": {
+    "exitCode": 0,
+    "stdoutRegex": "\"drinkName\"",
+    "jsonInOutput": [
+      { "path": "orders.length", "equals": 2 },
+      { "path": "orders.0.drinkName", "equals": "Latte" },
+      { "path": "orders.0.size", "equals": "medium" },
+      { "path": "orders.0.price", "equals": 4.2 },
+      { "path": "orders.0.finalPrice", "equals": 3.78 },
+      { "path": "orders.0.loyaltyDiscount", "equals": true },
+      { "path": "orders.1.drinkName", "equals": "Espresso" },
+      { "path": "orders.1.size", "equals": "small" },
+      { "path": "orders.1.price", "equals": 2.0 },
+      { "path": "orders.1.finalPrice", "equals": 2.0 },
+      { "path": "orders.1.loyaltyDiscount", "equals": false },
+      { "path": "grandTotal", "equals": 5.78 },
+      { "path": "grandTotal", "gt": 0 },
+      { "path": "grandTotal", "lt": 10 }
+    ]
+  }
+}
