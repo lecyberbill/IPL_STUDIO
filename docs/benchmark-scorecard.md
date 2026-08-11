@@ -108,6 +108,35 @@ Les 36 specs de `corpus/` (24 single + 5 edge + 7 projects) sont **beaucoup plus
 | Retry avant WARN « entry missing » (`node index.js` → `src/index.js`) | `scripts/run-benchmark.ts` (verify) | `node-hello` générait `src/index.js` (correct, exit 0) mais le harness concluait WARN sans tenter le retry. Désormais le retry est tenté pour tous les échecs de commande, et le WARN n'est émis que si le retry échoue aussi. |
 | Diagnostic de deps manquantes (report-only, jamais d'install) | `scripts/run-benchmark.ts` (`extractMissingModules` / `readDeclaredDeps` / `diagnoseMissingDeps`) | Sur `ModuleNotFoundError`/`Cannot find module`/`unresolved import`/`no required module`, extrait les modules manquants, vérifie leur déclaration dans `requirements.txt`/`package.json`/`Cargo.toml`/`go.mod`, et émet un WARN `NO AUTO-INSTALL: review these dependencies and install/verify them manually.` Générique par langage. |
 
+### Agent de consolidation (gate de livraison, app flow)
+
+Gate de pré-livraison du **flux app** (pas du benchmark) : avant qu'un projet généré ne soit remis à l'utilisateur pour test, un agent relit, vérifie et répare. Voir `src/engine/consolidationAgent.ts`.
+
+Raison d'être : la classe de bugs « code généré qui ne s'exécute pas » (souvent invisible pour un humain qui teste) est attaquée par une relecture systématique *avant* le test utilisateur — au lieu de faire chercher l'utilisateur.
+
+Fonctionnement (3 étages, à l'écart du 100 % « one-shot ») :
+
+1. **Gates déterministes (0 token)** — le checker statique (`src/engine/staticChecker.ts`, imports vs fichiers présents) valide ce qui est mécaniquement vérifiable sans LLM.
+2. **Review LLM systématique** — un agent **non-spécialiste IPL** (prompt sans vocabulaire IPL, vérifié par test) relit chaque run, même quand les gates sont propres : le coût moyen est amorti sur plusieurs projets.
+3. **Fusion/vérification croisée + boucle d'auto-fix bornée** — chaque finding LLM est **confirmé par un gate déterministe** (un reviewer qui hallucine est pire qu'aucun) ; les erreurs confirmées sont réparées dans une boucle (max 2 passes, stop si pas de progrès → borne le coût tokens) ; rapport de livraison « trouvé / corrigé / restant ».
+
+Câblage : `runConsolidation` est appelé après `runGeneration` **et** après chaque `requestLLMCorrection`, avant `writeArtifactToDisk`. Toggle `consolidationEnabled` (on par défaut) dans `SettingsModal`.
+
+**Validation réelle** (artefact coffee cassé du run `run-2026-08-11T07-44-23-620Z-1`, bug guard `file://`) — deepseek-chat :
+
+| Vérification | Résultat |
+| :--- | :--- |
+| Gates déterministes | 0 issue (l'import manquant `entities.js` avait déjà été réparé par le benchmark) |
+| Review LLM | 7 erreurs confirmées — dont le **bug exact du guard `file://`** et d'autres défauts cachés (récursion infinie `createOrder`, `orderData` non validé, `eventHandler` jamais attaché dans `onOrderCreated`) |
+| Auto-fix | 2 passes appliquées, fichiers modifiés (`src/index.js`, `src/orderProcessor.js`, `src/entities.js`) |
+| Restant | 5 issues confirmées laissées à la revue humaine (vib coding ciblé) |
+
+Enseignements :
+
+- L'agent a **reproduit exactement** le bug que l'humain avait identifié manuellement, **sans aucune connaissance du contexte** — et en a trouvé d'autres invisibles au premier coup d'œil. La machine ne livre pas parfait, mais elle **prépare le terrain** du vib coding en localisant précisément ce qui cloche.
+- Ce n'est pas un patch spécifique à un run (ex. « interdire `file://` ») : un run n'est jamais représentatif. C'est une **classe de vérification** réutilisable, branchée dans le flux app.
+- Le contrat reste l'**économie de tokens** (précision encodée dans la spec, pas négociée au fil du dialogue) : l'agent consolide au lieu d'augmenter le nombre de passes de réparation inconditionnelles.
+
 ### Leçons pour le harness
 
 - WARN « clarification » pendant une passe de réparation : désormais un **FAIL comptable** (passe de réparation consommée), plus un état terminal qui attendait une réponse utilisateur — le modèle discute au lieu de corriger. (`repairAndVerify` dans `scripts/run-benchmark.ts`)
