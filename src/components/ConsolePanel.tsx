@@ -2,12 +2,15 @@ import React, { useState } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
 import { TerminalPanel } from './TerminalPanel';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
-import { Terminal, Trash2, Info, CheckCircle2, AlertTriangle, AlertCircle, ChevronUp, ChevronDown, ListChecks } from 'lucide-react';
+import { DeliveryPanel } from './DeliveryPanel';
+import { Terminal, Trash2, Info, CheckCircle2, AlertTriangle, AlertCircle, ChevronUp, ChevronDown, ListChecks, PackageCheck } from 'lucide-react';
 
 export const ConsolePanel: React.FC = () => {
-  const { logs, clearLogs, syntaxErrors } = useIdeStore();
-  const [activeTab, setActiveTab] = useState<'terminal' | 'diagnostics' | 'logs'>('terminal');
+  const { logs, clearLogs, syntaxErrors, consolidationResult } = useIdeStore();
+  const [activeTab, setActiveTab] = useState<'terminal' | 'diagnostics' | 'delivery' | 'logs'>('terminal');
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
+
+  const deliveryRemaining = consolidationResult?.confirmedIssues.length ?? 0;
 
   const getLogIcon = (type: string) => {
     switch (type) {
@@ -52,6 +55,18 @@ export const ConsolePanel: React.FC = () => {
           </button>
 
           <button
+            onClick={() => { setActiveTab('delivery'); setIsExpanded(true); }}
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+              activeTab === 'delivery' && isExpanded
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <PackageCheck size={14} />
+            <span>Delivery ({deliveryRemaining})</span>
+          </button>
+
+          <button
             onClick={() => { setActiveTab('logs'); setIsExpanded(true); }}
             className={`flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all ${
               activeTab === 'logs' && isExpanded
@@ -92,6 +107,8 @@ export const ConsolePanel: React.FC = () => {
             <TerminalPanel />
           ) : activeTab === 'diagnostics' ? (
             <DiagnosticsPanel />
+          ) : activeTab === 'delivery' ? (
+            <DeliveryPanel />
           ) : (
             <div className="h-full overflow-y-auto p-3 space-y-1.5 font-mono text-xs select-text">
               {logs.length === 0 && (

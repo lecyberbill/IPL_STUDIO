@@ -257,6 +257,40 @@ describe('generationSlice', () => {
     expect(store.getState().generationError).toBeNull();
   });
 
+  it('setConsolidationResult publishes the delivery report for the Delivery panel', () => {
+    const store = createTestStore();
+    expect(store.getState().consolidationResult).toBeNull();
+    const result = {
+      files: [{ relativePath: 'main.py', content: 'print(1)' }],
+      staticIssues: [],
+      jsonIssues: [],
+      reviewIssues: [],
+      confirmedIssues: [{ kind: 'static' as const, file: 'lib/util.py', message: 'missing import' }],
+      passesUsed: 1,
+      changed: true,
+      report: '--- CONSOLIDATION REPORT ---'
+    };
+    store.getState().setConsolidationResult(result);
+    expect(store.getState().consolidationResult?.confirmedIssues).toHaveLength(1);
+    expect(store.getState().consolidationResult?.report).toContain('CONSOLIDATION REPORT');
+  });
+
+  it('switchProject clears the previous delivery report', () => {
+    const store = createTestStore();
+    store.getState().setConsolidationResult({
+      files: [],
+      staticIssues: [],
+      jsonIssues: [],
+      reviewIssues: [],
+      confirmedIssues: [],
+      passesUsed: 0,
+      changed: false,
+      report: 'old'
+    });
+    store.getState().switchProject(store.getState().projects[1].id);
+    expect(store.getState().consolidationResult).toBeNull();
+  });
+
   it('runGeneration surfaces and then clears generation errors', async () => {
     const store = createTestStore();
     // Force pass 2 (the streaming call) to reject: same config, stubbed fetch.

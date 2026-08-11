@@ -10,6 +10,10 @@ export interface EditorSlice {
   editorViewMode: 'text' | 'blocks';
   syntaxErrors: SyntaxErrorItem[];
   editorInstance: monaco.editor.IStandaloneCodeEditor | null;
+  selectedFilePath: string;
+  setSelectedFilePath: (path: string) => void;
+  activePanelTab: 'files' | 'chat';
+  setActivePanelTab: (tab: 'files' | 'chat') => void;
   setCode: (newCode: string) => void;
   setTargetLang: (lang: TargetLanguage) => void;
   setEditorViewMode: (mode: 'text' | 'blocks') => void;
@@ -24,6 +28,11 @@ export const editorSlice: StoreSlice<EditorSlice> = (set, get) => ({
   editorViewMode: 'text',
   syntaxErrors: [],
   editorInstance: null,
+  selectedFilePath: '',
+  activePanelTab: 'files',
+
+  setSelectedFilePath: (selectedFilePath) => set({ selectedFilePath }),
+  setActivePanelTab: (activePanelTab) => set({ activePanelTab }),
 
   setCode: (newCode: string) => {
     const errors = validateIPLCode(newCode);

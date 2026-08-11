@@ -85,16 +85,18 @@ export const TargetInspector: React.FC = () => {
     customTargets,
     rightSidebarWidth,
     generationError,
-    clearGenerationError
+    clearGenerationError,
+    selectedFilePath,
+    setSelectedFilePath,
+    activePanelTab,
+    setActivePanelTab
   } = useIdeStore();
 
-  const [activePanelTab, setActivePanelTab] = useState<'files' | 'chat'>('files');
   const [copied, setCopied] = useState(false);
   const [copiedPath, setCopiedPath] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isWritingDisk, setIsWritingDisk] = useState(false);
   const [isReadingDisk, setIsReadingDisk] = useState(false);
-  const [selectedFilePath, setSelectedFilePath] = useState<string>('');
   const tabsRef = useRef<HTMLDivElement>(null);
 
   const scrollTabs = (direction: 'left' | 'right') => {
@@ -124,7 +126,7 @@ export const TargetInspector: React.FC = () => {
     if (files.length > 0 && (!selectedFilePath || !files.some(f => f.relativePath === selectedFilePath))) {
       setSelectedFilePath(files[0].relativePath);
     }
-  }, [generatedCode, targetLang, files]);
+  }, [generatedCode, targetLang, files, selectedFilePath, setSelectedFilePath]);
 
   const handleCopy = () => {
     const textToCopy = currentFile ? currentFile.content : generatedCode;

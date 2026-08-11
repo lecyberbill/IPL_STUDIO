@@ -5,6 +5,7 @@ import { resolveIPLProject, validateIPLProject } from '../../engine/iplGrammar';
 import { applyIPLQuickFixes } from '../../engine/iplQuickFix';
 import { applyDeterministicRepairs } from '../../engine/deterministicRepair';
 import { consolidateArtifact } from '../../engine/consolidationAgent';
+import type { ConsolidationResult } from '../../engine/consolidationAgent';
 import { defaultOutputDir } from '../../engine/paths';
 import type { ClarificationRequest } from '../types';
 import type { StoreSlice } from '../types';
@@ -14,6 +15,8 @@ export interface GenerationSlice {
   isGenerating: boolean;
   pendingClarification: ClarificationRequest | null;
   generationError: string | null;
+  consolidationResult: ConsolidationResult | null;
+  setConsolidationResult: (result: ConsolidationResult | null) => void;
   clearGenerationError: () => void;
   runGeneration: () => Promise<void>;
   requestLLMCorrection: (userPrompt: string) => Promise<{ textReply: string; codeChanged: boolean }>;
@@ -22,7 +25,7 @@ export interface GenerationSlice {
   clearPendingClarification: () => void;
 }
 
-/** Shared consolidation helper: runs the delivery-gate agent and logs its report. */
+/** Shared consolidation helper: runs the delivery-gate agent, logs its report and publishes it to the Delivery panel. */
 async function runConsolidation(
   get: () => any,
   xml: string,
@@ -30,13 +33,17 @@ async function runConsolidation(
   llmConfig: any
 ): Promise<{ xml: string; changed: boolean }> {
   const { addLog, consolidationEnabled } = get();
-  if (!consolidationEnabled) return { xml, changed: false };
+  if (!consolidationEnabled) {
+    get().setConsolidationResult(null);
+    return { xml, changed: false };
+  }
 
   addLog('Running consolidation agent (deterministic gates + LLM review before delivery)...', 'info');
   const result = await consolidateArtifact(xml, targetLang, llmConfig, {
     onLog: (msg, type) => addLog(msg, type),
     systematicReview: true
   });
+  get().setConsolidationResult(result);
   if (result.changed) {
     addLog(result.report, 'warn');
   } else if (result.confirmedIssues.length > 0) {
@@ -58,13 +65,15 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
   isGenerating: false,
   pendingClarification: null,
   generationError: null,
+  consolidationResult: null,
 
+  setConsolidationResult: (consolidationResult) => set({ consolidationResult }),
   clearGenerationError: () => set({ generationError: null }),
 
   runGeneration: async () => {
     const { code, targetLang, llmConfig, polyglotConfig, addLog, projects, activeProjectId } = get();
     const activeProj = projects.find(p => p.id === activeProjectId);
-    set({ isGenerating: true, generationError: null });
+    set({ isGenerating: true, generationError: null, consolidationResult: null });
 
     try {
       // Phase 7: build the project union deterministically, rooted at

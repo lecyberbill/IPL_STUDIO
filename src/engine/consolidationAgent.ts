@@ -206,6 +206,30 @@ export async function consolidateArtifact(
   return { files, staticIssues, jsonIssues, reviewIssues, confirmedIssues, passesUsed, changed, report };
 }
 
+export interface ConsolidationSummary {
+  /** Total findings the agent detected (static gates + reviewer errors/warnings). */
+  found: number;
+  /** Auto-fix passes that modified files (0 when nothing changed). */
+  fixed: number;
+  /** Confirmed issues left for human review. */
+  remaining: number;
+  /** Reviewer warnings (non-blocking, worth a look). */
+  warnings: ReviewIssue[];
+}
+
+/** Derives the Delivery panel's found / fixed / remaining numbers from a result. */
+export function summarizeConsolidation(result: ConsolidationResult): ConsolidationSummary {
+  return {
+    found:
+      result.staticIssues.length +
+      result.jsonIssues.length +
+      result.reviewIssues.filter(i => i.severity !== 'info').length,
+    fixed: result.changed ? result.passesUsed : 0,
+    remaining: result.confirmedIssues.length,
+    warnings: result.reviewIssues.filter(i => i.severity === 'warning')
+  };
+}
+
 /** Renders the human-readable delivery report. */
 export function buildDeliveryReport(
   files: ProjectArtifactFile[],

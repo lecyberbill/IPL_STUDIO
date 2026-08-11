@@ -1,6 +1,7 @@
 import type * as monaco from 'monaco-editor';
 import type { TargetLanguage, LLMConfig } from '../engine/llmGenerator';
 import type { SyntaxErrorItem, IPLVerb } from '../engine/iplGrammar';
+import type { ConsolidationResult } from '../engine/consolidationAgent';
 import type { StateCreator } from 'zustand';
 
 export interface LogEntry {
@@ -89,6 +90,15 @@ export interface IDEState {
   /** Systematic pre-delivery consolidation agent (deterministic gates + LLM review + auto-fix). */
   consolidationEnabled: boolean;
   toggleConsolidation: () => void;
+  /** Last delivery-gate report (transient, rendered by the Delivery panel). */
+  consolidationResult: ConsolidationResult | null;
+  setConsolidationResult: (result: ConsolidationResult | null) => void;
+  /** File selected in the generated-files viewer (right sidebar). */
+  selectedFilePath: string;
+  setSelectedFilePath: (path: string) => void;
+  /** Active right-sidebar tab, so the Delivery panel can jump to the Files view. */
+  activePanelTab: 'files' | 'chat';
+  setActivePanelTab: (tab: 'files' | 'chat') => void;
   /** First-run onboarding: set to true once the welcome modal has been dismissed. */
   hasSeenWelcome: boolean;
   completeWelcome: () => void;

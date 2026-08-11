@@ -43,7 +43,9 @@ export const projectsSlice: StoreSlice<ProjectsSlice> = (set, get) => ({
       code: newProject.code,
       targetLang: newProject.targetLang,
       syntaxErrors: validateIPLCode(newProject.code),
-      generatedCode: ''
+      generatedCode: '',
+      consolidationResult: null,
+      selectedFilePath: ''
     }));
 
     get().addLog(`Project "${newProject.name}" created and activated.`, 'success');
@@ -75,7 +77,9 @@ export const projectsSlice: StoreSlice<ProjectsSlice> = (set, get) => ({
       code: newCode,
       targetLang: newTarget,
       syntaxErrors: validateIPLCode(newCode),
-      generatedCode: ''
+      generatedCode: '',
+      consolidationResult: null,
+      selectedFilePath: ''
     });
 
     get().addLog(`Project "${projectToDelete?.name || id}" deleted.`, 'info');
@@ -96,7 +100,9 @@ export const projectsSlice: StoreSlice<ProjectsSlice> = (set, get) => ({
           ]
         },
         syntaxErrors: validateIPLCode(targetProj.code),
-        generatedCode: ''
+        generatedCode: '',
+        consolidationResult: null,
+        selectedFilePath: ''
       });
       get().addLog(`Switched to project "${targetProj.name}".`, 'info');
       if (targetProj.outputDir) {

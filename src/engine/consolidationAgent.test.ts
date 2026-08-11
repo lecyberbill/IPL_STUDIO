@@ -17,6 +17,7 @@ import {
   mergeFindings,
   buildConsolidationDirective,
   buildDeliveryReport,
+  summarizeConsolidation,
   consolidateArtifact
 } from './consolidationAgent';
 import type { ProjectArtifactFile } from './artifactGenerator';
@@ -131,6 +132,58 @@ describe('buildDeliveryReport', () => {
     );
     expect(report).toContain('Static JSON gate: 1 invalid JSON file(s)');
     expect(report).toContain('package.json: Unexpected token /');
+  });
+});
+
+describe('summarizeConsolidation (Delivery panel numbers)', () => {
+  const base = {
+    files: [file('a.js', '')],
+    staticIssues: [] as MissingModuleRef[],
+    jsonIssues: [],
+    reviewIssues: [],
+    confirmedIssues: [],
+    passesUsed: 0,
+    changed: false,
+    report: ''
+  };
+
+  it('reports found / fixed / remaining for a clean delivery', () => {
+    const s = summarizeConsolidation(base);
+    expect(s).toEqual({ found: 0, fixed: 0, remaining: 0, warnings: [] });
+  });
+
+  it('counts static + json + reviewer (non-info) findings as found', () => {
+    const s = summarizeConsolidation({
+      ...base,
+      staticIssues: [
+        { importer: 'src/index.js', specifier: './entities', resolved: 'src/entities.js', suggestion: 'missing' }
+      ],
+      jsonIssues: [{ file: 'package.json', reason: 'bad', suggestion: 'rewrite' }],
+      reviewIssues: [
+        { severity: 'error', file: 'a.js', message: 'x undefined' },
+        { severity: 'warning', file: 'a.js', message: 'dead code' },
+        { severity: 'info', file: 'a.js', message: 'nit' }
+      ]
+    });
+    expect(s.found).toBe(4); // 1 static + 1 json + 1 error + 1 warning (info excluded)
+    expect(s.warnings).toHaveLength(1);
+    expect(s.warnings[0].severity).toBe('warning');
+  });
+
+  it('counts auto-fix passes as corrected only when files changed', () => {
+    expect(summarizeConsolidation({ ...base, passesUsed: 2, changed: true }).fixed).toBe(2);
+    expect(summarizeConsolidation({ ...base, passesUsed: 2, changed: false }).fixed).toBe(0);
+  });
+
+  it('reports confirmed issues as remaining', () => {
+    const s = summarizeConsolidation({
+      ...base,
+      confirmedIssues: [
+        { kind: 'static', file: 'src/entities.js', message: 'missing' },
+        { kind: 'review', file: 'a.js', message: 'x undefined' }
+      ]
+    });
+    expect(s.remaining).toBe(2);
   });
 });
 
