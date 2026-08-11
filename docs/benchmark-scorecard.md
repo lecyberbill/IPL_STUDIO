@@ -107,6 +107,9 @@ Les 36 specs de `corpus/` (24 single + 5 edge + 7 projects) sont **beaucoup plus
 | Retry `python -m <pkg.module>` pour un `main.py` dans un package | `scripts/run-benchmark.ts` (`retryWithDiscoveredEntry`) | `python src/main.py` met `src/` dans sys.path et casse `from src.* import` ; `python -m src.main` garde la racine sur sys.path. |
 | Retry avant WARN « entry missing » (`node index.js` → `src/index.js`) | `scripts/run-benchmark.ts` (verify) | `node-hello` générait `src/index.js` (correct, exit 0) mais le harness concluait WARN sans tenter le retry. Désormais le retry est tenté pour tous les échecs de commande, et le WARN n'est émis que si le retry échoue aussi. |
 | Diagnostic de deps manquantes (report-only, jamais d'install) | `scripts/run-benchmark.ts` (`extractMissingModules` / `readDeclaredDeps` / `diagnoseMissingDeps`) | Sur `ModuleNotFoundError`/`Cannot find module`/`unresolved import`/`no required module`, extrait les modules manquants, vérifie leur déclaration dans `requirements.txt`/`package.json`/`Cargo.toml`/`go.mod`, et émet un WARN `NO AUTO-INSTALL: review these dependencies and install/verify them manually.` Générique par langage. |
+| **Sandbox d'exécution** (isolation du repo) | `scripts/run-benchmark.ts` (`verify` → `copyRunToSandbox`) | `verify` exécute une **copie** du run dir sous `os.tmpdir()/ipl-benchmark` (override : `--sandbox <dir>`), hors arborescence du repo. Sinon le code généré hérite du `package.json` racine (`"type": "module"` → CommonJS `require` devient un `ReferenceError`) et du `node_modules` du repo (deps non déclarées qui fuient). Générique (tous langages), jamais réglé pour une spec. Artefacts inchangés dans `output/benchmark`, copie nettoyée après vérif. |
+| **Gate JSON déterministe** | `src/engine/staticChecker.ts` (`findInvalidJson`) + `consolidationAgent.ts` | Tout `.json` de l'artefact doit parser via `JSON.parse`. Attrape le `package.json` généré avec un commentaire `//` en tête (→ `ERR_INVALID_PACKAGE_CONFIG` de Node) que le reviewer LLM ne voit pas. Intégré au gate déterministe (0 token), confirmé avant auto-fix. |
+| **`extractJson` : plus grand bloc `{...}` valide** | `src/engine/behaviorAssert.ts` | L'extraction naïve « premier `{` → dernier `}` » échoue quand un log contient un JSON inline avant le payload (`Order details: {...}`) → faux négatif `output is not valid JSON`. Scan de tous les blocs appareillés, retour du plus grand qui parse. |
 
 ### Agent de consolidation (gate de livraison, app flow)
 
@@ -137,8 +140,25 @@ Enseignements :
 - Ce n'est pas un patch spécifique à un run (ex. « interdire `file://` ») : un run n'est jamais représentatif. C'est une **classe de vérification** réutilisable, branchée dans le flux app.
 - Le contrat reste l'**économie de tokens** (précision encodée dans la spec, pas négociée au fil du dialogue) : l'agent consolide au lieu d'augmenter le nombre de passes de réparation inconditionnelles.
 
+**Runs réels coffee avec consolidation (`--consolidate`, deepseek-chat)** :
+
+| Run (UTC) | Consolidation | Résultat | Ce que ça a montré |
+| :--- | :--- | :--- | :--- |
+| 11-59-10 | 9 confirmed, 2 passes, files modified | WARN (avant sandbox) | Sans sandbox, le run hérite du `"type": "module"` racine → `require` casse. Faux signal : le code consolidé était du CommonJS valide. |
+| 12-16-32 | 7 confirmed, 2 passes | FAIL `Invalid package config` | Sandbox actif : expose un **vrai bug** que le reviewer LLM avait manqué — `package.json` généré avec un commentaire `//` en tête (JSON invalide). |
+| 12-30-25 | 10 confirmed, 1 passe | FAIL `output is not valid JSON` | Le gate JSON a fait converger en 1 passe (vs 2). L'échec était un **faux négatif d'`extractJson`** : un log `Order details: {...}` inline cassait l'extraction. Le code consolidé produisait pourtant un JSON final valide. |
+| 12-35-36 | 5 confirmed, 2 passes | FAIL `grandTotal 5.779999999999999` | Après fix `extractJson` (plus grand bloc `{...}` valide) : le run est **proche du contrat** — Latte 4.2/3.78 et Espresso 2.0/2.0 exacts, package.json valide, entities généré, événements câblés. Seul reste le **bug d'arrondi float** de `getGrandTotal` (somme non arrondie), non vu par le reviewer. |
+
+Enseignements des runs consolidés :
+
+- **L'isolation du repo est un prérequis de la mesure** : sans sandbox, un run correct est déclaré WARN à cause du contexte repo. Avec le sandbox, le harness mesure réellement le code généré dans un environnement neutre.
+- **Le gate déterministe attrape ce que le reviewer LLM rate** : le `package.json` invalide (commentaire `//`) est passé par 7 warnings LLM, attrapé à coup sûr par `JSON.parse`. Les gates 0 token sont la fiabilité ; la review LLM est la couverture.
+- **La convergence s'améliore** : 9 → 10 → 5 confirmed issues en 4 runs, et l'auto-fix passe de 2 passes à 1 quand le gate est plus précis. Le run le plus récent livre un arbre dont le seul écart au contrat est un `grandTotal` flottant (1 ligne à corriger par vib coding) — exactement la position voulue : machine prépare le terrain, humain finit.
+- Le reviewer non-IPL ne connaît pas le contrat comportemental : il ne peut pas savoir que `grandTotal` doit être arrondi à 2 décimales. C'est le rôle du verify + repair loop. La consolidation répare ce qui est mécaniquement/statiquement sûr ; le reste est localisé et documenté pour l'humain.
+
 ### Leçons pour le harness
 
+- **Le run dir ne doit jamais être dans l'arborescence du repo** : il hérite de son `package.json` (`"type": "module"` → CommonJS casse) et de son `node_modules` (deps non déclarées qui fuient). Depuis, `verify` exécute une copie sandbox sous `os.tmpdir()/ipl-benchmark` (override `--sandbox <dir>`), tous langages. Sans ça, le benchmark mesure le contexte, pas le code généré.
 - WARN « clarification » pendant une passe de réparation : désormais un **FAIL comptable** (passe de réparation consommée), plus un état terminal qui attendait une réponse utilisateur — le modèle discute au lieu de corriger. (`repairAndVerify` dans `scripts/run-benchmark.ts`)
 - Le rapport benchmark affichait `Endpoint: https://api.deepseek.com` même en mode lmstudio : corrigé via `endpointForMode` (sélection selon le mode, pas par priorité de véracité — `externalEndpoint` est toujours truthy).
 - **Deps tierces : acceptées si déclarées, jamais installées par le harness.** L'usage de libs tierces (Flask, SQLAlchemy...) est légitime — tout ne doit pas être stdlib. Le contrat : le modèle doit les **déclarer** (`requirements.txt`/`package.json`/`Cargo.toml`/`go.mod`), et le harness les **signale** pour vérification manuelle (WARN `NO AUTO-INSTALL`). Pas d'installation automatique sans human-in-the-loop.
