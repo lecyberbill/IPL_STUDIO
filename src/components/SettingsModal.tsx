@@ -76,7 +76,9 @@ export const SettingsModal: React.FC = () => {
     addLog,
     customTargets,
     addCustomTarget,
-    deleteCustomTarget
+    deleteCustomTarget,
+    consolidationEnabled,
+    toggleConsolidation
   } = useIdeStore();
 
   const [newTargetName, setNewTargetName] = useState('');
@@ -506,6 +508,37 @@ export const SettingsModal: React.FC = () => {
                   </button>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Pre-Delivery Consolidation Agent */}
+          <div className="bg-[#0f1117] p-3.5 rounded-lg border border-[#2a2f42]">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="block text-gray-300 font-bold text-xs">
+                  Consolidation Agent (pre-delivery review)
+                </label>
+                <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">
+                  Deterministic import gates + systematic LLM review + auto-fix before the
+                  generated project is handed to you. Costs extra tokens per generation,
+                  amortized across projects by the fixes it prevents.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={toggleConsolidation}
+                className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${
+                  consolidationEnabled ? 'bg-cyan-500' : 'bg-[#2a2f42]'
+                }`}
+                aria-pressed={consolidationEnabled}
+                title={consolidationEnabled ? 'Consolidation agent: ON' : 'Consolidation agent: OFF'}
+              >
+                <span
+                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${
+                    consolidationEnabled ? 'left-5' : 'left-0.5'
+                  }`}
+                />
+              </button>
             </div>
           </div>
         </div>

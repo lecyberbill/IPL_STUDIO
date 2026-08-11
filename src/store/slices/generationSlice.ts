@@ -4,6 +4,7 @@ import { parseMultiFileXml } from '../../engine/artifactGenerator';
 import { resolveIPLProject, validateIPLProject } from '../../engine/iplGrammar';
 import { applyIPLQuickFixes } from '../../engine/iplQuickFix';
 import { applyDeterministicRepairs } from '../../engine/deterministicRepair';
+import { consolidateArtifact } from '../../engine/consolidationAgent';
 import { defaultOutputDir } from '../../engine/paths';
 import type { ClarificationRequest } from '../types';
 import type { StoreSlice } from '../types';
@@ -19,6 +20,37 @@ export interface GenerationSlice {
   autoDebugAndFix: (customCmd?: string) => Promise<boolean>;
   answerClarification: (answer: string) => Promise<boolean>;
   clearPendingClarification: () => void;
+}
+
+/** Shared consolidation helper: runs the delivery-gate agent and logs its report. */
+async function runConsolidation(
+  get: () => any,
+  xml: string,
+  targetLang: any,
+  llmConfig: any
+): Promise<{ xml: string; changed: boolean }> {
+  const { addLog, consolidationEnabled } = get();
+  if (!consolidationEnabled) return { xml, changed: false };
+
+  addLog('Running consolidation agent (deterministic gates + LLM review before delivery)...', 'info');
+  const result = await consolidateArtifact(xml, targetLang, llmConfig, {
+    onLog: (msg, type) => addLog(msg, type),
+    systematicReview: true
+  });
+  if (result.changed) {
+    addLog(result.report, 'warn');
+  } else if (result.confirmedIssues.length > 0) {
+    addLog(result.report, 'warn');
+  } else {
+    addLog(result.report, 'success');
+  }
+  const newXml = result.files.length > 0 ? filesToXml(result.files) : xml;
+  return { xml: newXml, changed: result.changed };
+}
+
+/** Serializes project files back into the <file> XML representation the store uses. */
+function filesToXml(files: { relativePath: string; content: string }[]): string {
+  return files.map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`).join('\n\n');
 }
 
 export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
@@ -83,7 +115,10 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
         polyglotConfig
       );
 
-      set({ generatedCode: result, isGenerating: false, generationError: null });
+      // Delivery gate: consolidation agent (deterministic gates + systematic
+      // LLM review + auto-fix) runs BEFORE the project is handed to the user.
+      const consolidated = await runConsolidation(get, result, targetLang, llmConfig);
+      set({ generatedCode: consolidated.xml, isGenerating: false, generationError: null });
       await get().writeArtifactToDisk();
     } catch (err: any) {
       const message = err?.message || 'Unknown generation error';
@@ -120,7 +155,9 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
         // Rebuild a clean XML artifact with <file path="..."> per file
         const newXmlCode = updatedFiles.map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`).join('\n\n');
 
-        set({ generatedCode: newXmlCode, isGenerating: false });
+        // Re-run the delivery-gate consolidation after a user-driven correction.
+        const consolidated = await runConsolidation(get, newXmlCode, targetLang, llmConfig);
+        set({ generatedCode: consolidated.xml, isGenerating: false });
         await get().writeArtifactToDisk();
 
         // Clean the chat text reply by removing <file> and <patch> tags

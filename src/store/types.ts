@@ -86,6 +86,9 @@ export interface IDEState {
   isGitModalOpen: boolean;
   isTutorialOpen: boolean;
   toggleTutorial: () => void;
+  /** Systematic pre-delivery consolidation agent (deterministic gates + LLM review + auto-fix). */
+  consolidationEnabled: boolean;
+  toggleConsolidation: () => void;
   /** First-run onboarding: set to true once the welcome modal has been dismissed. */
   hasSeenWelcome: boolean;
   completeWelcome: () => void;

@@ -16,6 +16,8 @@ export interface SettingsSlice {
   leftSidebarWidth: number;
   rightSidebarWidth: number;
   hasSeenWelcome: boolean;
+  /** Systematic pre-delivery consolidation agent (deterministic gates + LLM review + auto-fix). */
+  consolidationEnabled: boolean;
   setPolyglotConfig: (config: PolyglotConfig) => void;
   togglePolyglotModal: () => void;
   addCustomTarget: (target: Omit<CustomTarget, 'id'>) => void;
@@ -28,6 +30,7 @@ export interface SettingsSlice {
   completeWelcome: () => void;
   setLeftSidebarWidth: (width: number) => void;
   setRightSidebarWidth: (width: number) => void;
+  toggleConsolidation: () => void;
 }
 
 export const settingsSlice: StoreSlice<SettingsSlice> = (set, get) => ({
@@ -42,6 +45,7 @@ export const settingsSlice: StoreSlice<SettingsSlice> = (set, get) => ({
   leftSidebarWidth: DEFAULT_LAYOUT.leftSidebarWidth,
   rightSidebarWidth: DEFAULT_LAYOUT.rightSidebarWidth,
   hasSeenWelcome: false,
+  consolidationEnabled: true,
 
   setPolyglotConfig: (config) => set((state) => ({
     polyglotConfig: config,
@@ -77,5 +81,7 @@ export const settingsSlice: StoreSlice<SettingsSlice> = (set, get) => ({
   completeWelcome: () => set({ hasSeenWelcome: true }),
 
   setLeftSidebarWidth: (w) => set({ leftSidebarWidth: Math.max(160, Math.min(650, w)) }),
-  setRightSidebarWidth: (w) => set({ rightSidebarWidth: Math.max(260, Math.min(950, w)) })
+  setRightSidebarWidth: (w) => set({ rightSidebarWidth: Math.max(260, Math.min(950, w)) }),
+
+  toggleConsolidation: () => set((state) => ({ consolidationEnabled: !state.consolidationEnabled }))
 });
