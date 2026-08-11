@@ -21,7 +21,6 @@ import {
 } from './consolidationAgent';
 import type { ProjectArtifactFile } from './artifactGenerator';
 import type { MissingModuleRef } from './staticChecker';
-
 const file = (relativePath: string, content: string): ProjectArtifactFile => ({ relativePath, content });
 const llmConfig = {
   mode: 'external' as const,
@@ -51,7 +50,7 @@ describe('mergeFindings', () => {
   ];
 
   it('keeps static findings as errors and drops review infos', () => {
-    const merged = mergeFindings(staticIssues, [
+    const merged = mergeFindings(staticIssues, [], [
       { severity: 'error', file: 'src/app.js', message: 'x is undefined' },
       { severity: 'info', file: 'src/app.js', message: 'nit: naming' }
     ]);
@@ -62,10 +61,18 @@ describe('mergeFindings', () => {
   });
 
   it('dedupes review findings that duplicate static ones', () => {
-    const merged = mergeFindings(staticIssues, [
+    const merged = mergeFindings(staticIssues, [], [
       { severity: 'error', file: 'src/entities.js', message: 'file "src/entities.js" imported by src/index.js is not generated' }
     ]);
     expect(merged).toHaveLength(1);
+  });
+
+  it('surfaces invalid JSON as a static error finding', () => {
+    const merged = mergeFindings([], [{ file: 'package.json', reason: 'Unexpected token /', suggestion: 'invalid' }], []);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].kind).toBe('static');
+    expect(merged[0].file).toBe('package.json');
+    expect(merged[0].severity).toBe('error');
   });
 });
 
@@ -87,7 +94,7 @@ describe('buildConsolidationDirective', () => {
 
 describe('buildDeliveryReport', () => {
   it('reports a clean delivery', () => {
-    const report = buildDeliveryReport([file('a.js', '')], [], [], [], 0, false);
+    const report = buildDeliveryReport([file('a.js', '')], [], [], [], [], 0, false);
     expect(report).toContain('No confirmed defects found.');
     expect(report).toContain('Delivered 1 file(s)');
   });
@@ -99,6 +106,7 @@ describe('buildDeliveryReport', () => {
     const report = buildDeliveryReport(
       [file('a.js', '')],
       staticIssues,
+      [],
       [{ severity: 'warning', file: 'a.js', message: 'dead code' }],
       [{ kind: 'static', file: 'src/entities.js', message: 'missing' }],
       1,
@@ -110,6 +118,20 @@ describe('buildDeliveryReport', () => {
     expect(report).toContain('Auto-fix: 1 consolidation pass(es) applied (files modified)');
     expect(report).toContain('Confirmed issues remaining');
   });
+
+  it('reports invalid JSON files', () => {
+    const report = buildDeliveryReport(
+      [file('package.json', '// broken')],
+      [],
+      [{ file: 'package.json', reason: 'Unexpected token /', suggestion: 'rewrite' }],
+      [],
+      [{ kind: 'static', file: 'package.json', message: 'rewrite' }],
+      0,
+      false
+    );
+    expect(report).toContain('Static JSON gate: 1 invalid JSON file(s)');
+    expect(report).toContain('package.json: Unexpected token /');
+  });
 });
 
 describe('consolidateArtifact (LLM loop)', () => {
@@ -118,6 +140,7 @@ describe('consolidateArtifact (LLM loop)', () => {
     const xml = filesToXml([file('src/index.js', 'console.log("hi");')]);
     const result = await consolidateArtifact(xml, 'javascript', llmConfig, { maxConsolidationPasses: 2 });
     expect(result.staticIssues).toEqual([]);
+    expect(result.jsonIssues).toEqual([]);
     expect(result.passesUsed).toBe(0);
     expect(result.changed).toBe(false);
     expect(mocks.refineIPLArtifact).not.toHaveBeenCalled();

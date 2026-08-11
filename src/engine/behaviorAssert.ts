@@ -61,8 +61,11 @@ export function getJsonPath(root: unknown, path: string): unknown {
 
 /**
  * Extracts a JSON document from program output: parses the whole output first,
- * then falls back to the largest `{...}` block so logs around the JSON payload
- * do not invalidate the assertions.
+ * then scans every `{...}` block (in size order) and returns the largest one
+ * that actually parses. This is robust to logs that themselves contain JSON
+ * (e.g. `Order details: {"a":1}` printed before the real payload) — the naive
+ * "first { to last }" slice breaks on the first embedded object and produces a
+ * false "not valid JSON" even when the payload is fine.
  */
 export function extractJson(output: string): unknown | null {
   const t = output.trim();
@@ -74,13 +77,29 @@ export function extractJson(output: string): unknown | null {
       // fall through to block extraction
     }
   }
-  const first = t.indexOf('{');
-  const last = t.lastIndexOf('}');
-  if (first !== -1 && last > first) {
+  // Collect every `{...}` block by brace matching, longest first.
+  const blocks: string[] = [];
+  for (let i = 0; i < t.length; i++) {
+    if (t[i] !== '{') continue;
+    let depth = 0;
+    for (let j = i; j < t.length; j++) {
+      const c = t[j];
+      if (c === '{') depth++;
+      else if (c === '}') {
+        depth--;
+        if (depth === 0) {
+          blocks.push(t.slice(i, j + 1));
+          break;
+        }
+      }
+    }
+  }
+  blocks.sort((a, b) => b.length - a.length);
+  for (const block of blocks) {
     try {
-      return JSON.parse(t.slice(first, last + 1));
+      return JSON.parse(block);
     } catch {
-      // not JSON at all
+      // try the next block
     }
   }
   return null;

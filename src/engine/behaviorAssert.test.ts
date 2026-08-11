@@ -32,6 +32,20 @@ describe('behaviorAssert — extractJson', () => {
     expect(extractJson(out)).toEqual({ total: 42, currency: 'EUR' });
   });
 
+  it('ignores embedded JSON in log lines and takes the real payload', () => {
+    const out = [
+      'Order details: {"drinkName":"Latte","basePrice":3.5}',
+      'Receipt: {"price":4.2,"finalPrice":3.78}',
+      '=== JSON Output ===',
+      '{"orders":[{"drinkName":"Latte","finalPrice":3.78}],"grandTotal":3.78}',
+      '=== Application Ready ==='
+    ].join('\n');
+    expect(extractJson(out)).toEqual({
+      orders: [{ drinkName: 'Latte', finalPrice: 3.78 }],
+      grandTotal: 3.78
+    });
+  });
+
   it('returns null for non-JSON output', () => {
     expect(extractJson('Order A-1001 for Alice: processing')).toBeNull();
     expect(extractJson('')).toBeNull();

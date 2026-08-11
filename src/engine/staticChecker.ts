@@ -32,6 +32,15 @@ export interface MissingModuleRef {
   suggestion: string;
 }
 
+export interface InvalidJson {
+  /** The file whose content is not valid JSON, e.g. `package.json`. */
+  file: string;
+  /** Why it failed to parse (JSON.parse error message). */
+  reason: string;
+  /** Human-readable hint. */
+  suggestion: string;
+}
+
 /**
  * Normalizes a relative path to forward slashes with no leading `./` or `/`.
  * `src/../lib` -> `lib`, `./entities` -> `entities`, `../a.js` -> `a.js`.
@@ -159,4 +168,28 @@ export function findMissingModuleRefs(files: ProjectArtifactFile[]): MissingModu
     }
   }
   return missing;
+}
+
+/**
+ * Deterministic JSON gate: any `.json` file in the artifact must be parseable.
+ * Catches the recurring LLM habit of writing JSON with a leading `//` comment
+ * or trailing commas — invalid for Node's package resolver, which then refuses
+ * to load the whole project. Pure and deterministic (0 tokens), like
+ * `findMissingModuleRefs`; the LLM reviewer is unreliable for this class.
+ */
+export function findInvalidJson(files: ProjectArtifactFile[]): InvalidJson[] {
+  const issues: InvalidJson[] = [];
+  for (const file of files) {
+    if (!/\.json$/i.test(file.relativePath)) continue;
+    try {
+      JSON.parse(file.content);
+    } catch (err: any) {
+      issues.push({
+        file: file.relativePath,
+        reason: err?.message ?? 'invalid JSON',
+        suggestion: `file "${file.relativePath}" is not valid JSON (${err?.message ?? 'parse error'}) — rewrite it as strict JSON: no comments, no trailing commas`
+      });
+    }
+  }
+  return issues;
 }

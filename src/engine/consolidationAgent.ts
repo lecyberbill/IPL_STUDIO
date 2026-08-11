@@ -27,8 +27,8 @@ import { parseMultiFileXml } from './artifactGenerator';
 import type { ProjectArtifactFile } from './artifactGenerator';
 import { callLLM, refineIPLArtifact } from './llmGenerator';
 import type { LLMConfig, TargetLanguage } from './llmGenerator';
-import { findMissingModuleRefs } from './staticChecker';
-import type { MissingModuleRef } from './staticChecker';
+import { findMissingModuleRefs, findInvalidJson } from './staticChecker';
+import type { MissingModuleRef, InvalidJson } from './staticChecker';
 import { buildReviewPrompt, parseReviewOutput } from './reviewAgent';
 import type { ReviewIssue } from './reviewAgent';
 
@@ -46,6 +46,8 @@ export interface ConsolidationResult {
   files: ProjectArtifactFile[];
   /** Missing-import findings from the deterministic gate (0 tokens). */
   staticIssues: MissingModuleRef[];
+  /** Invalid-JSON findings from the deterministic gate (0 tokens). */
+  jsonIssues: InvalidJson[];
   /** Findings reported by the LLM reviewer. */
   reviewIssues: ReviewIssue[];
   /** Findings that were confirmed (deterministic) or error-severity (LLM). */
@@ -66,11 +68,15 @@ export function filesToXml(files: ProjectArtifactFile[]): string {
 /** Merges LLM findings with deterministic ones, dedupes by file+message. */
 export function mergeFindings(
   staticIssues: MissingModuleRef[],
+  jsonIssues: InvalidJson[],
   reviewIssues: ReviewIssue[]
 ): Array<{ kind: 'static' | 'review'; file: string; message: string; severity: string }> {
   const merged: Array<{ kind: 'static' | 'review'; file: string; message: string; severity: string }> = [];
   for (const s of staticIssues) {
     merged.push({ kind: 'static', file: s.resolved, message: s.suggestion, severity: 'error' });
+  }
+  for (const j of jsonIssues) {
+    merged.push({ kind: 'static', file: j.file, message: j.suggestion, severity: 'error' });
   }
   for (const r of reviewIssues) {
     if (r.severity === 'info') continue;
@@ -117,6 +123,7 @@ export async function consolidateArtifact(
 
   // 1. Deterministic gate (free).
   const staticIssues = findMissingModuleRefs(files);
+  let jsonIssues = findInvalidJson(files);
 
   // 2. Systematic LLM review.
   let reviewIssues: ReviewIssue[] = [];
@@ -142,7 +149,7 @@ export async function consolidateArtifact(
     }
   };
 
-  let findings = mergeFindings(staticIssues, reviewIssues);
+  let findings = mergeFindings(staticIssues, jsonIssues, reviewIssues);
   let errorFindings = findings.filter(f => f.severity === 'error');
   for (const f of errorFindings) pushConfirmed(f);
 
@@ -167,6 +174,7 @@ export async function consolidateArtifact(
 
       // Re-run gates + re-review on the fixed tree to confirm the fix landed.
       const newStatic = findMissingModuleRefs(files);
+      jsonIssues = findInvalidJson(files);
       let newReview: ReviewIssue[] = [];
       if (systematic) {
         try {
@@ -176,7 +184,7 @@ export async function consolidateArtifact(
           log(`Re-review failed: ${err.message}`, 'warn');
         }
       }
-      const nextErrors = mergeFindings(newStatic, newReview).filter(f => f.severity === 'error');
+      const nextErrors = mergeFindings(newStatic, jsonIssues, newReview).filter(f => f.severity === 'error');
       for (const f of nextErrors) pushConfirmed(f);
 
       // Stop when nothing still-erroneous remains, or when a pass produced no
@@ -194,26 +202,31 @@ export async function consolidateArtifact(
   }
 
   // 5. Delivery report.
-  const report = buildDeliveryReport(files, staticIssues, reviewIssues, confirmedIssues, passesUsed, changed);
-  return { files, staticIssues, reviewIssues, confirmedIssues, passesUsed, changed, report };
+  const report = buildDeliveryReport(files, staticIssues, jsonIssues, reviewIssues, confirmedIssues, passesUsed, changed);
+  return { files, staticIssues, jsonIssues, reviewIssues, confirmedIssues, passesUsed, changed, report };
 }
 
 /** Renders the human-readable delivery report. */
 export function buildDeliveryReport(
   files: ProjectArtifactFile[],
   staticIssues: MissingModuleRef[],
+  jsonIssues: InvalidJson[],
   reviewIssues: ReviewIssue[],
   confirmedIssues: Array<{ kind: 'static' | 'review'; file: string; message: string }>,
   passesUsed: number,
   changed: boolean
 ): string {
   const lines: string[] = ['--- CONSOLIDATION REPORT ---'];
-  if (staticIssues.length === 0 && confirmedIssues.length === 0) {
+  if (staticIssues.length === 0 && jsonIssues.length === 0 && confirmedIssues.length === 0) {
     lines.push('✅ No confirmed defects found.');
   }
   if (staticIssues.length > 0) {
     lines.push(`Static import gate: ${staticIssues.length} missing file(s):`);
     for (const s of staticIssues) lines.push(`  - ${s.resolved} (imported by ${s.importer})`);
+  }
+  if (jsonIssues.length > 0) {
+    lines.push(`Static JSON gate: ${jsonIssues.length} invalid JSON file(s):`);
+    for (const j of jsonIssues) lines.push(`  - ${j.file}: ${j.reason}`);
   }
   const reviewWarnings = reviewIssues.filter(i => i.severity === 'warning');
   if (reviewWarnings.length > 0) {

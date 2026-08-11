@@ -20,7 +20,8 @@
  *
  * Exit code: 0 if every run passed, 1 otherwise.
  */
-import { readFileSync, mkdirSync, writeFileSync, readdirSync, rmSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync, readdirSync, rmSync, existsSync, statSync, copyFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { resolve as pathResolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { parseMultiFileXml } from '../src/engine/artifactGenerator.ts';
@@ -29,6 +30,7 @@ import { findMissingModuleRefs } from '../src/engine/staticChecker.ts';
 import type { MissingModuleRef } from '../src/engine/staticChecker.ts';
 import { buildReviewPrompt, parseReviewOutput } from '../src/engine/reviewAgent.ts';
 import type { ReviewIssue } from '../src/engine/reviewAgent.ts';
+import { consolidateArtifact, filesToXml } from '../src/engine/consolidationAgent.ts';
 import { callLLM, buildPass1Prompt, buildPass2Prompt, refineIPLArtifact, extractClarificationRequest, DEFAULT_LLM_CONFIG } from '../src/engine/llmGenerator.ts';
 import type { LLMConfig, TargetLanguage } from '../src/engine/llmGenerator.ts';
 import { applyDeterministicRepairs } from '../src/engine/deterministicRepair.ts';
@@ -52,10 +54,13 @@ interface CliArgs {
   pythonPath?: string;
   repairPasses: number;
   reviewPass: boolean;
+  consolidate: boolean;
+  /** Directory where generated runs are executed (isolated from the repo). Default: os.tmpdir()/ipl-benchmark. */
+  sandboxDir?: string;
 }
 
 function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = { mode: 'external', iterations: 1, timeoutPerPassMs: 120_000, timeoutRunMs: 30_000, quiet: false, repairPasses: 3, reviewPass: false };
+  const args: CliArgs = { mode: 'external', iterations: 1, timeoutPerPassMs: 120_000, timeoutRunMs: 30_000, quiet: false, repairPasses: 3, reviewPass: false, consolidate: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => argv[++i];
@@ -69,6 +74,8 @@ function parseArgs(argv: string[]): CliArgs {
     else if (a === '--python') args.pythonPath = next();
     else if (a === '--repair-passes') args.repairPasses = Math.max(0, parseInt(next() || '3', 10));
     else if (a === '--review') args.reviewPass = true;
+    else if (a === '--consolidate') args.consolidate = true;
+    else if (a === '--sandbox') args.sandboxDir = next();
     else if (a === '--quiet') args.quiet = true;
     else if (a === '--help') {
       console.log(`IPL Studio Benchmark Harness
@@ -86,6 +93,8 @@ Options:
   --python <venvDir|exe>                  resolve \`python\` via a venv Scripts dir or a direct exe path
   --repair-passes <n>                     self-healing repair passes after a FAIL (0 = off, default: 3)
   --review                                run the LLM review pass (skeptical code reviewer) after generation
+  --consolidate                           run the consolidation agent (delivery gate) before writing/verifying
+  --sandbox <dir>                         execute generated runs in <dir> (default: os.tmpdir()/ipl-benchmark)
   --quiet                                 suppress streaming logs
   --help                                  this help`);
       process.exit(0);
@@ -453,6 +462,8 @@ interface RunResult {
   firstTryStatus: RunStatus;
   /** Full stderr/stdout captured from the failing verify command. */
   failureOutput?: string;
+  /** Consolidation agent summary (only when --consolidate). */
+  consolidation?: { passesUsed: number; changed: boolean; confirmed: number; report: string };
 }
 
 // ---------------------------------------------------------------------------
@@ -674,11 +685,64 @@ function resolvePythonCommand(command: string, pythonPath?: string): string {
 }
 
 async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{ status: RunStatus; detail: string; output?: string }> {
-  const allFiles = readdirSync(runDir, { recursive: true }) as string[];
+  // Execution isolation: the generated project is executed from a COPY placed
+  // OUTSIDE the repo tree (os.tmpdir by default, or --sandbox). Otherwise the
+  // code would inherit the repo's own context — the root package.json's
+  // `"type": "module"` turning CommonJS `require` into a ReferenceError, or the
+  // repo's node_modules leaking undeclared deps. This is generic (any language),
+  // never tuned to a specific spec. Artifacts under output/benchmark are left
+  // untouched; only execution happens in the sandbox.
+  const sandboxDir = args.sandboxDir ?? pathResolve(tmpdir(), 'ipl-benchmark');
+  const execDir = copyRunToSandbox(runDir, sandboxDir);
+  let cleaned = false;
+  const cleanup = () => {
+    if (!cleaned && execDir !== runDir) {
+      rmSync(execDir, { recursive: true, force: true });
+      cleaned = true;
+    }
+  };
+  try {
+    return await verifyIn(runDir, execDir, spec, args);
+  } finally {
+    cleanup();
+  }
+}
+
+/**
+ * Copies a run directory into an isolated sandbox (a sibling temp folder).
+ * Returns the sandbox path; if the run dir already lives outside the repo (no
+ * `package.json` marker walking up to the repo root), it is reused as-is.
+ */
+function copyRunToSandbox(runDir: string, sandboxRoot: string): string {
+  // Heuristic to avoid re-copying when the run dir is already isolated: only
+  // isolate when the sandbox root differs from the run dir's own location.
+  const runRoot = pathResolve(runDir, '..', '..', '..');
+  const sandboxAbs = pathResolve(sandboxRoot);
+  if (runRoot === sandboxAbs) return runDir;
+  const id = pathResolve(runDir).replace(/[^a-zA-Z0-9]/g, '_');
+  const target = pathResolve(sandboxRoot, `run-${id}`);
+  rmSync(target, { recursive: true, force: true });
+  mkdirSync(target, { recursive: true });
+  const files = readdirSync(runDir, { recursive: true }) as string[];
+  for (const f of files) {
+    const src = pathResolve(runDir, f);
+    const dst = pathResolve(target, f);
+    const stat = statSync(src, { throwIfNoEntry: false });
+    if (!stat) continue;
+    if (stat.isDirectory()) { mkdirSync(dst, { recursive: true }); continue; }
+    mkdirSync(pathResolve(dst, '..'), { recursive: true });
+    copyFileSync(src, dst);
+  }
+  return target;
+}
+
+/** The actual verification logic, decoupled from where the files were copied. */
+async function verifyIn(runDir: string, execDir: string, spec: BenchSpec, args: CliArgs): Promise<{ status: RunStatus; detail: string; output?: string }> {
+  const allFiles = readdirSync(execDir, { recursive: true }) as string[];
   const allContent = allFiles
     .filter(f => !f.endsWith('.txt'))
     .map(f => {
-      try { return readFileSync(pathResolve(runDir, f), 'utf8'); } catch { return ''; }
+      try { return readFileSync(pathResolve(execDir, f), 'utf8'); } catch { return ''; }
     })
     .join('\n');
 
@@ -699,13 +763,13 @@ async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{
   if (spec.verify.command) {
     const jsFiles = allFiles.filter(f => f.endsWith('.js'));
     for (const f of jsFiles) {
-      const check = spawnSync('node', ['--check', pathResolve(runDir, f)], { encoding: 'utf8', windowsHide: true });
+      const check = spawnSync('node', ['--check', pathResolve(execDir, f)], { encoding: 'utf8', windowsHide: true });
       if (check.status !== 0) {
         return { status: 'FAIL', detail: `node --check failed on ${f}: ${(check.stderr || '').trim().slice(0, 200)}` };
       }
     }
 
-    const run = runCommand(runDir, spec.verify.command, args.timeoutRunMs, args.pythonPath);
+    const run = runCommand(execDir, spec.verify.command, args.timeoutRunMs, args.pythonPath);
     if (run.timedOut) return { status: 'WARN', detail: `command timed out after ${args.timeoutRunMs} ms (long-running server?)` };
     if (run.exitCode === null) return { status: 'WARN', detail: 'toolchain not available (command could not be spawned)' };
     if (run.exitCode === 127 || run.exitCode === 9009) {
@@ -726,7 +790,7 @@ async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{
         let retryOk = false;
         let lastRetryOutput = '';
         for (const attempt of retried) {
-          const retry = runCommand(runDir, attempt.command, args.timeoutRunMs, args.pythonPath);
+          const retry = runCommand(execDir, attempt.command, args.timeoutRunMs, args.pythonPath);
           lastRetryOutput = retry.output;
           if (retry.exitCode === 0) {
             commandOutput = retry.output;
@@ -737,7 +801,7 @@ async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{
         }
         if (!retryOk) {
           if (/cannot find module|No module named|ModuleNotFound/i.test(`${run.output} ${lastRetryOutput}`)) {
-            const deps = diagnoseMissingDeps(`${run.output}\n${lastRetryOutput}`, allFiles, runDir);
+            const deps = diagnoseMissingDeps(`${run.output}\n${lastRetryOutput}`, allFiles, execDir);
             const extra = deps ? ` deps: ${deps}` : '';
             return { status: 'WARN', detail: `entry missing (${spec.verify.command}) — retried ${retried.map(a => a.command).join(' | ')}: ${lastRetryOutput.slice(0, 160)}; generated app may be browser-based or need missing deps.${extra}` };
           }
@@ -749,7 +813,7 @@ async function verify(spec: BenchSpec, runDir: string, args: CliArgs): Promise<{
         }
       } else {
         if (/cannot find module|No module named|ModuleNotFound/i.test(run.output)) {
-          const deps = diagnoseMissingDeps(run.output, allFiles, runDir);
+          const deps = diagnoseMissingDeps(run.output, allFiles, execDir);
           const extra = deps ? ` deps: ${deps}` : '';
           return { status: 'WARN', detail: `entry missing (${spec.verify.command}) — generated app may be browser-based.${extra}` };
         }
@@ -1207,6 +1271,13 @@ function buildReport(args: CliArgs, config: LLMConfig, results: RunResult[]): st
     lines.push('');
     lines.push(`- **Detail**: ${r.statusDetail}`);
     lines.push(`- **First try**: ${r.firstTryStatus} · **Repairs to success**: ${r.repairsToSuccess}`);
+    if (r.consolidation) {
+      lines.push(`- **Consolidation**: ${r.consolidation.confirmed} confirmed issue(s) · ${r.consolidation.passesUsed} auto-fix pass(es) · ${r.consolidation.changed ? 'files modified' : 'no change'}`);
+      lines.push('');
+      lines.push('```text');
+      lines.push(r.consolidation.report);
+      lines.push('```');
+    }
     if (r.repairDetails.length > 0) {
       lines.push(`- **Repairs applied**:`);
       for (const d of r.repairDetails) lines.push(`  - ${d}`);
@@ -1293,7 +1364,34 @@ async function main(): Promise<number> {
         continue;
       }
 
-      const written = writeArtifact(runDir, gen.xml);
+      // Consolidation agent (delivery gate): deterministic gates + systematic
+      // LLM review + bounded auto-fix loop, running BEFORE the artifact is
+      // written/verified — the same position it holds in the app flow
+      // (generateIPL → runConsolidation → writeArtifactToDisk). Opt-in via
+      // --consolidate because each consolidation pass costs LLM tokens.
+      let consolidation: RunResult['consolidation'];
+      let genXml = gen.xml;
+      if (args.consolidate && args.mode !== 'mock') {
+        const t0 = Date.now();
+        const cons = await consolidateArtifact(gen.xml, spec.targetLang, config, {
+          timeoutPerPassMs: args.timeoutPerPassMs,
+          onLog: (msg, type) => log(args, `consolidation: ${msg}`, type)
+        });
+        consolidation = {
+          passesUsed: cons.passesUsed,
+          changed: cons.changed,
+          confirmed: cons.confirmedIssues.length,
+          report: cons.report
+        };
+        log(
+          args,
+          `consolidation: ${cons.confirmedIssues.length} confirmed, ${cons.passesUsed} pass(es), ${cons.changed ? 'files modified' : 'no change'} (${Date.now() - t0} ms)`,
+          cons.confirmedIssues.length > 0 ? 'warn' : 'success'
+        );
+        if (cons.changed) genXml = filesToXml(cons.files);
+      }
+
+      const written = writeArtifact(runDir, genXml);
       const firstTry = await verify(spec, runDir, args);
 
       // Static "holes in the racket" check — a proactive pass that READS the
@@ -1337,11 +1435,13 @@ async function main(): Promise<number> {
         fileCount: written.files.length, totalBytes: written.totalBytes, files: written.files,
         artifactXml: gen.xml,
         repairsToSuccess, repairDetails, firstTryStatus: firstTry.status,
-        failureOutput: v.output
+        failureOutput: v.output,
+        consolidation
       };
       results.push(result);
       const repairNote = repairDetails.length > 0 ? ` · repaired (${repairsToSuccess} pass${repairsToSuccess === 1 ? '' : 'es'})` : '';
-      log(args, `${v.status} — ${v.detail}${repairNote} (${result.totalMs} ms, ${written.files.length} files)`, v.status === 'PASS' ? 'success' : v.status === 'WARN' ? 'warn' : 'error');
+      const consNote = consolidation ? ` · consolidated (${consolidation.confirmed} confirmed/${consolidation.passesUsed} pass${consolidation.passesUsed === 1 ? '' : 'es'})` : '';
+      log(args, `${v.status} — ${v.detail}${repairNote}${consNote} (${result.totalMs} ms, ${written.files.length} files)`, v.status === 'PASS' ? 'success' : v.status === 'WARN' ? 'warn' : 'error');
     }
     console.log('');
   }
