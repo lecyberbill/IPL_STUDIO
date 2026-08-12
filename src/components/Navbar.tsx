@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
 import type { TargetLanguage, FormFactor } from '../engine/llmGenerator';
+import { defaultOutputDir } from '../engine/paths';
+import { apiFetch } from '../services/api';
 import { 
   Play, 
   Settings, 
@@ -12,7 +14,9 @@ import {
   Download,
   Trash2,
   Layers,
-  GraduationCap
+  GraduationCap,
+  Globe,
+  Square
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -39,6 +43,41 @@ export const Navbar: React.FC = () => {
     formFactor,
     setFormFactor
   } = useIdeStore();
+
+  const [isServing, setIsServing] = useState(false);
+  const [serveUrl, setServeUrl] = useState('');
+
+  const toggleServe = async () => {
+    const proj = projects.find(p => p.id === activeProjectId);
+    const outputDir = proj?.outputDir || defaultOutputDir(proj?.name || 'my_project');
+
+    if (isServing) {
+      try {
+        await apiFetch('/api/serve-stop', { method: 'POST', body: JSON.stringify({ outputDir }) });
+        addLog(`[Serve] Static server stopped.`, 'info');
+      } catch (e: any) {
+        addLog(`[Serve] Stop failed: ${e.message}`, 'error');
+      }
+      setIsServing(false);
+      setServeUrl('');
+      return;
+    }
+
+    try {
+      const res = await apiFetch('/api/serve', { method: 'POST', body: JSON.stringify({ outputDir }) });
+      const data = await res.json();
+      if (data.url) {
+        setServeUrl(data.url);
+        setIsServing(true);
+        addLog(`[Serve] Serving "${outputDir}" at ${data.url}`, 'success');
+        window.open(data.url, '_blank');
+      } else {
+        addLog(`[Serve] Failed: ${data.error || 'unknown error'}`, 'error');
+      }
+    } catch (e: any) {
+      addLog(`[Serve] Failed: ${e.message}`, 'error');
+    }
+  };
 
   return (
     <header className="h-14 bg-[#161922] border-b border-[#2a2f42] px-4 flex items-center justify-between select-none shadow-md z-10">
@@ -190,6 +229,20 @@ export const Navbar: React.FC = () => {
               <option value="library" className="bg-[#161922]">📦 Bibliothèque</option>
             </select>
           </div>
+
+          {/* Serve / Stop toggle: preview the generated web app from the IDE */}
+          <button
+            onClick={toggleServe}
+            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
+              isServing
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50'
+                : 'bg-[#0f1117] hover:bg-[#2a2f42] text-gray-300 border border-[#2a2f42]'
+            }`}
+            title={isServing ? `Stop the static server (${serveUrl})` : 'Serve the generated files over HTTP (loopback) and open the app in a new tab'}
+          >
+            {isServing ? <Square size={13} className="text-emerald-400" /> : <Globe size={13} className="text-cyan-400" />}
+            <span>{isServing ? 'Stop' : 'Serve'}</span>
+          </button>
         </div>
       </div>
 

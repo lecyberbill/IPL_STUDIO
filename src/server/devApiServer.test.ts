@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { createDevApiServer, type DevApiServerOptions } from './devApiServer';
+import { createDevApiServer, serveStaticDir, stopStaticServer, type DevApiServerOptions } from './devApiServer';
 
 const tempRoots: string[] = [];
 
@@ -219,5 +219,50 @@ describe('createDevApiServer — write-artifact handler', () => {
     emit();
     expect(res.statusCode).toBe(500);
     expect(parseJson(res).error).toContain('escapes');
+  });
+});
+
+describe('static serving (Serve button)', () => {
+  it('serveStaticDir serves files over loopback, reuses the port, blocks traversal and stops', async () => {
+    const dir = makeTempDir('ipl-serve-');
+    fs.writeFileSync(path.join(dir, 'index.html'), '<h1>hi there</h1>');
+    fs.writeFileSync(path.join(dir, 'app.js'), 'console.log(1);');
+
+    const { url } = await serveStaticDir(dir);
+    const html = await fetch(`${url}/`);
+    expect(html.status).toBe(200);
+    expect(await html.text()).toContain('hi there');
+
+    const js = await fetch(`${url}/app.js`);
+    expect(js.status).toBe(200);
+    expect(js.headers.get('content-type')).toContain('javascript');
+
+    // Same directory -> same port (reused, no duplicate server).
+    const again = await serveStaticDir(dir);
+    expect(again.url).toBe(url);
+
+    // Path traversal outside the root is refused.
+    const evil = await fetch(`${url}/..%2F..%2Fpackage.json`);
+    expect(evil.status).toBe(403);
+
+    // Stop closes it; stopping again is a no-op.
+    expect(stopStaticServer(dir)).toBe(true);
+    expect(stopStaticServer(dir)).toBe(false);
+  });
+
+  it('POST /api/serve starts a loopback server and returns its URL', async () => {
+    const dir = makeTempDir('ipl-serve-api-');
+    fs.writeFileSync(path.join(dir, 'index.html'), '<h1>ok</h1>');
+    const server = createDevApiServer({ devToken: '', isProduction: false, allowedCommands: null });
+    const res = createMockRes();
+    const { req, emit } = mockReq('/api/serve', 'POST', { host: 'localhost' }, { outputDir: dir });
+    server.handler(req, res, () => { throw new Error('next must not be called'); });
+    emit();
+    await new Promise(r => setTimeout(r, 150));
+    expect(res.statusCode).toBe(200);
+    const body = parseJson(res);
+    expect(body.success).toBe(true);
+    expect(body.url).toContain('localhost');
+    expect(stopStaticServer(dir)).toBe(true);
   });
 });
