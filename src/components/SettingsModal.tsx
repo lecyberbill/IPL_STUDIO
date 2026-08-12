@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
+import { reviewerLabel } from '../engine/llmGenerator';
+import type { LLMConfig, ReviewerConfig } from '../engine/llmGenerator';
 import { Settings, X, Server, Key, ShieldCheck, Plus, Trash2, Code2, Cpu, RefreshCw } from 'lucide-react';
 
 interface ProviderPreset {
@@ -138,6 +140,11 @@ export const SettingsModal: React.FC = () => {
     } finally {
       setIsFetchingModels(false);
     }
+  };
+
+  /** Updates the nested reviewer config (P3). */
+  const setReviewer = (patch: Partial<ReviewerConfig>) => {
+    setLLMConfig({ reviewer: { ...(llmConfig.reviewer ?? { mode: llmConfig.mode, model: llmConfig.model }), ...patch } });
   };
 
   const handleAddTarget = (e: React.FormEvent) => {
@@ -540,6 +547,96 @@ export const SettingsModal: React.FC = () => {
                 />
               </button>
             </div>
+          </div>
+
+          {/* Independent Reviewer (P3) — opt-in, default = same model */}
+          <div className="bg-[#0f1117] p-3.5 rounded-lg border border-[#2a2f42]">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="block text-gray-300 font-bold text-xs">
+                  Independent Reviewer (anti confirmation-bias)
+                </label>
+                <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">
+                  OFF = the reviewer is the same model as the generator (default — zero extra setup).
+                  ON = the consolidation LLM review runs on a separate model/endpoint — a real
+                  "fresh eye" (e.g. local generation + cloud review, or a second local model).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLLMConfig({ reviewer: llmConfig.reviewer ? undefined : { mode: llmConfig.mode, model: llmConfig.model } })}
+                className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${
+                  llmConfig.reviewer ? 'bg-cyan-500' : 'bg-[#2a2f42]'
+                }`}
+                aria-pressed={!!llmConfig.reviewer}
+                title={llmConfig.reviewer ? 'Independent reviewer: ON' : 'Independent reviewer: OFF (same model as generator)'}
+              >
+                <span
+                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${
+                    llmConfig.reviewer ? 'left-5' : 'left-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {llmConfig.reviewer && (
+              <div className="mt-3 pt-3 border-t border-[#2a2f42] space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  {(['local', 'lmstudio', 'external'] as LLMConfig['mode'][]).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setReviewer({ mode: m })}
+                      className={`p-2 rounded-lg border text-[11px] font-semibold transition-all ${
+                        llmConfig.reviewer!.mode === m
+                          ? 'bg-cyan-500/10 border-cyan-500 text-cyan-300'
+                          : 'bg-[#161922] border-[#2a2f42] text-gray-400 hover:border-gray-600'
+                      }`}
+                    >
+                      {m === 'local' ? 'Ollama Local' : m === 'lmstudio' ? 'LM Studio' : 'Cloud API'}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block font-medium text-gray-300 mb-1">Reviewer model</label>
+                    <input
+                      type="text"
+                      value={llmConfig.reviewer.model}
+                      onChange={(e) => setReviewer({ model: e.target.value })}
+                      className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-cyan-300 text-xs focus:outline-none focus:border-cyan-500"
+                      placeholder="e.g. gpt-4o-mini, gemini-2.0-flash"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-medium text-gray-300 mb-1">Endpoint (optional)</label>
+                    <input
+                      type="text"
+                      value={llmConfig.reviewer.endpoint || ''}
+                      onChange={(e) => setReviewer({ endpoint: e.target.value })}
+                      className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-gray-200 text-xs focus:outline-none focus:border-cyan-500"
+                      placeholder="falls back to the mode's default"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-medium text-gray-300 mb-1">API Key (optional — cloud review)</label>
+                  <input
+                    type="password"
+                    value={llmConfig.reviewer.customApiKey || ''}
+                    onChange={(e) => setReviewer({ customApiKey: e.target.value })}
+                    className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-cyan-300 text-xs focus:outline-none focus:border-cyan-500"
+                    placeholder="sk-... (for a cloud reviewer)"
+                  />
+                </div>
+
+                <div className="text-[10px] font-mono text-gray-500">
+                  Delivery report indicator: <span className="text-cyan-400">{reviewerLabel(llmConfig)}</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

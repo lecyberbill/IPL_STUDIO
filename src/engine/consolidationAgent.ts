@@ -25,7 +25,7 @@
 
 import { parseMultiFileXml } from './artifactGenerator';
 import type { ProjectArtifactFile } from './artifactGenerator';
-import { callLLM, refineIPLArtifact } from './llmGenerator';
+import { callLLM, refineIPLArtifact, reviewConfigFor, reviewerLabel } from './llmGenerator';
 import type { LLMConfig, TargetLanguage, TokenUsageHook, FormFactor } from './llmGenerator';
 import { findMissingModuleRefs, findInvalidJson, findFormMismatches } from './staticChecker';
 import type { MissingModuleRef, InvalidJson, FormMismatch } from './staticChecker';
@@ -154,6 +154,9 @@ export async function consolidateArtifact(
   const maxPasses = options.maxConsolidationPasses ?? 2;
   const systematic = options.systematicReview ?? true;
   const log = options.onLog ?? (() => {});
+  // P3: the review runs on the independent reviewer config when one is set
+  // (cross-endpoint possible); the auto-fix keeps the generator config.
+  const reviewCfg = reviewConfigFor(config);
 
   let files = parseMultiFileXml(artifactXml);
 
@@ -166,7 +169,7 @@ export async function consolidateArtifact(
   let reviewIssues: ReviewIssue[] = [];
   if (systematic) {
     try {
-      const raw = await callLLM(buildReviewPrompt(files), config, () => {}, undefined, {
+      const raw = await callLLM(buildReviewPrompt(files), reviewCfg, () => {}, undefined, {
         temperature: 0.1,
         usage: options.usage
       });
@@ -223,7 +226,7 @@ export async function consolidateArtifact(
       let newReview: ReviewIssue[] = [];
       if (systematic) {
         try {
-          const raw = await callLLM(buildReviewPrompt(files), config, () => {}, undefined, {
+          const raw = await callLLM(buildReviewPrompt(files), reviewCfg, () => {}, undefined, {
             temperature: 0.1,
             usage: options.usage
           });
@@ -250,7 +253,7 @@ export async function consolidateArtifact(
   }
 
   // 5. Delivery report.
-  const report = buildDeliveryReport(files, staticIssues, jsonIssues, reviewIssues, confirmedIssues, passesUsed, changed, formIssues, options.formFactor);
+  const report = buildDeliveryReport(files, staticIssues, jsonIssues, reviewIssues, confirmedIssues, passesUsed, changed, formIssues, options.formFactor, reviewerLabel(config));
   return { files, staticIssues, jsonIssues, formIssues, reviewIssues, confirmedIssues, passesUsed, changed, report };
 }
 
@@ -289,9 +292,13 @@ export function buildDeliveryReport(
   passesUsed: number,
   changed: boolean,
   formIssues: FormMismatch[] = [],
-  formFactor?: FormFactor
+  formFactor?: FormFactor,
+  reviewerLabel?: string
 ): string {
   const lines: string[] = ['--- CONSOLIDATION REPORT ---'];
+  // P3: honest reviewer indicator — never oversell the review when the reviewer
+  // is the same model as the generator (confirmation-bias caveat).
+  if (reviewerLabel) lines.push(`Reviewer: ${reviewerLabel}`);
   if (staticIssues.length === 0 && jsonIssues.length === 0 && formIssues.length === 0 && confirmedIssues.length === 0) {
     lines.push('✅ No confirmed defects found.');
   }

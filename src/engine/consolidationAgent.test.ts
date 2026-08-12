@@ -5,12 +5,12 @@ const mocks = vi.hoisted(() => ({
   refineIPLArtifact: vi.fn()
 }));
 
-vi.mock('./llmGenerator', () => ({
-  callLLM: mocks.callLLM,
-  refineIPLArtifact: mocks.refineIPLArtifact,
-  DEFAULT_LLM_CONFIG: { mode: 'external' },
-  grammarSignatureText: () => ''
-}));
+vi.mock('./llmGenerator', async (importOriginal) => {
+  // Keep the real config helpers (reviewConfigFor / reviewerLabel / builders);
+  // only the LLM network calls are mocked.
+  const actual = await importOriginal<typeof import('./llmGenerator')>();
+  return { ...actual, callLLM: mocks.callLLM, refineIPLArtifact: mocks.refineIPLArtifact };
+});
 
 import {
   filesToXml,
@@ -219,6 +219,25 @@ describe('form-factor gate in consolidation (P4)', () => {
     const report = buildDeliveryReport([file('a.js', '')], [], [], [], [{ kind: 'static', file: 'index.html', message: 'remove it' }], 1, true, formIssues, 'cli');
     expect(report).toContain('Form gate (cli): 1 mismatch(es)');
     expect(report).toContain('index.html: web asset present');
+  });
+});
+
+describe('independent reviewer (P3)', () => {
+  it('runs the review on the reviewer config when one is configured', async () => {
+    mocks.callLLM.mockResolvedValue('{ "issues": [] }');
+    const config = { ...llmConfig, reviewer: { mode: 'external' as const, model: 'gpt-4o-mini' } };
+    const xml = filesToXml([file('src/index.js', 'console.log("hi");')]);
+    const result = await consolidateArtifact(xml, 'javascript', config, { systematicReview: true });
+    const reviewConfigArg = mocks.callLLM.mock.calls.map(c => c[1] as { model?: string }).find(c => c && c.model);
+    expect(reviewConfigArg?.model).toBe('gpt-4o-mini');
+    expect(result.report).toContain('Reviewer: gpt-4o-mini (indépendant)');
+  });
+
+  it('labels the reviewer as shared when no independent config is set', async () => {
+    mocks.callLLM.mockResolvedValue('{ "issues": [] }');
+    const xml = filesToXml([file('src/index.js', 'console.log("hi");')]);
+    const result = await consolidateArtifact(xml, 'javascript', llmConfig, { systematicReview: true });
+    expect(result.report).toContain(`Reviewer: ${llmConfig.model} (partagé)`);
   });
 });
 

@@ -181,6 +181,14 @@ describe('settingsSlice', () => {
     expect(store.getState().llmConfig.externalEndpoint).toBe(DEFAULT_LLM_CONFIG.externalEndpoint);
   });
 
+  it('setLLMConfig sets and clears the independent reviewer config (P3)', () => {
+    const store = createTestStore();
+    store.getState().setLLMConfig({ reviewer: { mode: 'external', model: 'gpt-4o-mini' } });
+    expect(store.getState().llmConfig.reviewer?.model).toBe('gpt-4o-mini');
+    store.getState().setLLMConfig({ reviewer: undefined });
+    expect(store.getState().llmConfig.reviewer).toBeUndefined();
+  });
+
   it('toggles the settings, project, git and tutorial modals', () => {
     const store = createTestStore();
     const s = store.getState();

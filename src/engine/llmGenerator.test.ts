@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { extractClarificationRequest, estimateTokens, createRunTokenUsage, recordTokenUsage, callLLM, buildLangInstruction, buildFormDirective } from './llmGenerator';
+import { extractClarificationRequest, estimateTokens, createRunTokenUsage, recordTokenUsage, callLLM, buildLangInstruction, buildFormDirective, reviewConfigFor, reviewerLabel } from './llmGenerator';
 import type { LLMConfig } from './llmGenerator';
 
 const localConfig: LLMConfig = {
@@ -57,6 +57,42 @@ describe('form-factor directives (P4)', () => {
     expect(buildFormDirective('server')).toContain('FastAPI');
     expect(buildFormDirective('library')).toContain('runnable entry point');
     expect(buildFormDirective()).toBe('');
+  });
+});
+
+describe('independent reviewer config (P3)', () => {
+  const base: LLMConfig = {
+    mode: 'external',
+    localEndpoint: 'http://localhost:11434',
+    externalEndpoint: 'https://gen.example.com',
+    apiKeyName: 'GEN_KEY',
+    model: 'gen-model'
+  };
+
+  it('reviewConfigFor returns the generator config when no reviewer is set', () => {
+    expect(reviewConfigFor(base)).toBe(base);
+  });
+
+  it('reviewConfigFor switches mode/model/endpoint for the review call', () => {
+    const cfg = reviewConfigFor({
+      ...base,
+      reviewer: { mode: 'external', model: 'gpt-4o-mini', endpoint: 'https://review.example.com', apiKeyName: 'REV_KEY' }
+    });
+    expect(cfg.model).toBe('gpt-4o-mini');
+    expect(cfg.externalEndpoint).toBe('https://review.example.com');
+    expect(cfg.apiKeyName).toBe('REV_KEY');
+  });
+
+  it('reviewConfigFor falls back to the generator endpoint when none is given', () => {
+    const cfg = reviewConfigFor({ ...base, reviewer: { mode: 'local', model: 'llama3' } });
+    expect(cfg.mode).toBe('local');
+    expect(cfg.model).toBe('llama3');
+    expect(cfg.localEndpoint).toBe(base.localEndpoint);
+  });
+
+  it('reviewerLabel is honest about shared vs independent', () => {
+    expect(reviewerLabel(base)).toBe('gen-model (partagé)');
+    expect(reviewerLabel({ ...base, reviewer: { mode: 'external', model: 'gpt-4o-mini' } })).toBe('gpt-4o-mini (indépendant)');
   });
 });
 

@@ -13,6 +13,54 @@ export interface LLMConfig {
   apiKeyName: string;
   customApiKey?: string;
   model: string;
+  /**
+   * Independent reviewer (P3): when set, the consolidation LLM review runs on
+   * this separate config (a different model/endpoint) instead of the generator's.
+   * When absent the reviewer IS the generator model (default — current behavior).
+   */
+  reviewer?: ReviewerConfig;
+}
+
+/**
+ * The reviewer's own connection (P3). Only used for the consolidation REVIEW
+ * call — the generator and the auto-fix keep the main config. Cross-endpoint is
+ * supported: e.g. local generation + cloud review, or a second local model.
+ */
+export interface ReviewerConfig {
+  /** Backend mode for the review call (may differ from the generator's). */
+  mode: LLMConfig['mode'];
+  /** Model id used by the reviewer. */
+  model: string;
+  /** Optional endpoint override for the reviewer's mode. */
+  endpoint?: string;
+  /** Optional API key name (cloud review). */
+  apiKeyName?: string;
+  /** Optional direct API key (cloud review). */
+  customApiKey?: string;
+}
+
+/**
+ * Resolves the config the consolidation review should use. When no independent
+ * reviewer is configured, the generator config is reused (same model).
+ */
+export function reviewConfigFor(config: LLMConfig): LLMConfig {
+  const r = config.reviewer;
+  if (!r) return config;
+  return {
+    ...config,
+    mode: r.mode,
+    model: r.model,
+    localEndpoint: r.endpoint || config.localEndpoint,
+    lmStudioEndpoint: r.endpoint || config.lmStudioEndpoint,
+    externalEndpoint: r.endpoint || config.externalEndpoint,
+    apiKeyName: r.apiKeyName || config.apiKeyName,
+    customApiKey: r.customApiKey || config.customApiKey
+  };
+}
+
+/** Honest reviewer indicator for the delivery report (P3): don't oversell the review when it is the same model. */
+export function reviewerLabel(config: LLMConfig): string {
+  return config.reviewer ? `${config.reviewer.model} (indépendant)` : `${config.model} (partagé)`;
 }
 
 export const DEFAULT_LLM_CONFIG: LLMConfig = {
