@@ -1253,6 +1253,7 @@ function buildReport(args: CliArgs, config: LLMConfig, results: RunResult[]): st
   lines.push('| Spec | Runs | PASS | WARN | FAIL | Avg total (ms) | Avg files | Avg size (KB) | Repairs |');
   lines.push('| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |');
   let totalPass = 0;
+  let totalFirstTryPass = 0;
   let totalRuns = 0;
   let totalFirstTryFail = 0;
   let totalRepairedToPass = 0;
@@ -1261,6 +1262,7 @@ function buildReport(args: CliArgs, config: LLMConfig, results: RunResult[]): st
     const warn = runs.filter(r => r.status === 'WARN').length;
     const fail = runs.filter(r => r.status === 'FAIL').length;
     totalPass += pass;
+    totalFirstTryPass += runs.filter(r => r.firstTryStatus === 'PASS').length;
     totalRuns += runs.length;
     const avgMs = Math.round(runs.reduce((s, r) => s + r.totalMs, 0) / runs.length);
     const avgFiles = Math.round(runs.reduce((s, r) => s + r.fileCount, 0) / runs.length);
@@ -1275,7 +1277,8 @@ function buildReport(args: CliArgs, config: LLMConfig, results: RunResult[]): st
     }
   }
   lines.push('');
-  lines.push(`**Overall first-try PASS rate**: ${totalRuns ? `${Math.round((totalPass / totalRuns) * 100)}% (${totalPass}/${totalRuns})` : 'n/a'}`);
+  lines.push(`**Final PASS rate**: ${totalRuns ? `${Math.round((totalPass / totalRuns) * 100)}% (${totalPass}/${totalRuns})` : 'n/a'}`);
+  lines.push(`**First-try PASS rate**: ${totalRuns ? `${Math.round((totalFirstTryPass / totalRuns) * 100)}% (${totalFirstTryPass}/${totalRuns})` : 'n/a'}`);
   if (totalFirstTryFail > 0) {
     lines.push(`**Success-after-repair rate**: ${Math.round((totalRepairedToPass / totalFirstTryFail) * 100)}% (${totalRepairedToPass}/${totalFirstTryFail} failed first-try runs recovered by repair)`);
   }

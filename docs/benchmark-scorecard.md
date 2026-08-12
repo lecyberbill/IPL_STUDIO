@@ -235,3 +235,29 @@ Lecture (honnête) :
 - **Sur les défauts code (niveau statique), elle converge en 1-2 passes et évite des repair** : les 3 PASS « first-try » (hello, weather, form) ont coûté 0 token de réparation — la consolidation a suffi. typed-order (FAIL first-try) est passé au PASS avec **1 repair** au lieu d'une boucle aveugle.
 - **Sur les oracles comportementaux (parking tarification, coffee float), elle est aveugle** : 31-35K de consolidation + 18-19K de réparation, échec des deux. La review statique ne voit pas la sortie runtime — le verify+repair reste le seul juge, et le contrat sérialisé dans le prompt ne suffit pas toujours.
 - **Net** : ce run unique ne permet pas de conclure sur l'économie absolue (il faudrait un A/B consolidate vs sans-consolidate, même modèle/specs). Le coût (~4×) est amorti **si** la consolidation convertit des FAIL→PASS sans repair (typed-order) plus souvent qu'elle ne « sur-corrige » des runs déjà bons. P6 recommande un **A/B futur** comme mesure définitive ; la télémétrie est en place pour ça.
+
+## P6 — A/B mesuré : consolidation vs réparation seule (2026-08-12, deepseek-chat, 7 specs, n=1, output neuf)
+
+Run contrôlé : même modèle, même jour, **`output/benchmark` vidé** avant les 2 groupes (aucun résidu). Groupe A `--consolidate`, Groupe B sans (réparation seule, 3 passes max). Tokens estimés chars/4.
+
+| Spec | A : consol | B : repair | A tokens (gén/consol/rép) | B tokens (gén/consol/rép) |
+| :--- | :---: | :---: | :--- | :--- |
+| hello | PASS | PASS | 4 969 / 3 119 / 0 = **8 088** | 5 227 / 0 / 0 = **5 227** |
+| typed-order | PASS | PASS | 8 769 / 52 945 / 20 615 = **82 329** | 6 911 / 0 / 6 672 = **13 583** |
+| weather | PASS | PASS | 7 298 / 13 472 / 0 = **20 770** | 7 884 / 0 / 0 = **7 884** |
+| form | PASS | PASS | 9 249 / 47 430 / 0 = **56 679** | 10 896 / 0 / 0 = **10 896** |
+| node-hello | PASS | PASS | 2 915 / 1 268 / 0 = **4 183** | 3 751 / 0 / 0 = **3 751** |
+| parking | **FAIL** | PASS | 5 717 / 13 353 / 21 543 = **40 613** | 5 126 / 0 / 12 129 = **17 255** |
+| coffee | **WARN** | PASS | 6 406 / 25 048 / 0 = **31 454** | 5 352 / 0 / 9 547 = **14 899** |
+| **TOTAL** | **5 PASS / 1 WARN / 1 FAIL** | **7 PASS / 7** | **45 323 / 156 635 / 42 158 = 244 116** | **45 147 / 0 / 28 348 = 73 495** |
+
+**Verdict de l'échantillon (n=1) — honnête, avec ses limites** :
+
+- **B (réparation seule) gagne sur tous les axes** : 7/7 PASS vs 5/7, et **1/3.3 des tokens** (73,5k vs 244k). La consolidation a coûté **156k tokens (~3.5× la génération)** et n'a ni sauvé parking (FAIL après consol + 3 repairs) ni coffee (WARN) — que la réparation seule a **tous deux** récupérés.
+- **Le repair B a convergé partout** (typed-order 1 pass, parking 2, coffee 2) — dont la réparation déterministe SEARCH/REPLACE (nouveau gate) qui a réparé typed-order **sans LLM**.
+- **Caveats qui interdisent de conclure définitivement** :
+  1. **n=1** — deepseek-chat est non-déterministe (le run consolidé de la veille : 4/7 ; cette session : 5/7). Variance forte.
+  2. **L'oracle bench ≠ l'app** : le verify+repair automatise ce qu'un humain ferait. Dans l'app, la valeur de la consolidation est **de ne jamais livrer du code cassé + de diagnostiquer pour l'humain** (le prompt « Copier ») — valeur **invisible** dans un taux de PASS.
+  3. **Confondant** : avec consolidation, l'artefact est **modifié avant verify** (auto-fix) — l'échec parking/coffee du groupe A peut venir du fix lui-même.
+  4. **Latence** : A est ~2-4× plus lent (typed-order 164 s vs 37 s).
+- **Recommandation P6 (data-driven)** : sur ce sample, la review systématique **par défaut** n'est pas justifiée par le taux de PASS automatisé. Trois directions : (a) **consolidation opt-in par défaut OFF** (garder gates 0-token + verify), (b) la rendre **moins chère** (review LLM seulement si les gates déterministes tirent, pas sur un arbre propre), (c) la garder pour la valeur **humaine** (diagnostic + non-livraison de code cassé) et mesurer ça séparément. À trancher avec plus de runs (A/B multi-itérations).
