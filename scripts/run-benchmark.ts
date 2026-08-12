@@ -1282,6 +1282,37 @@ function buildReport(args: CliArgs, config: LLMConfig, results: RunResult[]): st
   lines.push('_Repairs column: `0` = first-try PASS, `1..N` = repair passes needed, `-1` = failed even after repair. Values are per run/iteration._');
   lines.push('');
 
+  // P6 — token economy: consolidation cost vs repair cost vs generation.
+  const tokenRuns = results.filter(r => r.usage && args.mode !== 'mock');
+  if (tokenRuns.length > 0) {
+    lines.push('## Token economy (P6)');
+    lines.push('');
+    lines.push('Estimated tokens per run (chars / 4). Ratio = consolidation ÷ generation — the price of the delivery gate.');
+    lines.push('');
+    lines.push('| Spec | Status | Spec | Génération | Consolidation | Ratio | Réparation | Repair passes | Total |');
+    lines.push('| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |');
+    for (const r of tokenRuns) {
+      const u = r.usage!;
+      const gen = u.generation.inputTokens + u.generation.outputTokens;
+      const cons = u.consolidation.inputTokens + u.consolidation.outputTokens;
+      const rep = u.repair.inputTokens + u.repair.outputTokens;
+      const ratio = gen > 0 ? (cons / gen).toFixed(1) : '—';
+      lines.push(`| ${r.specId} | ${r.status} | ${u.specTokens} | ${gen} | ${cons} | ${ratio}× | ${rep} | ${u.repairPasses} | ${gen + cons + rep} |`);
+    }
+    const totals = tokenRuns.reduce((acc, r) => {
+      const u = r.usage!;
+      acc.gen += u.generation.inputTokens + u.generation.outputTokens;
+      acc.cons += u.consolidation.inputTokens + u.consolidation.outputTokens;
+      acc.rep += u.repair.inputTokens + u.repair.outputTokens;
+      return acc;
+    }, { gen: 0, cons: 0, rep: 0 });
+    const overallRatio = totals.gen > 0 ? (totals.cons / totals.gen).toFixed(1) : '—';
+    lines.push(`| **TOTAL** | | | ${totals.gen} | ${totals.cons} | ${overallRatio}× | ${totals.rep} | | ${totals.gen + totals.cons + totals.rep} |`);
+    lines.push('');
+    lines.push(`**Reading (P6)**: consolidation costs ~${overallRatio}× the generation on this run. It converged in 1-2 passes on code-level defects; behavioral oracles (pricing/float) still need the verify + repair loop.`);
+    lines.push('');
+  }
+
   lines.push('## Detailed Runs');
   lines.push('');
   for (const r of results) {

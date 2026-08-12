@@ -211,3 +211,27 @@ Test du seed multi-fichier (`main.ipl` importe `data.ipl`, 5 `seed Drink`) en ba
 - **Delivery** : « Reviewer: deepseek-chat (partagé) · ✅ No confirmed defects found · Delivered 4 file(s) » — consolidation verte.
 - **Runtime réel (navigateur headless)** : `index.html` **tronqué** (coupé en plein `<span`, sans `</html>` ni `<script src="src/app.js">`) → liste vide + loyalty non cliquable. Le reviewer ne voit pas la troncature (lecture statique, sans exécution). App corrigée manuellement (vib coding) : menu seedé avec les 5 boissons ✅.
 - Enseignement : **la review statique + les gates ne remplacent pas l'exécution**. La troncature (`</html>` manquant) est un futur gate déterministe candidat (`findTruncatedFiles`). Le biais « reviewer = générateur » reste le plafond (ici reviewer deepseek-chat sur artefact d'un modèle local — la review n'a pas croisé le runtime).
+
+## P6 — Coût reviewer vs gain (analyse, run 7-spec `--consolidate`)
+
+Le rapport benchmark exporte désormais un tableau « Token economy » (le rapport v1.4 le génère par run). Chiffres mesurés (estimation chars/4, deepseek-chat) :
+
+| Spec | Statut | Génération | Consolidation | Ratio | Réparation | Repair |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| hello | PASS | 3 875 | 8 827 | 2.3× | 0 | 0 |
+| typed-order | PASS* | 8 354 | 47 965 | 5.7× | 8 947 | 1 |
+| weather | PASS | 7 237 | 21 657 | 3.0× | 0 | 0 |
+| form | PASS | 4 211 | 11 660 | 2.8× | 0 | 0 |
+| node-hello | WARN | 3 743 | 9 183 | 2.5× | 0 | 0 |
+| parking | FAIL | 5 661 | 31 770 | 5.6× | 18 866 | 3 |
+| coffee | FAIL | 6 710 | 35 725 | 5.3× | 19 746 | 3 |
+| **TOTAL** | | 39 791 | 166 787 | **4.2×** | 47 559 | |
+
+`*` typed-order : first-try FAIL → consolidation 2 passes → 1 repair → PASS.
+
+Lecture (honnête) :
+
+- **La consolidation coûte ~4.2× la génération.** C'est le prix du gate, mesuré.
+- **Sur les défauts code (niveau statique), elle converge en 1-2 passes et évite des repair** : les 3 PASS « first-try » (hello, weather, form) ont coûté 0 token de réparation — la consolidation a suffi. typed-order (FAIL first-try) est passé au PASS avec **1 repair** au lieu d'une boucle aveugle.
+- **Sur les oracles comportementaux (parking tarification, coffee float), elle est aveugle** : 31-35K de consolidation + 18-19K de réparation, échec des deux. La review statique ne voit pas la sortie runtime — le verify+repair reste le seul juge, et le contrat sérialisé dans le prompt ne suffit pas toujours.
+- **Net** : ce run unique ne permet pas de conclure sur l'économie absolue (il faudrait un A/B consolidate vs sans-consolidate, même modèle/specs). Le coût (~4×) est amorti **si** la consolidation convertit des FAIL→PASS sans repair (typed-order) plus souvent qu'elle ne « sur-corrige » des runs déjà bons. P6 recommande un **A/B futur** comme mesure définitive ; la télémétrie est en place pour ça.
