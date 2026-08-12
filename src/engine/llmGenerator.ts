@@ -565,6 +565,11 @@ CRITICAL OUTPUT INSTRUCTIONS:
    DO NOT guess. Reply with EXACTLY one line starting with:
    NEED_CLARIFICATION: <your precise, one-line question>
    and emit NO <file> or <patch> tags in that case.
+0b. IF the user reports the application is BROKEN or NOT WORKING (empty UI, crash, missing
+    feature, unclickable control, wrong output): treat it as a CODE-CHANGE request. ANALYZE the
+    EXISTING PROJECT FILES above, locate the defect(s), and FIX them by emitting <file> or
+    <patch> tags. Do NOT reply conversationally when a defect is present — only ask a
+    NEED_CLARIFICATION if you genuinely cannot determine the cause.
 1. IF the user is asking to modify specific lines, fix bugs, or update existing files:
    - OPTION A (Targeted Line Patching - Preferred for line edits):
      <patch path="relative/path/to/file.ext">
