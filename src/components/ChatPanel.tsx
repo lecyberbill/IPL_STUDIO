@@ -77,7 +77,7 @@ export const ChatPanel: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#12141c] text-gray-200 select-none">
+    <div className="flex flex-col h-full min-h-0 bg-[#12141c] text-gray-200 select-none">
       {/* Header */}
       <div className="px-3 py-2 bg-[#161922] border-b border-[#2a2f42] flex items-center justify-between text-xs shrink-0">
         <div className="flex items-center space-x-2 font-semibold text-cyan-400">
@@ -90,7 +90,7 @@ export const ChatPanel: React.FC = () => {
       </div>
 
       {/* Messages Thread */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3 font-sans text-xs select-text">
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 font-sans text-xs select-text">
         {messages.map((msg) => (
           <div
             key={msg.id}
