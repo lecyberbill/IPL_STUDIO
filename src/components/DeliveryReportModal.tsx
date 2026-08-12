@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
 import { summarizeConsolidation, buildDeliveryFixPrompt } from '../engine/consolidationAgent';
 import { CheckCircle2, AlertTriangle, AlertCircle, Search, Wrench, X, FileSearch, ClipboardList, Copy, Check } from 'lucide-react';
@@ -12,10 +12,25 @@ interface DeliveryReportModalProps {
  * P2 — full delivery report in a popup. The bottom console is height-constrained,
  * so the Delivery tab offers an expand action that renders the same report (token
  * budget, found/fixed/remaining, issues, raw text) in a large overlay.
+ *
+ * The overlay is FULL-SCREEN (`fixed inset-0`): while it is open it covers the
+ * whole IDE, including the right-sidebar tabs — so Escape and an explicit
+ * "Fermer" button make it impossible to get "trapped".
  */
 export const DeliveryReportModal: React.FC<DeliveryReportModalProps> = ({ open, onClose }) => {
   const { consolidationResult, runUsage, setActivePanelTab, setSelectedFilePath, addLog, targetLang } = useIdeStore();
   const [copiedPrompt, setCopiedPrompt] = useState(false);
+
+  // Escape closes the popup (the overlay covers the whole IDE, so a keyboard
+  // escape is the most reliable way out).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
 
   if (!open || !consolidationResult) return null;
 
@@ -196,9 +211,19 @@ export const DeliveryReportModal: React.FC<DeliveryReportModalProps> = ({ open, 
             <FileSearch size={12} className="text-cyan-400" />
             <span>{result.files.length} file(s) delivered</span>
           </span>
-          <span className="text-gray-500">
-            auto-fix: {result.passesUsed} pass(es){result.changed ? ' · files modified' : ' · no change'}
-          </span>
+          <div className="flex items-center space-x-3">
+            <span className="text-gray-500">
+              auto-fix: {result.passesUsed} pass(es){result.changed ? ' · files modified' : ' · no change'}
+            </span>
+            <button
+              onClick={onClose}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-md bg-cyan-500/15 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[11px] font-semibold transition-colors"
+              title="Close the report and return to the IDE (Échap)"
+            >
+              <X size={12} />
+              <span>Fermer (Échap)</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
