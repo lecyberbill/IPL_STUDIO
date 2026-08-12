@@ -4,6 +4,48 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ---
 
+## [1.4.0] - 2026-08-12
+
+### 🚚 P1 — Delivery panel (the consolidation is now visible in the product)
+- **`DeliveryPanel.tsx`** (+ tab in the console): found / fixed / remaining cards, clickable remaining issues (jump to the file in the Files viewer), reviewer warnings, collapsible raw report, token-economy budget line.
+- **Copy-paste repair prompt** (`buildDeliveryFixPrompt`): a ready-to-paste `Reply ONLY with <file>/<patch>` directive for the remaining issues — the human vib-coding escape hatch.
+- **Delivery report popup** (`DeliveryReportModal`) for full reading (Échap / « Fermer » to close — the overlay covered the sidebar tabs, fixed), plus a console maximize button.
+- `summarizeConsolidation` (pure) derives found/fixed/remaining; `consolidationResult` + `runUsage` transient store state.
+
+### 🔢 P2 — Token telemetry (the economy contract is now measurable)
+- `RunTokenUsage` accumulator threaded through every LLM call (`callLLM` single choke point): `generation` / `consolidation` / `repair` buckets + `repairPasses` + `clarificationRoundtrips`, estimated as chars/4.
+- Published to the Delivery panel and **exported per run in the benchmark report** (spec → gén / consol / réparation).
+
+### 👁 P3 — Independent reviewer (anti confirmation-bias)
+- Opt-in `LLMConfig.reviewer` (mode/model/endpoint/key) — **default = same model** (zero extra setup). `reviewConfigFor` resolves the review config; the auto-fix keeps the generator model.
+- Honest indicator in the delivery report: `Reviewer: <model> (partagé)` vs `(indépendant)`.
+
+### 🧭 P4 — Execution form factor (no more web-app drift)
+- 5 forms: **CLI autonome / Web app / Appli avec UI (bureau/jeu) / Serveur-API / Bibliothèque**, chosen in the navbar next to « Forme: ».
+- `buildFormDirective` pins the form in Pass 1/Pass 2; `findFormMismatches` (0-token gate) flags web assets/DOM for CLI, missing HTML for web, no GUI toolkit, no server framework.
+
+### 📊 P5 — Generalizable, runnable, CI-gated measurement
+- Harness fixed to run in plain Node (`.ts` extension imports completed); `--form-factor` per spec (derived: html→web, else cli); 7-spec `--consolidate` run measured (4 PASS / 1 WARN / 2 FAIL, 57 % first-try).
+- **CI**: new `bench` job (Node 24 + Python 3.12) runs the mock smoke on every push/PR (test + lint + build already gated).
+
+### 🥗 P7 — `seed` verb: data in the spec (the data gap is closed)
+- `seed <Entity> <instance> { field: value }` — entity instances / catalog / fixtures, 13th canonical verb (icon + guide + Monaco keyword).
+- Cross-file validated (entity must exist, fields must be declared); works across `import "data.ipl"`.
+
+### 🛡 0-token deterministic gates (the reliability backbone)
+- Imports, invalid JSON, form drift (P4), **IPL-spec leakage** (`*.ipl` in the deliverable), **SEARCH/REPLACE marker leakage** (`<<<<<<< SEARCH` / `=======` / `>>>>>>> REPLACE` — the root cause of the coffee crash) with **deterministic repair** (strips the markers, no LLM needed).
+- `README.md` systematically added to every delivery (tracking + `source/main.ipl` pointer).
+
+### 🌐 Serve button
+- Loopback static HTTP server (`POST /api/serve`, port auto) to preview the generated web app straight from the IDE; toggle next to « Forme: ».
+
+### 🐛 Fixes
+- Long chat messages no longer scroll the workspace (`min-h-0`) — the Files tab stayed hidden.
+- Chat bug reports now trigger analysis + `<file>/<patch>` fix instead of a conversational reply (prompt rule 0b).
+- Guide counts are derived from `IPL_VERBS`/`IPL_INTENT_TYPES` (no more stale « 12 verbs »).
+
+---
+
 ## [1.3.0] - 2026-08-10
 
 ### 📦 Versioned Release Pipeline

@@ -53,7 +53,7 @@ export const TerminalPanel: React.FC = () => {
         xtermInstance.current = term;
         fitAddonRef.current = fitAddon;
 
-        term.writeln('\x1b[1;36m=== IPL Studio Embedded Terminal v1.3.0 ===\x1b[0m');
+        term.writeln('\x1b[1;36m=== IPL Studio Embedded Terminal v1.4.0 ===\x1b[0m');
         term.writeln(`\x1b[90mWorking Directory: ${outputDir}\x1b[0m\n`);
 
         try {

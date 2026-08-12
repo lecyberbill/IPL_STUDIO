@@ -25,7 +25,7 @@ export const WelcomeModal: React.FC = () => {
             </div>
             <div>
               <h1 className="font-bold text-white text-lg tracking-wider">Welcome to IPL Studio</h1>
-              <p className="text-[11px] text-cyan-300/80 font-mono">Intent Programming Language IDE — v1.3.0</p>
+              <p className="text-[11px] text-cyan-300/80 font-mono">Intent Programming Language IDE — v1.4.0</p>
             </div>
           </div>
           <button onClick={dismiss} className="p-1.5 text-gray-400 hover:text-white hover:bg-[#2a2f42] rounded transition-colors" title="Close (you can reopen the tutorial anytime)">

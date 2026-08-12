@@ -1,10 +1,10 @@
-# ⚡ IPL Studio v1.3.0 — Intent Programming Language IDE & Autonomous Agent
+# ⚡ IPL Studio v1.4.0 — Intent Programming Language IDE & Autonomous Agent
 
 [![Vite](https://img.shields.io/badge/Vite-8.x-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![React](https://img.shields.io/badge/React-19.x-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-4.x-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Changelog](https://img.shields.io/badge/Release_Notes-v1.3.0-blue.svg?style=for-the-badge)](CHANGELOG.md)
+[![Changelog](https://img.shields.io/badge/Release_Notes-v1.4.0-blue.svg?style=for-the-badge)](CHANGELOG.md)
 [![LLM Agent Guide](https://img.shields.io/badge/Agent_Prompt-IPL_Guide-purple.svg?style=for-the-badge)](IPL_AGENT_GUIDE.md)
 [![Benchmark Suite](https://img.shields.io/badge/Benchmark-Hello_World-orange.svg?style=for-the-badge)](BENCHMARK_HELLO_WORLD.md)
 [![Roadmap](https://img.shields.io/badge/Roadmap-Phases_4--10-teal.svg?style=for-the-badge)](ROADMAP.md)
@@ -14,7 +14,23 @@
 
 ---
 
-## ✨ v1.3.0 Highlights
+## ✨ v1.4.0 Highlights — Product Reliability
+
+- **Delivery panel** (P1) — the consolidation agent's report is visible in the product: found / fixed / remaining, clickable issues, token budget, copy-paste repair prompt, popup + maximize.
+- **Token telemetry** (P2) — per-run estimated input/output across generation / consolidation / repair, exported in the benchmark report.
+- **Independent reviewer** (P3) — opt-in separate reviewer model/endpoint (default = same model), honest `(partagé)`/`(indépendant)` indicator.
+- **Execution form factor** (P4) — CLI / Web / GUI / Server / Library pinned in the prompt + a deterministic 0-token form gate.
+- **Measurable benchmark** (P5) — harness runnable in plain Node, `--form-factor`, 7-spec `--consolidate` runs, CI bench smoke job.
+- **`seed` verb** (P7) — entity instances (catalog/fixture data) in the spec, cross-file validated; the data gap is closed.
+- **0-token deterministic gates** — imports, invalid JSON, form drift, IPL-spec leakage, SEARCH/REPLACE marker leakage (with deterministic repair).
+- **Serve button** — loopback static server to preview the generated web app straight from the IDE.
+- **Systematic README** — every delivery carries a tracking README pointing to `source/main.ipl`.
+
+---
+
+## 📖 Previous Releases
+
+### v1.3.0 Highlights
 
 - **Versioned Release Pipeline** — one manual `workflow_dispatch` turns `main` into a tagged GitHub Release: semver validation, `package.json` + `package-lock.json` bump, CHANGELOG `[Unreleased]` → `[x.y.z] - date`, tag + `gh release create` (see `ROADMAP.md → Versioned Release pipeline`).
 - **UX Finishing Pass** — one-time first-run onboarding (`WelcomeModal`), dismissible generation-error banner with an **Open Settings** shortcut, a 6-template project gallery, skeleton loading states, and helpful empty states.

@@ -171,7 +171,7 @@ listen event on "form:submit" {
     updatedAt: new Date().toLocaleTimeString(),
     code: `// IPL Project v1.0 - Hello World
 add message {
-  text: "Hello World IPL Studio v1.3.0",
+  text: "Hello World IPL Studio v1.4.0",
   target: "console"
 }
 

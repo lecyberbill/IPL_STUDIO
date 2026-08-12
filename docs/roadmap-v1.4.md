@@ -2,7 +2,9 @@
 
 Thème : passer de la preuve en benchmark à un produit fiable de livraison.
 
-Version courante : 1.3.0. Cette roadmap s'ancre sur les mesures de la session « consolidation » (voir `benchmark-scorecard.md`).
+Version courante : **1.4.0** (livré le 2026-08-12). Cette roadmap s'ancre sur les mesures de la session « consolidation » (voir `benchmark-scorecard.md`).
+
+> **Statut : P1-P5 + P7 livrés.** Il reste P6 (coût reviewer vs gain, analyse) — voir la section dédiée.
 
 ## Faits mesurés à l'origine de cette roadmap
 

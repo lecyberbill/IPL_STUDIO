@@ -153,7 +153,7 @@ const SPECS: BenchSpec[] = [
     targetLang: 'html',
     code: `// IPL Project v1.0 - Hello World
 add message {
-  text: "Hello World IPL Studio v1.3.0",
+  text: "Hello World IPL Studio v1.4.0",
   target: "console"
 }
 
@@ -262,7 +262,7 @@ listen event on "form:submit" {
     targetLang: 'javascript',
     code: `// IPL Project v1.0 - CLI Greeter
 add message {
-  text: "Hello World IPL Studio v1.3.0",
+  text: "Hello World IPL Studio v1.4.0",
   target: "console"
 }
 
@@ -348,7 +348,7 @@ listen event on "vehicle:exit" {
     id: 'coffee',
     name: 'Coffee Shop Order Management (loyalty pricing)',
     targetLang: 'javascript',
-    code: `// IPL Project v1.3.0 — Coffee Shop
+    code: `// IPL Project v1.4.0 — Coffee Shop
 add entity Drink {
   name: text,
   basePrice: number,

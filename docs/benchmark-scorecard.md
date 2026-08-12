@@ -192,3 +192,22 @@ Enseignements :
 - **node-hello WARN ≠ drift de forme** : pas de DOM, pas d'asset web → le gate form `cli` est **silencieux à raison**. Le fichier s'appelle `greeter.js` au lieu de `index.js` → le retry « entry missing » du harness ne découvre pas un nom arbitraire. Limite du harness, pas de la forme.
 - **Reviewer : deepseek-chat (partagé)** sur les 7 runs — le biais de confirmation (P3) reste : P3 permet de passer en reviewer indépendant, mais le choix par défaut « même modèle » est ici en action.
 - **Form factor mesuré** : dérivé par spec (html→web, sinon cli), pinué dans Pass 1/Pass 2 + gate. Aucun gate form n'a tiré sur ce run (pas de drift web pour du cli sur les specs générées) — le drift reste un mode d'échec modèle-dépendant (cf. gpt-oss-20b local), pas systématique chez deepseek-chat.
+
+## Gates 0-token ajoutés après P5 (post-run v1.4)
+
+Le run 7-spec a exposé des modes d'échec **déterministes** que la review LLM rate — désormais des gates 0-token + réparations mécaniques (avant tout appel LLM) :
+
+| Gate | Détecte | Cas réel |
+| :--- | :--- | :--- |
+| `findIplLeakage` | Fichiers `*.ipl` (la spec est l'INPUT, jamais la livraison) | Coffee multi-fichier : le modèle a ré-émis `app.ipl`/`engine.ipl`/`data.ipl` en artefacts |
+| `findPatchLeakage` | Marqueurs `<<<<<<< SEARCH` / `=======` / `>>>>>>> REPLACE` dans le code généré | **Run coffee : un `=======` littéral + bloc dupliqué → `SyntaxError` → `IPLEngine` jamais défini → liste vide**. Le reviewer l'avait signalé (défaut n°4) mais l'auto-fix n'a pas convergé ; la réparation déterministe (`stripPatchArtifacts`) l'élimine sans LLM |
+
+Ces deux gates sont fusionnés dans les issues confirmées → auto-fix + sections dédiées au rapport (« IPL-leakage gate », « Patch-artifact gate ») + comptés dans « trouvé ».
+
+## Run local coffee multi-fichier (bonsai-27b via LM Studio)
+
+Test du seed multi-fichier (`main.ipl` importe `data.ipl`, 5 `seed Drink`) en backend local :
+
+- **Delivery** : « Reviewer: deepseek-chat (partagé) · ✅ No confirmed defects found · Delivered 4 file(s) » — consolidation verte.
+- **Runtime réel (navigateur headless)** : `index.html` **tronqué** (coupé en plein `<span`, sans `</html>` ni `<script src="src/app.js">`) → liste vide + loyalty non cliquable. Le reviewer ne voit pas la troncature (lecture statique, sans exécution). App corrigée manuellement (vib coding) : menu seedé avec les 5 boissons ✅.
+- Enseignement : **la review statique + les gates ne remplacent pas l'exécution**. La troncature (`</html>` manquant) est un futur gate déterministe candidat (`findTruncatedFiles`). Le biais « reviewer = générateur » reste le plafond (ici reviewer deepseek-chat sur artefact d'un modèle local — la review n'a pas croisé le runtime).
