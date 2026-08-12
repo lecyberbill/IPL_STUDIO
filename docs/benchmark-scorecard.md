@@ -167,3 +167,28 @@ Enseignements des runs consolidés :
 - Le rapport benchmark affichait `Endpoint: https://api.deepseek.com` même en mode lmstudio : corrigé via `endpointForMode` (sélection selon le mode, pas par priorité de véracité — `externalEndpoint` est toujours truthy).
 - **Deps tierces : acceptées si déclarées, jamais installées par le harness.** L'usage de libs tierces (Flask, SQLAlchemy...) est légitime — tout ne doit pas être stdlib. Le contrat : le modèle doit les **déclarer** (`requirements.txt`/`package.json`/`Cargo.toml`/`go.mod`), et le harness les **signale** pour vérification manuelle (WARN `NO AUTO-INSTALL`). Pas d'installation automatique sans human-in-the-loop.
 - Envisager une contrainte harness « script autonome » (pas de serveur web / pas d'`app.run`) communiquée dans le prompt.
+
+## P5 — Généralisation de la mesure (7 SPECS × `--consolidate`)
+
+Premier run complet de la généralisation (P5) : **cloud deepseek-chat, `--consolidate`, 1 itération, form factor dérivé (html→`web`, sinon `cli`)**. Harness désormais exécutable en `node` pur (imports `.ts` complétés) + gate CI (test/lint/build/bench mock).
+
+| Spec | Forme | Statut | first | repair | Consolidation | Tokens (spec → gén / consol / réparation) |
+| :--- | :---: | :---: | :---: | :---: | :--- | :--- |
+| hello | web | **PASS** | PASS | 0 | 1 confirmed, 1 passe | 45 → 3 875 / 8 827 / 0 |
+| typed-order | cli | **PASS** | FAIL | 1 | 12 confirmed, 2 passes | 134 → 8 354 / 47 965 / 8 947 |
+| weather | web | **PASS** | PASS | 0 | 1 confirmed, 1 passe | 255 → 7 237 / 21 657 / 0 |
+| form | cli | **PASS** | PASS | 0 | 2 confirmed, 1 passe | 74 → 4 211 / 11 660 / 0 |
+| node-hello | cli | WARN | WARN | 0 | 2 confirmed, 1 passe | 45 → 3 743 / 9 183 / 0 |
+| parking | cli | **FAIL** | FAIL | -1 | 5 confirmed, 2 passes | 212 → 5 661 / 31 770 / 18 866 |
+| coffee | cli | **FAIL** | FAIL | -1 | 3 confirmed, 2 passes | 301 → 6 710 / 35 725 / 19 746 |
+
+**First-try PASS 57 % (4/7).**
+
+Enseignements :
+
+- **La télémétrie P2 exporte en réel** : la consolidation coûte systématiquement **2 à 6× la génération** (pic : typed-order 47 965 vs 8 354). C'est exactement la donnée de P6 (coût reviewer vs gain) — et le run montre le **trade-off** : sur les 4 PASS, la consolidation a convergé en 1-2 passes ; sur les 2 FAIL comportementaux, consolidation + repair (3 passes) n'ont pas suffi.
+- **coffee FAIL = bug d'arrondi float** (`grandTotal 5.779999999999999` vs `5.78`) : déjà documenté (run 12-35-36), non vu par le reviewer statique. L'oracle `equals` strict sur un float est fragile — un écart d'1e-15 fait échouer le run alors que le code est fonctionnellement bon.
+- **parking FAIL = prix hors contrat** (`cost 10` au lieu de `8`) : la logique de tarification (durées/remise) est fausse au runtime ; le reviewer statique ne peut pas voir la sortie, et la réparation (contrat sérialisé dans le prompt) n'a pas convergé en 3 passes.
+- **node-hello WARN ≠ drift de forme** : pas de DOM, pas d'asset web → le gate form `cli` est **silencieux à raison**. Le fichier s'appelle `greeter.js` au lieu de `index.js` → le retry « entry missing » du harness ne découvre pas un nom arbitraire. Limite du harness, pas de la forme.
+- **Reviewer : deepseek-chat (partagé)** sur les 7 runs — le biais de confirmation (P3) reste : P3 permet de passer en reviewer indépendant, mais le choix par défaut « même modèle » est ici en action.
+- **Form factor mesuré** : dérivé par spec (html→web, sinon cli), pinué dans Pass 1/Pass 2 + gate. Aucun gate form n'a tiré sur ce run (pas de drift web pour du cli sur les specs générées) — le drift reste un mode d'échec modèle-dépendant (cf. gpt-oss-20b local), pas systématique chez deepseek-chat.

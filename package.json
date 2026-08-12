@@ -12,7 +12,8 @@
     "doc:guide": "node scripts/gen-agent-guide.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "bench": "node scripts/run-benchmark.ts"
+    "bench": "node scripts/run-benchmark.ts",
+    "bench:mock": "node scripts/run-benchmark.ts --mode mock --quiet"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

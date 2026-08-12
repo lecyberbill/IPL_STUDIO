@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import type { TargetLanguage } from './llmGenerator';
+import type { TargetLanguage } from './llmGenerator.ts';
 
 export interface ProjectArtifactFile {
   relativePath: string;

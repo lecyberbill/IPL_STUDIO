@@ -18,7 +18,7 @@
  * module stays unit-testable without any network, mirroring staticChecker.ts.
  */
 
-import type { ProjectArtifactFile } from './artifactGenerator';
+import type { ProjectArtifactFile } from './artifactGenerator.ts';
 
 export interface ReviewIssue {
   severity: 'error' | 'warning' | 'info';

@@ -57,3 +57,22 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+
+  bench:
+    name: Bench smoke (mock, all specs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      # Node >= 23.6 strips types natively (the harness is a plain `node`
+      # script importing .ts engine modules — no build step).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      # Python specs (typed-order, parking) execute `python main.py` in verify.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - run: node scripts/run-benchmark.ts --mode mock --quiet

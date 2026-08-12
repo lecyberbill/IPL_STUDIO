@@ -23,14 +23,14 @@
  * Pure helpers are exported for unit tests; the LLM loop is async.
  */
 
-import { parseMultiFileXml } from './artifactGenerator';
-import type { ProjectArtifactFile } from './artifactGenerator';
-import { callLLM, refineIPLArtifact, reviewConfigFor, reviewerLabel } from './llmGenerator';
-import type { LLMConfig, TargetLanguage, TokenUsageHook, FormFactor } from './llmGenerator';
-import { findMissingModuleRefs, findInvalidJson, findFormMismatches } from './staticChecker';
-import type { MissingModuleRef, InvalidJson, FormMismatch } from './staticChecker';
-import { buildReviewPrompt, parseReviewOutput } from './reviewAgent';
-import type { ReviewIssue } from './reviewAgent';
+import { parseMultiFileXml } from './artifactGenerator.ts';
+import type { ProjectArtifactFile } from './artifactGenerator.ts';
+import { callLLM, refineIPLArtifact, reviewConfigFor, reviewerLabel } from './llmGenerator.ts';
+import type { LLMConfig, TargetLanguage, TokenUsageHook, FormFactor } from './llmGenerator.ts';
+import { findMissingModuleRefs, findInvalidJson, findFormMismatches } from './staticChecker.ts';
+import type { MissingModuleRef, InvalidJson, FormMismatch } from './staticChecker.ts';
+import { buildReviewPrompt, parseReviewOutput } from './reviewAgent.ts';
+import type { ReviewIssue } from './reviewAgent.ts';
 
 export interface ConsolidationOptions {
   /** Max review→fix loops (each costs LLM tokens). Default 2. */

@@ -19,7 +19,7 @@
  * Pure functions only, so the module is unit-testable in isolation.
  */
 
-import type { ProjectArtifactFile } from './artifactGenerator';
+import type { ProjectArtifactFile } from './artifactGenerator.ts';
 
 export interface MissingModuleRef {
   /** The importing file, e.g. `src/orderService.js`. */

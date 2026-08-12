@@ -32,7 +32,7 @@ import { buildReviewPrompt, parseReviewOutput } from '../src/engine/reviewAgent.
 import type { ReviewIssue } from '../src/engine/reviewAgent.ts';
 import { consolidateArtifact, filesToXml } from '../src/engine/consolidationAgent.ts';
 import { callLLM, buildPass1Prompt, buildPass2Prompt, refineIPLArtifact, extractClarificationRequest, createRunTokenUsage, DEFAULT_LLM_CONFIG } from '../src/engine/llmGenerator.ts';
-import type { LLMConfig, TargetLanguage, RunTokenUsage, TokenBucket } from '../src/engine/llmGenerator.ts';
+import type { LLMConfig, TargetLanguage, RunTokenUsage, TokenBucket, FormFactor } from '../src/engine/llmGenerator.ts';
 import { applyDeterministicRepairs } from '../src/engine/deterministicRepair.ts';
 import type { DeterministicRepair } from '../src/engine/deterministicRepair.ts';
 import { evaluateBehavior } from '../src/engine/behaviorAssert.ts';
@@ -55,6 +55,8 @@ interface CliArgs {
   repairPasses: number;
   reviewPass: boolean;
   consolidate: boolean;
+  /** Execution form factor (P5): pins the generated app (cli/web/gui/server/library). Default derived from target: html → web, else cli. */
+  formFactor?: FormFactor;
   /** Directory where generated runs are executed (isolated from the repo). Default: os.tmpdir()/ipl-benchmark. */
   sandboxDir?: string;
 }
@@ -75,6 +77,7 @@ function parseArgs(argv: string[]): CliArgs {
     else if (a === '--repair-passes') args.repairPasses = Math.max(0, parseInt(next() || '3', 10));
     else if (a === '--review') args.reviewPass = true;
     else if (a === '--consolidate') args.consolidate = true;
+    else if (a === '--form-factor') args.formFactor = next() as FormFactor;
     else if (a === '--sandbox') args.sandboxDir = next();
     else if (a === '--quiet') args.quiet = true;
     else if (a === '--help') {
@@ -94,6 +97,7 @@ Options:
   --repair-passes <n>                     self-healing repair passes after a FAIL (0 = off, default: 3)
   --review                                run the LLM review pass (skeptical code reviewer) after generation
   --consolidate                           run the consolidation agent (delivery gate) before writing/verifying
+  --form-factor <cli|web|gui|server|library>  pin the execution form (P5; default: html→web, else cli)
   --sandbox <dir>                         execute generated runs in <dir> (default: os.tmpdir()/ipl-benchmark)
   --quiet                                 suppress streaming logs
   --help                                  this help`);
@@ -460,6 +464,8 @@ interface RunResult {
   repairDetails: string[];
   /** Original first-try status before any repair attempt (for trend reporting). */
   firstTryStatus: RunStatus;
+  /** Execution form factor pinned for this run (P5). */
+  formFactor?: FormFactor;
   /** Full stderr/stdout captured from the failing verify command. */
   failureOutput?: string;
   /** Consolidation agent summary (only when --consolidate). */
@@ -578,8 +584,8 @@ interface GenerationOutput {
   pass2: PassTiming;
 }
 
-async function generateReal(spec: BenchSpec, config: LLMConfig, args: CliArgs, usage: RunTokenUsage): Promise<GenerationOutput> {
-  const pass1Prompt = buildPass1Prompt(spec.code, spec.targetLang);
+async function generateReal(spec: BenchSpec, config: LLMConfig, args: CliArgs, usage: RunTokenUsage, formFactor?: FormFactor): Promise<GenerationOutput> {
+  const pass1Prompt = buildPass1Prompt(spec.code, spec.targetLang, undefined, formFactor);
 
   const t1 = Date.now();
   const p1Text = await withTimeout(
@@ -593,7 +599,7 @@ async function generateReal(spec: BenchSpec, config: LLMConfig, args: CliArgs, u
 
   const t2 = Date.now();
   const xml = await withTimeout(
-    callLLM(buildPass2Prompt(spec.code, spec.targetLang, topology), config, () => {}, undefined, { temperature: 0.15, seed: 42, usage: { usage, bucket: 'generation' } }),
+    callLLM(buildPass2Prompt(spec.code, spec.targetLang, topology, undefined, formFactor), config, () => {}, undefined, { temperature: 0.15, seed: 42, usage: { usage, bucket: 'generation' } }),
     args.timeoutPerPassMs,
     'Pass 2'
   );
@@ -1232,6 +1238,7 @@ function buildReport(args: CliArgs, config: LLMConfig, results: RunResult[]): st
   lines.push(`- **Mode**: ${args.mode}${args.mode === 'mock' ? ' (offline pipeline smoke test)' : ''}`);
   if (args.mode !== 'mock') lines.push(`- **Model**: ${config.model} · **Endpoint**: ${endpointForMode(config, args.mode)}`);
   lines.push(`- **Iterations per spec**: ${args.iterations}`);
+  if (args.formFactor) lines.push(`- **Form factor**: ${args.formFactor} (override)`);
   lines.push('');
 
   const bySpec = new Map<string, RunResult[]>();
@@ -1282,7 +1289,7 @@ function buildReport(args: CliArgs, config: LLMConfig, results: RunResult[]): st
     lines.push(`### ${r.specName} — run ${r.iteration} ${icon} **${r.status}** (${r.totalMs} ms, ${r.fileCount} files, ${(r.totalBytes / 1024).toFixed(1)} KB)`);
     lines.push('');
     lines.push(`- **Detail**: ${r.statusDetail}`);
-    lines.push(`- **First try**: ${r.firstTryStatus} · **Repairs to success**: ${r.repairsToSuccess}`);
+    lines.push(`- **First try**: ${r.firstTryStatus} · **Repairs to success**: ${r.repairsToSuccess}${r.formFactor ? ` · **Form factor**: ${r.formFactor}` : ''}`);
     if (r.consolidation) {
       lines.push(`- **Consolidation**: ${r.consolidation.confirmed} confirmed issue(s) · ${r.consolidation.passesUsed} auto-fix pass(es) · ${r.consolidation.changed ? 'files modified' : 'no change'}`);
       lines.push('');
@@ -1364,17 +1371,18 @@ async function main(): Promise<number> {
 
       const start = Date.now();
       const usage = createRunTokenUsage(spec.code.length);
+      const formFactor = args.formFactor ?? (spec.targetLang === 'html' ? 'web' : 'cli');
       let gen: GenerationOutput;
       let genError = '';
       try {
-        gen = args.mode === 'mock' ? await generateMock(spec) : await generateReal(spec, config, args, usage);
+        gen = args.mode === 'mock' ? await generateMock(spec) : await generateReal(spec, config, args, usage, formFactor);
       } catch (err: any) {
         genError = err.message;
         const result: RunResult = {
           specId: spec.id, specName: spec.name, iteration: i, status: 'FAIL', statusDetail: `generation error: ${genError}`,
           pass1: { ms: 0, chars: 0, approxTokens: 0 }, pass2: { ms: 0, chars: 0, approxTokens: 0 },
           totalMs: Date.now() - start, fileCount: 0, totalBytes: 0, files: [], artifactXml: '',
-          repairsToSuccess: -1, repairDetails: [], firstTryStatus: 'FAIL'
+          repairsToSuccess: -1, repairDetails: [], firstTryStatus: 'FAIL', formFactor
         };
         results.push(result);
         log(args, result.statusDetail, 'error');
@@ -1393,7 +1401,8 @@ async function main(): Promise<number> {
         const cons = await consolidateArtifact(gen.xml, spec.targetLang, config, {
           timeoutPerPassMs: args.timeoutPerPassMs,
           onLog: (msg, type) => log(args, `consolidation: ${msg}`, type),
-          usage: { usage, bucket: 'consolidation' }
+          usage: { usage, bucket: 'consolidation' },
+          formFactor
         });
         consolidation = {
           passesUsed: cons.passesUsed,
@@ -1455,6 +1464,7 @@ async function main(): Promise<number> {
         repairsToSuccess, repairDetails, firstTryStatus: firstTry.status,
         failureOutput: v.output,
         consolidation,
+        formFactor,
         usage: {
           specTokens: usage.specTokens,
           generation: { ...usage.generation },
