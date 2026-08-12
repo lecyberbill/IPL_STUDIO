@@ -44,6 +44,15 @@ function ensureTailwindCdn(content: string): string {
   return content.replace(/<!DOCTYPE[^>]*>/i, (m) => `${m}\n${cdnScript}`);
 }
 
+/** Strips SEARCH/REPLACE diff markers (`<<<<<<< SEARCH`, `=======`, `>>>>>>> REPLACE`) from generated code. */
+function stripPatchArtifacts(content: string): string {
+  return content
+    .replace(/^[ \t]*<<<<<<<\s*SEARCH[ \t]*$/gm, '')
+    .replace(/^[ \t]*={7,}[ \t]*$/gm, '')
+    .replace(/^[ \t]*>>>>>>>\s*REPLACE[ \t]*$/gm, '')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
 /**
  * Applies deterministic repairs to a set of project files (in-memory, no disk
  * I/O). Returns the repaired files plus a human-readable list of applied fixes.
@@ -53,6 +62,14 @@ export function applyDeterministicRepairs(files: DeterministicRepair[]): Determi
   const repaired = files.map((f) => {
     let content = f.content;
     const isHtml = /\.html?$/i.test(f.relativePath);
+
+    // SEARCH/REPLACE markers are a syntax error in every language — strip them
+    // mechanically before any LLM repair call.
+    const noMarkers = stripPatchArtifacts(content);
+    if (noMarkers !== content) {
+      applied.push(`${f.relativePath}: stripped SEARCH/REPLACE patch markers`);
+      content = noMarkers;
+    }
 
     if (isHtml) {
       const stripped = stripModuleScriptTags(content);

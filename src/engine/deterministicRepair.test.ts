@@ -89,4 +89,18 @@ describe('applyDeterministicRepairs', () => {
     expect(files[0].content).toBe(original);
     expect(applied).toEqual([]);
   });
+
+  it('strips SEARCH/REPLACE diff markers from generated code', () => {
+    const { files, applied } = applyDeterministicRepairs([
+      {
+        relativePath: 'index.html',
+        content: 'send(target, payload) {\n=======\n  return payload;\n}\n<<<<<<< SEARCH\nold\n>>>>>>> REPLACE'
+      }
+    ]);
+    expect(files[0].content).not.toContain('=======');
+    expect(files[0].content).not.toContain('<<<<<<<');
+    expect(files[0].content).not.toContain('>>>>>>>');
+    expect(files[0].content).toContain('return payload;');
+    expect(applied).toContain('index.html: stripped SEARCH/REPLACE patch markers');
+  });
 });

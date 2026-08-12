@@ -1,8 +1,26 @@
 import { describe, it, expect } from 'vitest';
-import { findMissingModuleRefs, findFormMismatches, findIplLeakage, normalizeRelative, resolveCandidates, extractRelativeImports } from './staticChecker';
+import { findMissingModuleRefs, findFormMismatches, findIplLeakage, findPatchLeakage, normalizeRelative, resolveCandidates, extractRelativeImports } from './staticChecker';
 import type { ProjectArtifactFile } from './artifactGenerator';
 
 const file = (relativePath: string, content: string): ProjectArtifactFile => ({ relativePath, content });
+
+describe('findPatchLeakage (SEARCH/REPLACE markers are a syntax error)', () => {
+  it('flags a stray ======= separator line in generated code', () => {
+    const issues = findPatchLeakage([file('index.html', 'send(target, payload) {\n=======\n  return payload;\n}')]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].file).toBe('index.html');
+    expect(issues[0].reason).toContain('SEARCH/REPLACE');
+  });
+
+  it('flags <<<<<<< SEARCH and >>>>>>> REPLACE markers too', () => {
+    const issues = findPatchLeakage([file('src/app.js', '<<<<<<< SEARCH\nold();\n=======\nnew();\n>>>>>>> REPLACE')]);
+    expect(issues).toHaveLength(1);
+  });
+
+  it('ignores files with no markers', () => {
+    expect(findPatchLeakage([file('src/app.js', 'const a = 1; console.log(a);')])).toEqual([]);
+  });
+});
 
 describe('findIplLeakage (P7 — spec must not leak into the deliverable)', () => {
   it('flags any .ipl file in the generated artifact', () => {

@@ -59,6 +59,15 @@ export interface IplLeakage {
   suggestion: string;
 }
 
+export interface PatchLeakage {
+  /** The file containing a SEARCH/REPLACE marker. */
+  file: string;
+  /** Why it is wrong. */
+  reason: string;
+  /** How to realign. */
+  suggestion: string;
+}
+
 /**
  * Normalizes a relative path to forward slashes with no leading `./` or `/`.
  * `src/../lib` -> `lib`, `./entities` -> `entities`, `../a.js` -> `a.js`.
@@ -219,6 +228,8 @@ const CODE_EXT_RE = /\.(jsx?|tsx?|py|rs|go|cpp|c|h|sh|mjs|cjs)$/i;
 const GUI_TOOLKIT_RE = /CreateWindow|WinMain|SDL_Init|SDL_CreateWindow|SDL_Renderer|GLFW|OpenGL|glut|SFML|\bsf::|wxWidgets|wxWindow|tkinter|\bTk\(|pygame|PyQt|QtWidgets|egui|eframe|winit|iced|slint|appkit|NSApplication|electron|from ['"]electron['"]/i;
 /** `.ipl` files are the SPEC (input), never part of the delivered application. */
 const IPL_FILE_RE = /\.ipl$/i;
+/** SEARCH/REPLACE diff markers leaking into generated code (a syntax error in most languages). */
+const PATCH_ARTIFACT_RE = /^[ \t]*={7,}[ \t]*$|<<<<<<<\s*SEARCH|>>>>>>>\s*REPLACE/m;
 /** Signals a backend service that listens for requests (framework or explicit server start). */
 const SERVER_FRAMEWORK_RE = /FastAPI|uvicorn|Flask|Django|Express|Fastify|Koa|Hono|Starlette|Tornado|axum|actix|spring|listen\s*\(|app\.run\s*\(|uvicorn\.run|http\.Server|new\s+Server/i;
 
@@ -347,6 +358,27 @@ export function findIplLeakage(files: ProjectArtifactFile[]): IplLeakage[] {
         file: f.relativePath,
         reason: 'IPL spec file emitted as an output artifact',
         suggestion: `"${f.relativePath}" is an IPL spec file — the spec is the input, never part of the delivered application. Remove it; deliver only target-language files.`
+      });
+    }
+  }
+  return issues;
+}
+
+/**
+ * Patch-artifact gate — deterministic (0 tokens). The model sometimes leaks
+ * SEARCH/REPLACE diff markers (`<<<<<<< SEARCH`, `=======`, `>>>>>>> REPLACE`)
+ * into the generated code, which is a syntax error in most languages (the
+ * coffee run shipped a stray `=======` that crashed the whole script). Flag
+ * every file carrying such a marker so the auto-fix strips it.
+ */
+export function findPatchLeakage(files: ProjectArtifactFile[]): PatchLeakage[] {
+  const issues: PatchLeakage[] = [];
+  for (const f of files) {
+    if (PATCH_ARTIFACT_RE.test(f.content)) {
+      issues.push({
+        file: f.relativePath,
+        reason: 'SEARCH/REPLACE patch artifact leaked into generated code',
+        suggestion: `"${f.relativePath}" contains a <<<<<<< SEARCH / ======= / >>>>>>> REPLACE separator — a broken merge/patch marker that is a syntax error. Remove those marker lines.`
       });
     }
   }

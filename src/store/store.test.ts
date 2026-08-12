@@ -368,12 +368,13 @@ describe('diskSlice', () => {
     expect(url).toBe('/api/write-artifact');
     const body = JSON.parse(String(init!.body));
     // buildProjectArtifact parses the generated <file> blocks then always appends
-    // source/main.ipl (the spec), so exactly 2 files are expected.
-    expect(body.files).toHaveLength(2);
+    // source/main.ipl (the spec) and a tracking README.md, so 3 files are expected.
+    expect(body.files).toHaveLength(3);
     const mainPy = body.files.find((f: { relativePath: string }) => f.relativePath === 'main.py');
     expect(mainPy).toBeTruthy();
     expect(mainPy.content).toBe('print("hi")');
     expect(body.files.some((f: { relativePath: string }) => f.relativePath === 'source/main.ipl')).toBe(true);
+    expect(body.files.some((f: { relativePath: string }) => f.relativePath === 'README.md')).toBe(true);
     expect(store.getState().logs.some(l => l.type === 'success' && l.text.includes('[Disk]'))).toBe(true);
   });
 

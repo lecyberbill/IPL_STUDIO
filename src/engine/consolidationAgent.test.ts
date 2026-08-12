@@ -21,7 +21,7 @@ import {
   summarizeConsolidation,
   consolidateArtifact
 } from './consolidationAgent';
-import type { FormMismatch, IplLeakage } from './staticChecker';
+import type { FormMismatch, IplLeakage, PatchLeakage } from './staticChecker';
 import type { ProjectArtifactFile } from './artifactGenerator';
 import type { MissingModuleRef } from './staticChecker';
 const file = (relativePath: string, content: string): ProjectArtifactFile => ({ relativePath, content });
@@ -228,6 +228,15 @@ describe('form-factor gate in consolidation (P4)', () => {
     const report = buildDeliveryReport([file('a.js', '')], [], [], [], [{ kind: 'static', file: 'app.ipl', message: 'remove it' }], 1, true, [], undefined, undefined, iplIssues);
     expect(report).toContain('IPL-leakage gate: 1 spec file(s) leaked into the deliverable');
     expect(report).toContain('app.ipl: IPL spec file emitted');
+  });
+
+  it('reports the patch-artifact gate section in the delivery report', () => {
+    const patchIssues: PatchLeakage[] = [
+      { file: 'index.html', reason: 'SEARCH/REPLACE patch artifact leaked into generated code', suggestion: 'remove it' }
+    ];
+    const report = buildDeliveryReport([file('a.js', '')], [], [], [], [{ kind: 'static', file: 'index.html', message: 'remove it' }], 1, true, [], undefined, undefined, [], patchIssues);
+    expect(report).toContain('Patch-artifact gate: 1 file(s) carry SEARCH/REPLACE markers');
+    expect(report).toContain('index.html: SEARCH/REPLACE patch artifact');
   });
 });
 
