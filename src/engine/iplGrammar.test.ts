@@ -22,7 +22,7 @@ describe('combined validateIPLCode', () => {
 describe('grammar signature (data-driven)', () => {
   it('embeds the verb and type tables', () => {
     const text = grammarSignatureText();
-    expect(text).toContain('The 12 Canonical Action Verbs');
+    expect(text).toContain(`The ${IPL_VERBS.length} Canonical Action Verbs`);
     expect(text).toContain('The 7 Human Intent Types');
     expect(text).toContain('| Verb |');
     expect(text).toContain('| Type |');

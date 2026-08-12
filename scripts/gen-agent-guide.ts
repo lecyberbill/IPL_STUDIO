@@ -11,7 +11,7 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { renderVerbTable, renderIntentTypeTable } from '../src/engine/iplCore.ts';
+import { renderVerbTable, renderIntentTypeTable, IPL_VERBS, IPL_INTENT_TYPES } from '../src/engine/iplCore.ts';
 
 const GUIDE_PATH = resolve(import.meta.dirname, '../IPL_AGENT_GUIDE.md');
 
@@ -47,5 +47,17 @@ let guide = readFileSync(GUIDE_PATH, 'utf8');
 for (const marker of MARKERS) {
   guide = replaceBetween(guide, marker.begin, marker.end, marker.render());
 }
+
+// Keep the prose counts in sync with the single source of truth too, so a verb
+// or type added to iplCore.ts can never leave the guide saying "12 verbs".
+const countPhrases: Array<[RegExp, string]> = [
+  [/The 12 Canonical Action Verbs/g, `The ${IPL_VERBS.length} Canonical Action Verbs`],
+  [/exactly \*\*12 canonical action verbs\*\*/g, `exactly **${IPL_VERBS.length} canonical action verbs**`],
+  [/12 canonical verbs and 7 intent types/g, `${IPL_VERBS.length} canonical verbs and ${IPL_INTENT_TYPES.length} intent types`]
+];
+for (const [re, replacement] of countPhrases) {
+  guide = guide.replace(re, replacement);
+}
+
 writeFileSync(GUIDE_PATH, guide, 'utf8');
-console.log(`Regenerated tables in ${GUIDE_PATH}`);
+console.log(`Regenerated tables + counts in ${GUIDE_PATH} (${IPL_VERBS.length} verbs, ${IPL_INTENT_TYPES.length} types)`);

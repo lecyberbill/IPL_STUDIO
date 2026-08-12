@@ -23,11 +23,13 @@ import {
   Calendar,
   ListOrdered,
   List,
-  HelpCircle
+  HelpCircle,
+  Database
 } from 'lucide-react';
 
 const verbIcons: Record<string, React.ReactNode> = {
   add: <PlusCircle size={15} className="text-emerald-400" />,
+  seed: <Database size={15} className="text-lime-400" />,
   read: <BookOpen size={15} className="text-sky-400" />,
   set: <Edit3 size={15} className="text-amber-400" />,
   remove: <Trash2 size={15} className="text-rose-400" />,
@@ -84,7 +86,7 @@ export const VerbPalette: React.FC = () => {
           <h2 className="font-semibold text-white text-xs uppercase tracking-wider">IPL Vocab & Verbs</h2>
         </div>
         <span className="text-[10px] bg-[#0f1117] text-gray-400 px-2 py-0.5 rounded border border-[#2a2f42] font-mono">
-          12 Verbs + 7 Types
+          {IPL_VERBS.length} Verbs + {IPL_INTENT_TYPES.length} Types
         </span>
       </div>
 

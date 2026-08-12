@@ -27,8 +27,8 @@ import { parseMultiFileXml } from './artifactGenerator.ts';
 import type { ProjectArtifactFile } from './artifactGenerator.ts';
 import { callLLM, refineIPLArtifact, reviewConfigFor, reviewerLabel } from './llmGenerator.ts';
 import type { LLMConfig, TargetLanguage, TokenUsageHook, FormFactor } from './llmGenerator.ts';
-import { findMissingModuleRefs, findInvalidJson, findFormMismatches } from './staticChecker.ts';
-import type { MissingModuleRef, InvalidJson, FormMismatch } from './staticChecker.ts';
+import { findMissingModuleRefs, findInvalidJson, findFormMismatches, findIplLeakage } from './staticChecker.ts';
+import type { MissingModuleRef, InvalidJson, FormMismatch, IplLeakage } from './staticChecker.ts';
 import { buildReviewPrompt, parseReviewOutput } from './reviewAgent.ts';
 import type { ReviewIssue } from './reviewAgent.ts';
 
@@ -54,6 +54,8 @@ export interface ConsolidationResult {
   jsonIssues: InvalidJson[];
   /** Form-factor mismatches (P4): web assets/DOM for a CLI target, or no HTML for web. */
   formIssues?: FormMismatch[];
+  /** IPL-spec files leaked into the deliverable (P7): the spec is input, not output. */
+  iplIssues?: IplLeakage[];
   /** Findings reported by the LLM reviewer. */
   reviewIssues: ReviewIssue[];
   /** Findings that were confirmed (deterministic) or error-severity (LLM). */
@@ -160,10 +162,11 @@ export async function consolidateArtifact(
 
   let files = parseMultiFileXml(artifactXml);
 
-  // 1. Deterministic gate (free): imports + JSON + form-factor mismatches.
+  // 1. Deterministic gate (free): imports + JSON + form-factor + IPL leakage.
   const staticIssues = findMissingModuleRefs(files);
   let jsonIssues = findInvalidJson(files);
   let formIssues = findFormMismatches(files, options.formFactor);
+  let iplIssues = findIplLeakage(files);
 
   // 2. Systematic LLM review.
   let reviewIssues: ReviewIssue[] = [];
@@ -193,8 +196,14 @@ export async function consolidateArtifact(
   };
   const formToFindings = (fi: FormMismatch[]) =>
     fi.map(f => ({ kind: 'static' as const, file: f.file, message: f.suggestion, severity: 'error' as const }));
+  const iplToFindings = (li: IplLeakage[]) =>
+    li.map(f => ({ kind: 'static' as const, file: f.file, message: f.suggestion, severity: 'error' as const }));
 
-  let findings = [...formToFindings(formIssues), ...mergeFindings(staticIssues, jsonIssues, reviewIssues)];
+  let findings = [
+    ...formToFindings(formIssues),
+    ...iplToFindings(iplIssues),
+    ...mergeFindings(staticIssues, jsonIssues, reviewIssues)
+  ];
   let errorFindings = findings.filter(f => f.severity === 'error');
   for (const f of errorFindings) pushConfirmed(f);
 
@@ -223,6 +232,7 @@ export async function consolidateArtifact(
       const newStatic = findMissingModuleRefs(files);
       jsonIssues = findInvalidJson(files);
       formIssues = findFormMismatches(files, options.formFactor);
+      iplIssues = findIplLeakage(files);
       let newReview: ReviewIssue[] = [];
       if (systematic) {
         try {
@@ -235,7 +245,7 @@ export async function consolidateArtifact(
           log(`Re-review failed: ${err.message}`, 'warn');
         }
       }
-      const nextErrors = [...formToFindings(formIssues), ...mergeFindings(newStatic, jsonIssues, newReview)].filter(f => f.severity === 'error');
+      const nextErrors = [...formToFindings(formIssues), ...iplToFindings(iplIssues), ...mergeFindings(newStatic, jsonIssues, newReview)].filter(f => f.severity === 'error');
       for (const f of nextErrors) pushConfirmed(f);
 
       // Stop when nothing still-erroneous remains, or when a pass produced no
@@ -253,8 +263,8 @@ export async function consolidateArtifact(
   }
 
   // 5. Delivery report.
-  const report = buildDeliveryReport(files, staticIssues, jsonIssues, reviewIssues, confirmedIssues, passesUsed, changed, formIssues, options.formFactor, reviewerLabel(config));
-  return { files, staticIssues, jsonIssues, formIssues, reviewIssues, confirmedIssues, passesUsed, changed, report };
+  const report = buildDeliveryReport(files, staticIssues, jsonIssues, reviewIssues, confirmedIssues, passesUsed, changed, formIssues, options.formFactor, reviewerLabel(config), iplIssues);
+  return { files, staticIssues, jsonIssues, formIssues, iplIssues, reviewIssues, confirmedIssues, passesUsed, changed, report };
 }
 
 export interface ConsolidationSummary {
@@ -275,6 +285,7 @@ export function summarizeConsolidation(result: ConsolidationResult): Consolidati
       result.staticIssues.length +
       result.jsonIssues.length +
       (result.formIssues?.length ?? 0) +
+      (result.iplIssues?.length ?? 0) +
       result.reviewIssues.filter(i => i.severity !== 'info').length,
     fixed: result.changed ? result.passesUsed : 0,
     remaining: result.confirmedIssues.length,
@@ -293,13 +304,14 @@ export function buildDeliveryReport(
   changed: boolean,
   formIssues: FormMismatch[] = [],
   formFactor?: FormFactor,
-  reviewerLabel?: string
+  reviewerLabel?: string,
+  iplIssues: IplLeakage[] = []
 ): string {
   const lines: string[] = ['--- CONSOLIDATION REPORT ---'];
   // P3: honest reviewer indicator — never oversell the review when the reviewer
   // is the same model as the generator (confirmation-bias caveat).
   if (reviewerLabel) lines.push(`Reviewer: ${reviewerLabel}`);
-  if (staticIssues.length === 0 && jsonIssues.length === 0 && formIssues.length === 0 && confirmedIssues.length === 0) {
+  if (staticIssues.length === 0 && jsonIssues.length === 0 && formIssues.length === 0 && iplIssues.length === 0 && confirmedIssues.length === 0) {
     lines.push('✅ No confirmed defects found.');
   }
   if (staticIssues.length > 0) {
@@ -313,6 +325,10 @@ export function buildDeliveryReport(
   if (formIssues.length > 0) {
     lines.push(`Form gate (${formFactor ?? 'cli'}): ${formIssues.length} mismatch(es) with the chosen execution form:`);
     for (const f of formIssues) lines.push(`  - ${f.file}: ${f.reason}`);
+  }
+  if (iplIssues.length > 0) {
+    lines.push(`IPL-leakage gate: ${iplIssues.length} spec file(s) leaked into the deliverable:`);
+    for (const f of iplIssues) lines.push(`  - ${f.file}: ${f.reason}`);
   }
   const reviewWarnings = reviewIssues.filter(i => i.severity === 'warning');
   if (reviewWarnings.length > 0) {

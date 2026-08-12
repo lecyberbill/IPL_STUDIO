@@ -340,6 +340,7 @@ export interface IPLProperty {
 
 export type IPLStatementKind =
   | 'add'
+  | 'seed'
   | 'read'
   | 'set'
   | 'remove'
@@ -364,6 +365,8 @@ export interface IPLStatement {
   header: string;
   name?: string;
   entityKind?: 'entity' | 'module' | 'view';
+  /** For `seed <Entity> <instance> { ... }`: the entity being instanced. */
+  seedEntity?: string;
   target?: IPLExpr;
   source?: IPLExpr;
   payload?: IPLExpr;
@@ -586,6 +589,8 @@ class IPLParserImpl {
       switch (verb) {
         case 'add':
           return this.parseAdd();
+        case 'seed':
+          return this.parseSeed();
         case 'read':
           return this.parseTargeted('read', 'read', 'from');
         case 'set':
@@ -900,6 +905,38 @@ class IPLParserImpl {
     if (i < header.length) {
       const extra = header.slice(i);
       this.diag('info', `Unexpected words after "add": "${this.tokensToText(extra)}".`, extra[0].line, extra[0].column, extra[extra.length - 1].endColumn);
+    }
+
+    this.parsePropsOrBlock(stmt);
+    this.finishStmt(stmt, this.lastConsumed());
+    return stmt;
+  }
+
+  /**
+   * `seed <EntityName> <instanceName> { field: value, ... }` — a concrete data
+   * instance (catalog / fixture). The entity name is the declared entity, the
+   * instance name becomes `stmt.name`, the fields are `stmt.props`.
+   */
+  private parseSeed(): IPLStatement {
+    const start = this.consume();
+    const header = this.consumeHeaderTokens();
+    const stmt = this.makeStmt('seed', 'seed', start, header);
+
+    const entityTok = header[0];
+    const nameTok = header[1];
+    if (entityTok?.type === 'ident') {
+      stmt.seedEntity = entityTok.value;
+    } else {
+      this.diag('info', '"seed" expects: seed <EntityName> <instanceName> { field: value, ... }.', start.line, start.column, start.column + 4);
+    }
+    if (nameTok?.type === 'ident') {
+      stmt.name = nameTok.value;
+    } else {
+      this.diag('info', '"seed" is missing the instance name (e.g. seed Drink Espresso { basePrice: 1.50 }).', start.line, start.column, start.column + 4);
+    }
+    if (header.length > 2) {
+      const extra = header.slice(2);
+      this.diag('info', `Unexpected words in "seed": "${this.tokensToText(extra)}".`, extra[0].line, extra[0].column, extra[extra.length - 1].endColumn);
     }
 
     this.parsePropsOrBlock(stmt);

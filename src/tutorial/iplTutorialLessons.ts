@@ -48,7 +48,7 @@ add view ViewName {
 }
 \`\`\`
 
-**Note:** The \`add\` verb is one of IPL's 12 canonical verbs.`,
+**Note:** The \`add\` verb is one of IPL's canonical verbs (see the \`seed\` verb for declaring catalog/fixture data).`,
     codeExample: `add view DashboardView {
   title: "Analytics Dashboard",
   theme: "dark",

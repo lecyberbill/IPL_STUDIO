@@ -89,6 +89,8 @@ export function analyzeIPLProgram(program: IPLProgram): SyntaxErrorItem[] {
   const out: SyntaxErrorItem[] = [];
   const declared = new Map<string, { line: number; column: number; kind: string }>();
   const knownNames = new Set<string>();
+  /** Declared entity/module field names, for `seed` cross-checks. */
+  const entityFields = new Map<string, Set<string>>();
 
   // Pass 1 — top-level declarations and duplicate detection.
   for (const s of program.statements) {
@@ -103,6 +105,8 @@ export function analyzeIPLProgram(program: IPLProgram): SyntaxErrorItem[] {
     }
     declared.set(s.name, { line: s.line, column: s.column, kind: s.entityKind ?? 'view' });
     knownNames.add(s.name);
+    const keys = new Set(s.props.map(p => p.key).filter(Boolean));
+    if (keys.size > 0) entityFields.set(s.name, keys);
   }
 
   // Pass 1b — names produced anywhere in the spec (whole-program data flow).
@@ -118,6 +122,29 @@ export function analyzeIPLProgram(program: IPLProgram): SyntaxErrorItem[] {
   walkStatements(program.statements, (s) => {
     if (s.kind === 'add' && (s.entityKind === 'entity' || s.entityKind === 'module')) {
       checkIntentTypes(s, out);
+    }
+    if (s.kind === 'seed') {
+      const ent = s.seedEntity;
+      const fields = ent ? entityFields.get(ent) : undefined;
+      if (ent && !entityFields.has(ent)) {
+        out.push({
+          line: s.line,
+          column: s.column,
+          message: `"seed ${ent} ${s.name ?? '...'}" references an unknown entity. Declare it first with: add entity ${ent} { field: type, ... }.`,
+          severity: 'info'
+        });
+      } else if (ent && fields) {
+        for (const p of s.props) {
+          if (p.key && !fields.has(p.key)) {
+            out.push({
+              line: p.line,
+              column: p.column,
+              message: `Field "${p.key}" is not declared on entity "${ent}". Declared fields: ${[...fields].join(', ') || '(none)'}.`,
+              severity: 'info'
+            });
+          }
+        }
+      }
     }
     if (s.kind === 'set') {
       const base = rootObjectName(s.target);

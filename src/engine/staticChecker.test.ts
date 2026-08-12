@@ -1,8 +1,25 @@
 import { describe, it, expect } from 'vitest';
-import { findMissingModuleRefs, findFormMismatches, normalizeRelative, resolveCandidates, extractRelativeImports } from './staticChecker';
+import { findMissingModuleRefs, findFormMismatches, findIplLeakage, normalizeRelative, resolveCandidates, extractRelativeImports } from './staticChecker';
 import type { ProjectArtifactFile } from './artifactGenerator';
 
 const file = (relativePath: string, content: string): ProjectArtifactFile => ({ relativePath, content });
+
+describe('findIplLeakage (P7 — spec must not leak into the deliverable)', () => {
+  it('flags any .ipl file in the generated artifact', () => {
+    const issues = findIplLeakage([
+      file('index.html', '<html></html>'),
+      file('src/app.js', 'console.log(1);'),
+      file('app.ipl', '// pseudo-code'),
+      file('data.ipl', 'seed Drink Espresso { basePrice: 1.50 }')
+    ]);
+    expect(issues.map(i => i.file)).toEqual(['app.ipl', 'data.ipl']);
+    expect(issues[0].reason).toContain('IPL spec file emitted');
+  });
+
+  it('returns nothing when only target-language files are delivered', () => {
+    expect(findIplLeakage([file('index.html', '<html></html>'), file('src/app.js', 'console.log(1);')])).toEqual([]);
+  });
+});
 
 describe('normalizeRelative', () => {
   it('strips ./ and leading slashes', () => {

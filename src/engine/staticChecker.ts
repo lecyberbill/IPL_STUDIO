@@ -50,6 +50,15 @@ export interface FormMismatch {
   suggestion: string;
 }
 
+export interface IplLeakage {
+  /** The `.ipl` file that leaked into the deliverable. */
+  file: string;
+  /** Why it is wrong. */
+  reason: string;
+  /** How to realign. */
+  suggestion: string;
+}
+
 /**
  * Normalizes a relative path to forward slashes with no leading `./` or `/`.
  * `src/../lib` -> `lib`, `./entities` -> `entities`, `../a.js` -> `a.js`.
@@ -208,6 +217,8 @@ const DOM_USE_RE = /document\.|window\.|getElementById|querySelector(All)?\s*\(|
 const CODE_EXT_RE = /\.(jsx?|tsx?|py|rs|go|cpp|c|h|sh|mjs|cjs)$/i;
 /** Signals a native desktop window / game loop (C++, Python, Rust, JS/Electron...). */
 const GUI_TOOLKIT_RE = /CreateWindow|WinMain|SDL_Init|SDL_CreateWindow|SDL_Renderer|GLFW|OpenGL|glut|SFML|\bsf::|wxWidgets|wxWindow|tkinter|\bTk\(|pygame|PyQt|QtWidgets|egui|eframe|winit|iced|slint|appkit|NSApplication|electron|from ['"]electron['"]/i;
+/** `.ipl` files are the SPEC (input), never part of the delivered application. */
+const IPL_FILE_RE = /\.ipl$/i;
 /** Signals a backend service that listens for requests (framework or explicit server start). */
 const SERVER_FRAMEWORK_RE = /FastAPI|uvicorn|Flask|Django|Express|Fastify|Koa|Hono|Starlette|Tornado|axum|actix|spring|listen\s*\(|app\.run\s*\(|uvicorn\.run|http\.Server|new\s+Server/i;
 
@@ -318,5 +329,26 @@ export function findFormMismatches(files: ProjectArtifactFile[], formFactor?: 'c
     }
   }
 
+  return issues;
+}
+
+/**
+ * IPL-leakage gate — deterministic (0 tokens). The spec (`*.ipl`) is the INPUT;
+ * the deliverable must contain only target-language application files. The
+ * model sometimes re-emits the spec (or pseudo-code variants like `app.ipl`,
+ * `engine.ipl`) inside the artifact — flag them so the consolidation auto-fix
+ * removes them before delivery.
+ */
+export function findIplLeakage(files: ProjectArtifactFile[]): IplLeakage[] {
+  const issues: IplLeakage[] = [];
+  for (const f of files) {
+    if (IPL_FILE_RE.test(f.relativePath)) {
+      issues.push({
+        file: f.relativePath,
+        reason: 'IPL spec file emitted as an output artifact',
+        suggestion: `"${f.relativePath}" is an IPL spec file — the spec is the input, never part of the delivered application. Remove it; deliver only target-language files.`
+      });
+    }
+  }
   return issues;
 }

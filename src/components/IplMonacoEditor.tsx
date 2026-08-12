@@ -22,7 +22,7 @@ export const IplMonacoEditor: React.FC = () => {
       if (!languages.some(lang => lang.id === 'ipl')) {
         monacoInstance.languages.register({ id: 'ipl' });
 
-        // Monarch tokenizer config for syntax highlighting of the 12 verbs
+        // Monarch tokenizer config for syntax highlighting of the canonical verbs
         monacoInstance.languages.setMonarchTokensProvider('ipl', IPL_LANGUAGE_DEFINITION as any);
 
         // 1. Smart autocompletion of verbs and snippets while typing

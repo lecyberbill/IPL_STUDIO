@@ -1,6 +1,31 @@
 import { describe, expect, it } from 'vitest';
 import { parseIPL, parseIPLToTree, validateIPLCode as validateSyntax } from './iplParser.ts';
 
+describe('seed instances (P7 — data in the spec)', () => {
+  it('parses a seed with entity, instance name and literal fields', () => {
+    const { ast, diagnostics } = parseIPL(
+      'add entity Drink { name: text, basePrice: number }\nseed Drink Espresso { basePrice: 1.50, devise: "EUR" }'
+    );
+    expect(diagnostics).toEqual([]);
+    const seed = ast.statements.find(s => s.kind === 'seed')!;
+    expect(seed.kind).toBe('seed');
+    expect(seed.seedEntity).toBe('Drink');
+    expect(seed.name).toBe('Espresso');
+    expect(seed.props.map(p => p.key)).toEqual(['basePrice', 'devise']);
+    const basePrice = seed.props[0].value;
+    const devise = seed.props[1].value;
+    expect(basePrice?.kind).toBe('literal');
+    expect(devise?.kind).toBe('literal');
+    if (basePrice?.kind === 'literal') expect(basePrice.value).toBe(1.5);
+    if (devise?.kind === 'literal') expect(devise.value).toBe('EUR');
+  });
+
+  it('warns when the instance name is missing', () => {
+    const { diagnostics } = parseIPL('seed Drink');
+    expect(diagnostics.some(d => d.message.includes('missing the instance name'))).toBe(true);
+  });
+});
+
 describe('tokenizer & comments', () => {
   it('ignores line and block comments', () => {
     const src = `// line comment

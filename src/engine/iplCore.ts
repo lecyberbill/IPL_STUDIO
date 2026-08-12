@@ -1,6 +1,6 @@
 /**
  * Core data model of IPL v1.0 (Intent Programming Language).
- * Single source of truth for the 12 key action verbs and the 7 human intent types.
+ * Single source of truth for the 13 key action verbs and the 7 human intent types.
  * Extracted from iplGrammar.ts so both the grammar (Monarch) and the parser can
  * import it without creating a dependency cycle.
  */
@@ -91,7 +91,7 @@ export const IPL_INTENT_TYPES: IPLTypeDefinition[] = [
 ];
 
 /**
- * Renders the 12 canonical verbs as a Markdown table.
+ * Renders the 13 canonical verbs as a Markdown table.
  * Shared by the LLM prompts and the regenerated IPL_AGENT_GUIDE.md.
  */
 export function renderVerbTable(verbs: IPLVerb[] = IPL_VERBS): string {
@@ -120,7 +120,7 @@ export function renderIntentTypeTable(types: IPLTypeDefinition[] = IPL_INTENT_TY
  */
 export function grammarSignatureText(): string {
   return [
-    'The 12 Canonical Action Verbs',
+    'The 13 Canonical Action Verbs',
     '',
     renderVerbTable(),
     '',
@@ -138,6 +138,14 @@ export const IPL_VERBS: IPLVerb[] = [
     description: 'Adds an item, entity, or module with optional human intent types (text, number, boolean, id, date, options)',
     snippet: 'add entity Order {\n  id: id,\n  customerName: text,\n  amount: number,\n  isPaid: boolean,\n  status: options("pending", "shipped", "delivered")\n}',
     example: 'add entity User { id: id, email: text, age: number, isActive: boolean }'
+  },
+  {
+    id: 'seed',
+    name: 'seed',
+    category: 'data',
+    description: 'Seeds a concrete instance of an entity (catalog / fixture data) — closes the data gap: entities are types, seed is the actual data',
+    snippet: 'seed Drink Espresso {\n  basePrice: 1.50,\n  devise: "EUR"\n}',
+    example: 'seed Drink Espresso { basePrice: 1.50, devise: "EUR" }'
   },
   {
     id: 'read',

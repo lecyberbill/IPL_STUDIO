@@ -494,6 +494,8 @@ Wrap EVERY generated project file inside XML tags:
 ... complete runnable source code ...
 </file>
 
+Deliver ONLY the target-language application files (e.g. .html/.css/.js/.py/.rs/.go). NEVER emit .ipl files — the IPL spec is the INPUT, never part of the delivered application.
+
 Deliver clean, production-grade code directly fulfilling the requirements.`;
 }
 

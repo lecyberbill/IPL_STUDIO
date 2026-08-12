@@ -98,3 +98,24 @@ describe('analyzeIPLSemantics', () => {
     expect(out[0].severity).toBe('warning');
   });
 });
+
+describe('seed instances (P7 — data cross-check)', () => {
+  it('accepts seeds that reference a declared entity and its fields', () => {
+    const out = analyzeIPLSemantics(
+      'add entity Drink { name: text, basePrice: number }\nseed Drink Espresso { basePrice: 1.50 }'
+    );
+    expect(out).toEqual([]);
+  });
+
+  it('flags a seed referencing an unknown entity', () => {
+    const out = analyzeIPLSemantics('seed Bike Foo { color: "red" }');
+    expect(out.some(d => d.message.includes('references an unknown entity'))).toBe(true);
+  });
+
+  it('flags seed fields not declared on the entity', () => {
+    const out = analyzeIPLSemantics(
+      'add entity Car { color: text }\nseed Car Bar { hp: 100 }'
+    );
+    expect(out.some(d => d.message.includes('Field "hp" is not declared on entity "Car"'))).toBe(true);
+  });
+});
