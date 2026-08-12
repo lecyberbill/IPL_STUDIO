@@ -6,6 +6,8 @@ import { applyIPLQuickFixes } from '../../engine/iplQuickFix';
 import { applyDeterministicRepairs } from '../../engine/deterministicRepair';
 import { consolidateArtifact } from '../../engine/consolidationAgent';
 import type { ConsolidationResult } from '../../engine/consolidationAgent';
+import { createRunTokenUsage } from '../../engine/llmGenerator';
+import type { RunTokenUsage } from '../../engine/llmGenerator';
 import { defaultOutputDir } from '../../engine/paths';
 import type { ClarificationRequest } from '../types';
 import type { StoreSlice } from '../types';
@@ -17,6 +19,8 @@ export interface GenerationSlice {
   generationError: string | null;
   consolidationResult: ConsolidationResult | null;
   setConsolidationResult: (result: ConsolidationResult | null) => void;
+  runUsage: RunTokenUsage | null;
+  setRunUsage: (usage: RunTokenUsage | null) => void;
   clearGenerationError: () => void;
   runGeneration: () => Promise<void>;
   requestLLMCorrection: (userPrompt: string) => Promise<{ textReply: string; codeChanged: boolean }>;
@@ -25,12 +29,17 @@ export interface GenerationSlice {
   clearPendingClarification: () => void;
 }
 
-/** Shared consolidation helper: runs the delivery-gate agent, logs its report and publishes it to the Delivery panel. */
+/**
+ * Shared consolidation helper: runs the delivery-gate agent, logs its report and
+ * publishes it to the Delivery panel. LLM tokens spent here are counted in the
+ * `consolidation` bucket of the run accumulator.
+ */
 async function runConsolidation(
   get: () => any,
   xml: string,
   targetLang: any,
-  llmConfig: any
+  llmConfig: any,
+  usage: RunTokenUsage
 ): Promise<{ xml: string; changed: boolean }> {
   const { addLog, consolidationEnabled } = get();
   if (!consolidationEnabled) {
@@ -41,7 +50,8 @@ async function runConsolidation(
   addLog('Running consolidation agent (deterministic gates + LLM review before delivery)...', 'info');
   const result = await consolidateArtifact(xml, targetLang, llmConfig, {
     onLog: (msg, type) => addLog(msg, type),
-    systematicReview: true
+    systematicReview: true,
+    usage: { usage, bucket: 'consolidation' }
   });
   get().setConsolidationResult(result);
   if (result.changed) {
@@ -66,13 +76,17 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
   pendingClarification: null,
   generationError: null,
   consolidationResult: null,
+  runUsage: null,
 
   setConsolidationResult: (consolidationResult) => set({ consolidationResult }),
+  setRunUsage: (runUsage) => set({ runUsage }),
   clearGenerationError: () => set({ generationError: null }),
 
   runGeneration: async () => {
     const { code, targetLang, llmConfig, polyglotConfig, addLog, projects, activeProjectId } = get();
     const activeProj = projects.find(p => p.id === activeProjectId);
+    // P2: a fresh run accumulator — spec tokens from the active editor buffer.
+    const runUsage = createRunTokenUsage(code.length);
     set({ isGenerating: true, generationError: null, consolidationResult: null });
 
     try {
@@ -121,35 +135,39 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
         (streamChunkText) => {
           set({ generatedCode: streamChunkText });
         },
-        polyglotConfig
+        polyglotConfig,
+        { usage: runUsage, bucket: 'generation' }
       );
 
       // Delivery gate: consolidation agent (deterministic gates + systematic
       // LLM review + auto-fix) runs BEFORE the project is handed to the user.
-      const consolidated = await runConsolidation(get, result, targetLang, llmConfig);
-      set({ generatedCode: consolidated.xml, isGenerating: false, generationError: null });
+      const consolidated = await runConsolidation(get, result, targetLang, llmConfig, runUsage);
+      set({ generatedCode: consolidated.xml, isGenerating: false, generationError: null, runUsage: { ...runUsage } });
       await get().writeArtifactToDisk();
     } catch (err: any) {
       const message = err?.message || 'Unknown generation error';
       addLog(`Generation error: ${message}`, 'error');
-      set({ isGenerating: false, generationError: message });
+      set({ isGenerating: false, generationError: message, runUsage: { ...runUsage } });
     } finally {
       set({ isGenerating: false });
     }
   },
 
   requestLLMCorrection: async (userPrompt: string) => {
-    const { generatedCode, targetLang, llmConfig, addLog } = get();
+    const { generatedCode, targetLang, llmConfig, addLog, code } = get();
     if (!userPrompt.trim()) return { textReply: '', codeChanged: false };
 
     set({ isGenerating: true });
+    const runUsage = get().runUsage ?? createRunTokenUsage(code.length);
     try {
       const rawResult = await refineIPLArtifact(
         generatedCode || '',
         userPrompt.trim(),
         targetLang,
         llmConfig,
-        (msg, type) => addLog(msg, type)
+        (msg, type) => addLog(msg, type),
+        undefined,
+        { usage: runUsage, bucket: 'generation' }
       );
 
       // Extract the current state of the files
@@ -165,8 +183,8 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
         const newXmlCode = updatedFiles.map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`).join('\n\n');
 
         // Re-run the delivery-gate consolidation after a user-driven correction.
-        const consolidated = await runConsolidation(get, newXmlCode, targetLang, llmConfig);
-        set({ generatedCode: consolidated.xml, isGenerating: false });
+        const consolidated = await runConsolidation(get, newXmlCode, targetLang, llmConfig, runUsage);
+        set({ generatedCode: consolidated.xml, isGenerating: false, runUsage: { ...runUsage } });
         await get().writeArtifactToDisk();
 
         // Clean the chat text reply by removing <file> and <patch> tags
@@ -181,7 +199,7 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
         };
       } else {
         // Conversational-only reply - DO NOT overwrite the project files!
-        set({ isGenerating: false });
+        set({ isGenerating: false, runUsage: { ...runUsage } });
         return {
           textReply: rawResult.trim() || 'I am ready to help you with your IPL project.',
           codeChanged: false
@@ -189,7 +207,7 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
       }
     } catch (err: any) {
       addLog(`LLM Chat error: ${err.message}`, 'error');
-      set({ isGenerating: false });
+      set({ isGenerating: false, runUsage: { ...runUsage } });
       return {
         textReply: `Error: ${err.message}`,
         codeChanged: false
@@ -198,9 +216,10 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
   },
 
   autoDebugAndFix: async (customCmd?: string) => {
-    const { projects, activeProjectId, targetLang, llmConfig, addLog, writeArtifactToDisk } = get();
+    const { projects, activeProjectId, targetLang, llmConfig, addLog, writeArtifactToDisk, code } = get();
     const activeProj = projects.find(p => p.id === activeProjectId);
     const outputDir = activeProj?.outputDir || defaultOutputDir(activeProj?.name || 'my_project');
+    const runUsage = get().runUsage ?? createRunTokenUsage(code.length);
 
     let cmdToRun = customCmd;
     if (!cmdToRun) {
@@ -213,6 +232,7 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
     }
 
     const maxAttempts = 3;
+    const publishUsage = () => set({ runUsage: { ...runUsage } });
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       addLog(`[Coding Agent 🤖] Pass ${attempt}/${maxAttempts} - Diagnosing and running "${cmdToRun}"...`, 'info');
 
@@ -249,6 +269,7 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
 
       if (!hasError) {
         addLog(`[Coding Agent 🤖] 🎉 Execution succeeded at pass ${attempt}! No bugs detected.`, 'success');
+        publishUsage();
         return true;
       }
 
@@ -271,13 +292,15 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
         // 2. Deterministic repair didn't apply — spend an LLM repair call.
         const promptCorrection = `THE CODE FAILED TO EXECUTE IN THE TERMINAL WITH THE FOLLOWING ERROR. ANALYZE AND FIX THE FILES SO THE SCRIPT RUNS WITHOUT ERROR:\n\nConsole Log Output:\n${outputLog.substring(0, 2000)}`;
 
+        runUsage.repairPasses += 1;
         const fixedResult = await refineIPLArtifact(
           get().generatedCode || '',
           promptCorrection,
           targetLang,
           llmConfig,
           (msg, type) => addLog(msg, type),
-          (streamChunkText) => set({ generatedCode: streamChunkText })
+          (streamChunkText) => set({ generatedCode: streamChunkText }),
+          { usage: runUsage, bucket: 'repair' }
         );
 
         // 2b. The LLM cannot fix confidently without a precision. Pause the
@@ -291,6 +314,7 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
           });
           addLog(`[Coding Agent 🤖] ❓ NEED_CLARIFICATION — ${clarification}`, 'warn');
           addLog('Please answer in the terminal input (or the chat) so the agent can repair accurately.', 'info');
+          publishUsage();
           return false;
         }
 
@@ -308,16 +332,18 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
       } catch (err: any) {
         addLog(`LLM self-repair failed: ${err.message}`, 'error');
         set({ isGenerating: false });
+        publishUsage();
         return false;
       }
     }
 
     addLog(`[Autonomous Agent 🤖] Completed 3 self-healing repair passes. Inspect the terminal log.`, 'warn');
+    publishUsage();
     return false;
   },
 
   answerClarification: async (answer: string) => {
-    const { projects, activeProjectId, targetLang, llmConfig, addLog, writeArtifactToDisk, pendingClarification } = get();
+    const { projects, activeProjectId, targetLang, llmConfig, addLog, writeArtifactToDisk, pendingClarification, code } = get();
     if (!pendingClarification) return false;
     const { question, errorLog, cmdToRun, attempt } = pendingClarification;
     const activeProj = projects.find(p => p.id === activeProjectId);
@@ -326,6 +352,9 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
 
     addLog(`[Coding Agent 🤖] Answer received: "${answer}". Re-analyzing and repairing...`, 'info');
     set({ isGenerating: true });
+    const runUsage = get().runUsage ?? createRunTokenUsage(code.length);
+    runUsage.clarificationRoundtrips += 1;
+    const publishUsage = () => set({ runUsage: { ...runUsage } });
 
     try {
       const promptCorrection = `THE CODE FAILED TO EXECUTE IN THE TERMINAL WITH THE FOLLOWING ERROR. ANALYZE AND FIX THE FILES SO THE SCRIPT RUNS WITHOUT ERROR.\n\nConsole Log Output:\n${errorLog}\n\nYou asked for a clarification:\n"${question}"\n\nUSER PRECISION (use it to decide the fix):\n"${answer}"`;
@@ -336,7 +365,8 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
         targetLang,
         llmConfig,
         (msg, type) => addLog(msg, type),
-        (streamChunkText) => set({ generatedCode: streamChunkText })
+        (streamChunkText) => set({ generatedCode: streamChunkText }),
+        { usage: runUsage, bucket: 'repair' }
       );
 
       // The model may still be unsure — ask again instead of guessing.
@@ -344,6 +374,7 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
       if (clarification) {
         set({ isGenerating: false, pendingClarification: { question: clarification, errorLog, cmdToRun, attempt: nextAttempt } });
         addLog(`[Coding Agent 🤖] ❓ NEED_CLARIFICATION (round ${nextAttempt}) — ${clarification}`, 'warn');
+        publishUsage();
         return false;
       }
 
@@ -384,15 +415,18 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
 
       if (!hasError) {
         addLog(`[Coding Agent 🤖] 🎉 Execution succeeded after your clarification!`, 'success');
+        publishUsage();
         return true;
       }
 
       // Still failing — hand back to the repair loop with the new error.
       addLog(`[Coding Agent 🤖] ⚠️ Still failing after clarification. Launching another repair pass...`, 'warn');
+      publishUsage();
       return await get().autoDebugAndFix(cmdToRun);
     } catch (err: any) {
       addLog(`LLM self-repair failed after clarification: ${err.message}`, 'error');
       set({ isGenerating: false, pendingClarification: null });
+      publishUsage();
       return false;
     }
   },

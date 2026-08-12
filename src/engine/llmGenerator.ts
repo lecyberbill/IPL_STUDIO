@@ -24,6 +24,71 @@ export const DEFAULT_LLM_CONFIG: LLMConfig = {
   model: 'deepseek-chat'
 };
 
+// ---------------------------------------------------------------------------
+// Token telemetry (P2 — the token-economy contract must be measurable)
+// ---------------------------------------------------------------------------
+
+export interface TokenBucket {
+  /** Estimated input tokens (prompt chars / 4). */
+  inputTokens: number;
+  /** Estimated output tokens (response chars / 4). */
+  outputTokens: number;
+}
+
+export type TokenBucketName = 'generation' | 'consolidation' | 'repair';
+
+export interface RunTokenUsage {
+  /** Estimated tokens of the IPL spec that triggered the run (chars / 4). */
+  specTokens: number;
+  /** 2-Pass generation + user-driven refinements. */
+  generation: TokenBucket;
+  /** Delivery-gate review + auto-fix passes. */
+  consolidation: TokenBucket;
+  /** Self-healing repair loop. */
+  repair: TokenBucket;
+  /** Repair passes actually run in the self-healing loop. */
+  repairPasses: number;
+  /** Clarification roundtrips the agent asked the human before resuming. */
+  clarificationRoundtrips: number;
+}
+
+/** Binds a run accumulator to the bucket a given LLM call belongs to. */
+export interface TokenUsageHook {
+  usage: RunTokenUsage;
+  bucket: TokenBucketName;
+}
+
+/** Rough token estimate (chars / 4), the same heuristic the benchmark uses. */
+export function estimateTokens(chars: number): number {
+  return Math.max(1, Math.ceil(chars / 4));
+}
+
+export function emptyTokenBucket(): TokenBucket {
+  return { inputTokens: 0, outputTokens: 0 };
+}
+
+export function createRunTokenUsage(specChars: number): RunTokenUsage {
+  return {
+    specTokens: estimateTokens(specChars),
+    generation: emptyTokenBucket(),
+    consolidation: emptyTokenBucket(),
+    repair: emptyTokenBucket(),
+    repairPasses: 0,
+    clarificationRoundtrips: 0
+  };
+}
+
+/** Adds one call's chars (estimated to tokens) to the given bucket. */
+export function recordTokenUsage(
+  usage: RunTokenUsage,
+  bucket: TokenBucketName,
+  inputChars: number,
+  outputChars: number
+): void {
+  usage[bucket].inputTokens += estimateTokens(inputChars);
+  usage[bucket].outputTokens += estimateTokens(outputChars);
+}
+
 export type TargetLanguage = 'polyglot' | 'rust' | 'python' | 'javascript' | 'go' | 'cpp' | 'html' | 'pll' | string;
 
 export interface ProjectTopology {
@@ -36,9 +101,12 @@ export interface ProjectTopology {
 }
 
 /**
- * Sends a prompt to LLM and streams chunk responses
+ * Sends a prompt to LLM and streams chunk responses. When `options.usage` is
+ * provided, the estimated input/output tokens (chars / 4) of the call are
+ * recorded into the run accumulator under the given bucket — the single choke
+ * point that makes the P2 token-economy telemetry possible.
  */
-export async function callLLM(
+async function callLLMRaw(
   prompt: string,
   config: LLMConfig,
   onLog: (msg: string, type: 'info' | 'success' | 'warn' | 'error') => void,
@@ -243,6 +311,24 @@ export async function callLLM(
 }
 
 /**
+ * Public entry point: streams the LLM call and, when a token hook is bound,
+ * records the estimated input/output token cost into the run accumulator.
+ */
+export async function callLLM(
+  prompt: string,
+  config: LLMConfig,
+  onLog: (msg: string, type: 'info' | 'success' | 'warn' | 'error') => void,
+  onStreamChunk?: (accumulatedText: string) => void,
+  options?: { temperature?: number; seed?: number; usage?: TokenUsageHook }
+): Promise<string> {
+  const text = await callLLMRaw(prompt, config, onLog, onStreamChunk, options);
+  if (options?.usage) {
+    recordTokenUsage(options.usage.usage, options.usage.bucket, prompt.length, text.length);
+  }
+  return text;
+}
+
+/**
  * Builds the per-target stack instruction used by both passes.
  */
 export function buildLangInstruction(
@@ -337,7 +423,8 @@ export async function generateIPL(
   config: LLMConfig,
   onLog: (msg: string, type: 'info' | 'success' | 'warn' | 'error') => void,
   onStreamChunk?: (accumulatedText: string) => void,
-  polyglotConfig?: { autoDecide: boolean; layers: Array<{ role: string; tech: string }> }
+  polyglotConfig?: { autoDecide: boolean; layers: Array<{ role: string; tech: string }> },
+  usage?: TokenUsageHook
 ): Promise<string> {
   onLog(`🚀 Starting the 2-Pass LLM Code Generator for target: [${targetLang.toUpperCase()}]...`, 'info');
 
@@ -347,7 +434,7 @@ export async function generateIPL(
 
   let topologyJsonStr = '';
   try {
-    topologyJsonStr = await callLLM(pass1Prompt, config, onLog, undefined, { temperature: 0.4 });
+    topologyJsonStr = await callLLM(pass1Prompt, config, onLog, undefined, { temperature: 0.4, usage });
   } catch (err: any) {
     onLog(`Pass 1 Fallback triggered: ${err.message}`, 'warn');
   }
@@ -356,7 +443,7 @@ export async function generateIPL(
   onLog('Pass 2: Generating full multi-file source code with XML tagging...', 'info');
   const pass2Prompt = buildPass2Prompt(iplCode, targetLang, topologyJsonStr, polyglotConfig);
 
-  const generatedArtifact = await callLLM(pass2Prompt, config, onLog, onStreamChunk);
+  const generatedArtifact = await callLLM(pass2Prompt, config, onLog, onStreamChunk, { usage });
   onLog('🎉 2-Pass generation completed successfully!', 'success');
   return generatedArtifact;
 }
@@ -370,7 +457,8 @@ export async function refineIPLArtifact(
   targetLang: TargetLanguage,
   config: LLMConfig,
   onLog: (msg: string, type: 'info' | 'success' | 'warn' | 'error') => void,
-  onStreamChunk?: (accumulatedText: string) => void
+  onStreamChunk?: (accumulatedText: string) => void,
+  usage?: TokenUsageHook
 ): Promise<string> {
   onLog(`🤖 Refactoring & updating [${targetLang.toUpperCase()}] project files based on user instruction...`, 'info');
 
@@ -411,7 +499,7 @@ CRITICAL OUTPUT INSTRUCTIONS:
    - Answer conversationally in plain text.
    - DO NOT output any <file> or <patch> tags if no code was modified.`;
 
-  return await callLLM(prompt, config, onLog, onStreamChunk, { temperature: 0.0 });
+  return await callLLM(prompt, config, onLog, onStreamChunk, { temperature: 0.0, usage });
 }
 
 /**

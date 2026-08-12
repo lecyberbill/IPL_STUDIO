@@ -21,7 +21,7 @@ const EMPTY: ConsolidationResult = {
  * human judgment. Each remaining issue jumps to its file in the Files viewer.
  */
 export const DeliveryPanel: React.FC = () => {
-  const { consolidationResult, setActivePanelTab, setSelectedFilePath, addLog, consolidationEnabled } = useIdeStore();
+  const { consolidationResult, setActivePanelTab, setSelectedFilePath, addLog, consolidationEnabled, runUsage } = useIdeStore();
   const [showReport, setShowReport] = useState(false);
 
   const result = consolidationResult ?? EMPTY;
@@ -69,6 +69,20 @@ export const DeliveryPanel: React.FC = () => {
           {showReport ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
         </button>
       </div>
+
+      {/* Token-economy budget (P2): what the run spent to prepare the terrain. */}
+      {runUsage && (
+        <div className="px-3 py-1.5 bg-[#0f1117]/60 border-b border-[#2a2f42] font-mono text-[10px] text-gray-400 select-text flex items-center justify-between space-x-2">
+          <span className="truncate">
+            <span className="text-cyan-400">spec {runUsage.specTokens} tok</span>
+            {' → '}génération <span className="text-gray-200">{runUsage.generation.inputTokens + runUsage.generation.outputTokens}</span>
+            {' + '}consolidation <span className="text-gray-200">{runUsage.consolidation.inputTokens + runUsage.consolidation.outputTokens}</span>
+            {' + '}réparation <span className="text-gray-200">{runUsage.repair.inputTokens + runUsage.repair.outputTokens}</span>
+            {runUsage.repairPasses > 0 && <span className="text-amber-400"> · {runUsage.repairPasses} pass(es) réparation</span>}
+            {runUsage.clarificationRoundtrips > 0 && <span className="text-purple-400"> · {runUsage.clarificationRoundtrips} clarification(s)</span>}
+          </span>
+        </div>
+      )}
 
       {/* Found / Fixed / Remaining summary */}
       <div className="grid grid-cols-3 gap-2 px-3 py-2 border-b border-[#2a2f42]">

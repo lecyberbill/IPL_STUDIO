@@ -31,8 +31,8 @@ import type { MissingModuleRef } from '../src/engine/staticChecker.ts';
 import { buildReviewPrompt, parseReviewOutput } from '../src/engine/reviewAgent.ts';
 import type { ReviewIssue } from '../src/engine/reviewAgent.ts';
 import { consolidateArtifact, filesToXml } from '../src/engine/consolidationAgent.ts';
-import { callLLM, buildPass1Prompt, buildPass2Prompt, refineIPLArtifact, extractClarificationRequest, DEFAULT_LLM_CONFIG } from '../src/engine/llmGenerator.ts';
-import type { LLMConfig, TargetLanguage } from '../src/engine/llmGenerator.ts';
+import { callLLM, buildPass1Prompt, buildPass2Prompt, refineIPLArtifact, extractClarificationRequest, createRunTokenUsage, DEFAULT_LLM_CONFIG } from '../src/engine/llmGenerator.ts';
+import type { LLMConfig, TargetLanguage, RunTokenUsage, TokenBucket } from '../src/engine/llmGenerator.ts';
 import { applyDeterministicRepairs } from '../src/engine/deterministicRepair.ts';
 import type { DeterministicRepair } from '../src/engine/deterministicRepair.ts';
 import { evaluateBehavior } from '../src/engine/behaviorAssert.ts';
@@ -464,6 +464,15 @@ interface RunResult {
   failureOutput?: string;
   /** Consolidation agent summary (only when --consolidate). */
   consolidation?: { passesUsed: number; changed: boolean; confirmed: number; report: string };
+  /** P2 token-economy telemetry: estimated input/output per bucket for the run. */
+  usage?: {
+    specTokens: number;
+    generation: TokenBucket;
+    consolidation: TokenBucket;
+    repair: TokenBucket;
+    repairPasses: number;
+    clarificationRoundtrips: number;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -569,12 +578,12 @@ interface GenerationOutput {
   pass2: PassTiming;
 }
 
-async function generateReal(spec: BenchSpec, config: LLMConfig, args: CliArgs): Promise<GenerationOutput> {
+async function generateReal(spec: BenchSpec, config: LLMConfig, args: CliArgs, usage: RunTokenUsage): Promise<GenerationOutput> {
   const pass1Prompt = buildPass1Prompt(spec.code, spec.targetLang);
 
   const t1 = Date.now();
   const p1Text = await withTimeout(
-    callLLM(pass1Prompt, config, () => {}, undefined, { temperature: 0.4 }),
+    callLLM(pass1Prompt, config, () => {}, undefined, { temperature: 0.4, usage: { usage, bucket: 'generation' } }),
     args.timeoutPerPassMs,
     'Pass 1'
   );
@@ -584,7 +593,7 @@ async function generateReal(spec: BenchSpec, config: LLMConfig, args: CliArgs): 
 
   const t2 = Date.now();
   const xml = await withTimeout(
-    callLLM(buildPass2Prompt(spec.code, spec.targetLang, topology), config, () => {}, undefined, { temperature: 0.15, seed: 42 }),
+    callLLM(buildPass2Prompt(spec.code, spec.targetLang, topology), config, () => {}, undefined, { temperature: 0.15, seed: 42, usage: { usage, bucket: 'generation' } }),
     args.timeoutPerPassMs,
     'Pass 2'
   );
@@ -1033,7 +1042,8 @@ async function repairAndVerify(
   config: LLMConfig,
   firstTry: { status: RunStatus; detail: string; output?: string },
   missingRefs?: MissingModuleRef[],
-  reviewIssues?: ReviewIssue[]
+  reviewIssues?: ReviewIssue[],
+  usage?: RunTokenUsage
 ): Promise<{ v: { status: RunStatus; detail: string; output?: string }; repairsToSuccess: number; repairDetails: string[]; firstTryStatus: RunStatus }> {
   const repairDetails: string[] = [];
   let v = firstTry;
@@ -1061,6 +1071,7 @@ async function repairAndVerify(
       const existingXml = readRunFiles(runDir)
         .map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`)
         .join('\n\n');
+      if (usage) usage.repairPasses += 1;
 
       // The fix directive must carry the behavioral contract too: a run that
       // executes cleanly but outputs the wrong JSON is still a FAIL, and the
@@ -1078,7 +1089,7 @@ async function repairAndVerify(
       const prompt = `THE CODE FAILED THE VERIFICATION. ANALYZE THE FAILURE, FIX THE FILES, AND MAKE THE PROGRAM PRODUCE THE EXPECTED RUNTIME BEHAVIOR.\n\nFailure detail:\n${v.detail}\n\nActual program output:\n${(v.output ?? '').slice(0, 3000)}${contract}${staticHint}${reviewHint}`;
       try {
         const fixed = await withTimeout(
-          refineIPLArtifact(existingXml, prompt, spec.targetLang, config, () => {}, () => {}),
+          refineIPLArtifact(existingXml, prompt, spec.targetLang, config, () => {}, () => {}, usage ? { usage, bucket: 'repair' } : undefined),
           args.timeoutPerPassMs,
           `repair pass ${pass}`
         );
@@ -1089,6 +1100,7 @@ async function repairAndVerify(
         // WARN that awaits human input. Record it and consume the pass.
         const clarification = extractClarificationRequest(fixed);
         if (clarification) {
+          if (usage) usage.clarificationRoundtrips += 1;
           repairDetails.push(`pass ${pass} [llm]: NEED_CLARIFICATION — ${clarification}`);
           continue;
         }
@@ -1286,6 +1298,10 @@ function buildReport(args: CliArgs, config: LLMConfig, results: RunResult[]): st
       lines.push(`- **Pass 1**: ${r.pass1.ms} ms · ≈ ${r.pass1.approxTokens} tokens`);
       lines.push(`- **Pass 2**: ${r.pass2.ms} ms · ≈ ${r.pass2.approxTokens} tokens`);
     }
+    if (r.usage) {
+      const u = r.usage;
+      lines.push(`- **Tokens (est.)**: spec ${u.specTokens} → génération ${u.generation.inputTokens + u.generation.outputTokens} (${u.generation.inputTokens} in / ${u.generation.outputTokens} out) + consolidation ${u.consolidation.inputTokens + u.consolidation.outputTokens} + réparation ${u.repair.inputTokens + u.repair.outputTokens} · réparation ${u.repairPasses} pass(es) · ${u.clarificationRoundtrips} clarification(s)`);
+    }
     lines.push(`- **Files**: ${r.files.join(', ') || '(none)'}`);
     lines.push('');
   }
@@ -1347,10 +1363,11 @@ async function main(): Promise<number> {
       mkdirSync(runDir, { recursive: true });
 
       const start = Date.now();
+      const usage = createRunTokenUsage(spec.code.length);
       let gen: GenerationOutput;
       let genError = '';
       try {
-        gen = args.mode === 'mock' ? await generateMock(spec) : await generateReal(spec, config, args);
+        gen = args.mode === 'mock' ? await generateMock(spec) : await generateReal(spec, config, args, usage);
       } catch (err: any) {
         genError = err.message;
         const result: RunResult = {
@@ -1375,7 +1392,8 @@ async function main(): Promise<number> {
         const t0 = Date.now();
         const cons = await consolidateArtifact(gen.xml, spec.targetLang, config, {
           timeoutPerPassMs: args.timeoutPerPassMs,
-          onLog: (msg, type) => log(args, `consolidation: ${msg}`, type)
+          onLog: (msg, type) => log(args, `consolidation: ${msg}`, type),
+          usage: { usage, bucket: 'consolidation' }
         });
         consolidation = {
           passesUsed: cons.passesUsed,
@@ -1420,7 +1438,7 @@ async function main(): Promise<number> {
       let repairsToSuccess = 0;
       let repairDetails: string[] = [];
       if (firstTry.status === 'FAIL' && args.repairPasses > 0 && args.mode !== 'mock') {
-        const repaired = await repairAndVerify(spec, runDir, args, config, firstTry, missingRefs, reviewIssues);
+        const repaired = await repairAndVerify(spec, runDir, args, config, firstTry, missingRefs, reviewIssues, usage);
         v = repaired.v;
         repairsToSuccess = repaired.repairsToSuccess;
         repairDetails = repaired.repairDetails;
@@ -1436,7 +1454,15 @@ async function main(): Promise<number> {
         artifactXml: gen.xml,
         repairsToSuccess, repairDetails, firstTryStatus: firstTry.status,
         failureOutput: v.output,
-        consolidation
+        consolidation,
+        usage: {
+          specTokens: usage.specTokens,
+          generation: { ...usage.generation },
+          consolidation: { ...usage.consolidation },
+          repair: { ...usage.repair },
+          repairPasses: usage.repairPasses,
+          clarificationRoundtrips: usage.clarificationRoundtrips
+        }
       };
       results.push(result);
       const repairNote = repairDetails.length > 0 ? ` · repaired (${repairsToSuccess} pass${repairsToSuccess === 1 ? '' : 'es'})` : '';

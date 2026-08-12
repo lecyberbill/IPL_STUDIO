@@ -291,6 +291,31 @@ describe('generationSlice', () => {
     expect(store.getState().consolidationResult).toBeNull();
   });
 
+  it('runGeneration seeds the token usage accumulator even when it fails', async () => {
+    const store = createTestStore();
+    store.getState().setLLMConfig({ customApiKey: 'ci-test-key' });
+    vi.mocked(fetch).mockRejectedValue(new Error('connection refused'));
+    await store.getState().runGeneration();
+    const usage = store.getState().runUsage;
+    expect(usage).not.toBeNull();
+    expect(usage!.specTokens).toBeGreaterThan(0);
+  });
+
+  it('switchProject clears the token usage accumulator', () => {
+    const store = createTestStore();
+    store.getState().setRunUsage({
+      specTokens: 42,
+      generation: { inputTokens: 10, outputTokens: 20 },
+      consolidation: { inputTokens: 5, outputTokens: 5 },
+      repair: { inputTokens: 0, outputTokens: 0 },
+      repairPasses: 0,
+      clarificationRoundtrips: 0
+    });
+    expect(store.getState().runUsage).not.toBeNull();
+    store.getState().switchProject(store.getState().projects[1].id);
+    expect(store.getState().runUsage).toBeNull();
+  });
+
   it('runGeneration surfaces and then clears generation errors', async () => {
     const store = createTestStore();
     // Force pass 2 (the streaming call) to reject: same config, stubbed fetch.

@@ -1,5 +1,5 @@
 import type * as monaco from 'monaco-editor';
-import type { TargetLanguage, LLMConfig } from '../engine/llmGenerator';
+import type { TargetLanguage, LLMConfig, RunTokenUsage } from '../engine/llmGenerator';
 import type { SyntaxErrorItem, IPLVerb } from '../engine/iplGrammar';
 import type { ConsolidationResult } from '../engine/consolidationAgent';
 import type { StateCreator } from 'zustand';
@@ -93,6 +93,9 @@ export interface IDEState {
   /** Last delivery-gate report (transient, rendered by the Delivery panel). */
   consolidationResult: ConsolidationResult | null;
   setConsolidationResult: (result: ConsolidationResult | null) => void;
+  /** Per-run token-economy telemetry (P2): generation + consolidation + repair. */
+  runUsage: RunTokenUsage | null;
+  setRunUsage: (usage: RunTokenUsage | null) => void;
   /** File selected in the generated-files viewer (right sidebar). */
   selectedFilePath: string;
   setSelectedFilePath: (path: string) => void;

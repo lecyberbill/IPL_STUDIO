@@ -26,7 +26,7 @@
 import { parseMultiFileXml } from './artifactGenerator';
 import type { ProjectArtifactFile } from './artifactGenerator';
 import { callLLM, refineIPLArtifact } from './llmGenerator';
-import type { LLMConfig, TargetLanguage } from './llmGenerator';
+import type { LLMConfig, TargetLanguage, TokenUsageHook } from './llmGenerator';
 import { findMissingModuleRefs, findInvalidJson } from './staticChecker';
 import type { MissingModuleRef, InvalidJson } from './staticChecker';
 import { buildReviewPrompt, parseReviewOutput } from './reviewAgent';
@@ -39,6 +39,8 @@ export interface ConsolidationOptions {
   systematicReview?: boolean;
   onLog?: (msg: string, type: 'info' | 'success' | 'warn' | 'error') => void;
   timeoutPerPassMs?: number;
+  /** Token-usage hook (P2): consolidation review + fix passes are counted here. */
+  usage?: TokenUsageHook;
 }
 
 export interface ConsolidationResult {
@@ -129,7 +131,10 @@ export async function consolidateArtifact(
   let reviewIssues: ReviewIssue[] = [];
   if (systematic) {
     try {
-      const raw = await callLLM(buildReviewPrompt(files), config, () => {}, undefined, { temperature: 0.1 });
+      const raw = await callLLM(buildReviewPrompt(files), config, () => {}, undefined, {
+        temperature: 0.1,
+        usage: options.usage
+      });
       reviewIssues = parseReviewOutput(raw);
     } catch (err: any) {
       log(`Consolidation review failed: ${err.message}`, 'warn');
@@ -162,7 +167,9 @@ export async function consolidateArtifact(
         buildConsolidationDirective(errorFindings, targetLang),
         targetLang,
         config,
-        () => {}
+        () => {},
+        undefined,
+        options.usage
       );
       // Only count as a change when the model actually emitted file/patch tags
       // (prose replies mean "could not fix" — do not mark the tree modified).
@@ -178,7 +185,10 @@ export async function consolidateArtifact(
       let newReview: ReviewIssue[] = [];
       if (systematic) {
         try {
-          const raw = await callLLM(buildReviewPrompt(files), config, () => {}, undefined, { temperature: 0.1 });
+          const raw = await callLLM(buildReviewPrompt(files), config, () => {}, undefined, {
+            temperature: 0.1,
+            usage: options.usage
+          });
           newReview = parseReviewOutput(raw);
         } catch (err: any) {
           log(`Re-review failed: ${err.message}`, 'warn');
