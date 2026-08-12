@@ -65,6 +65,9 @@ export const editorSlice: StoreSlice<EditorSlice> = (set, get) => ({
     );
 
     set({ targetLang, projects: updatedProjects });
+    // The `html` target is inherently a web page — pin the form factor to match
+    // (the user can still override it in the navbar selector).
+    if (targetLang === 'html') get().setFormFactor('web');
     get().addLog(`Project generation target changed to: ${targetLang.toUpperCase()}`, 'info');
   },
 

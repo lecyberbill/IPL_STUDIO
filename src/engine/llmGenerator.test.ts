@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { extractClarificationRequest, estimateTokens, createRunTokenUsage, recordTokenUsage, callLLM } from './llmGenerator';
+import { extractClarificationRequest, estimateTokens, createRunTokenUsage, recordTokenUsage, callLLM, buildLangInstruction, buildFormDirective } from './llmGenerator';
 import type { LLMConfig } from './llmGenerator';
 
 const localConfig: LLMConfig = {
@@ -35,6 +35,28 @@ describe('token telemetry helpers (P2)', () => {
     expect(u.generation).toEqual({ inputTokens: 25, outputTokens: 50 });
     expect(u.consolidation).toEqual({ inputTokens: 10, outputTokens: 20 });
     expect(u.repair).toEqual({ inputTokens: 0, outputTokens: 0 });
+  });
+});
+
+describe('form-factor directives (P4)', () => {
+  it('appends the form directive only when a form factor is provided', () => {
+    const withCli = buildLangInstruction('javascript', undefined, 'cli');
+    expect(withCli).toContain('EXECUTION FORM');
+    expect(withCli).toContain('NO DOM');
+
+    const without = buildLangInstruction('javascript');
+    expect(without).not.toContain('EXECUTION FORM');
+  });
+
+  it('builds distinct directives for web, gui, server and library', () => {
+    expect(buildFormDirective('web')).toContain('index.html');
+    expect(buildFormDirective('gui')).toContain('WITH A WINDOW');
+    expect(buildFormDirective('gui')).toContain('SDL');
+    expect(buildFormDirective('gui')).toContain('game');
+    expect(buildFormDirective('server')).toContain('listens on a port');
+    expect(buildFormDirective('server')).toContain('FastAPI');
+    expect(buildFormDirective('library')).toContain('runnable entry point');
+    expect(buildFormDirective()).toBe('');
   });
 });
 

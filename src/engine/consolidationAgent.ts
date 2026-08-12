@@ -26,9 +26,9 @@
 import { parseMultiFileXml } from './artifactGenerator';
 import type { ProjectArtifactFile } from './artifactGenerator';
 import { callLLM, refineIPLArtifact } from './llmGenerator';
-import type { LLMConfig, TargetLanguage, TokenUsageHook } from './llmGenerator';
-import { findMissingModuleRefs, findInvalidJson } from './staticChecker';
-import type { MissingModuleRef, InvalidJson } from './staticChecker';
+import type { LLMConfig, TargetLanguage, TokenUsageHook, FormFactor } from './llmGenerator';
+import { findMissingModuleRefs, findInvalidJson, findFormMismatches } from './staticChecker';
+import type { MissingModuleRef, InvalidJson, FormMismatch } from './staticChecker';
 import { buildReviewPrompt, parseReviewOutput } from './reviewAgent';
 import type { ReviewIssue } from './reviewAgent';
 
@@ -41,6 +41,8 @@ export interface ConsolidationOptions {
   timeoutPerPassMs?: number;
   /** Token-usage hook (P2): consolidation review + fix passes are counted here. */
   usage?: TokenUsageHook;
+  /** Chosen execution form (P4): enables the deterministic form-factor gate. */
+  formFactor?: FormFactor;
 }
 
 export interface ConsolidationResult {
@@ -50,6 +52,8 @@ export interface ConsolidationResult {
   staticIssues: MissingModuleRef[];
   /** Invalid-JSON findings from the deterministic gate (0 tokens). */
   jsonIssues: InvalidJson[];
+  /** Form-factor mismatches (P4): web assets/DOM for a CLI target, or no HTML for web. */
+  formIssues?: FormMismatch[];
   /** Findings reported by the LLM reviewer. */
   reviewIssues: ReviewIssue[];
   /** Findings that were confirmed (deterministic) or error-severity (LLM). */
@@ -102,6 +106,36 @@ export function buildConsolidationDirective(
 }
 
 /**
+ * Builds a copy-paste repair prompt for the HUMAN (vib-coding): the confirmed
+ * remaining defects + reviewer warnings, ready to send to the LLM Chat (or any
+ * assistant). The chat's refineIPLArtifact already carries the project files as
+ * context, so the prompt only lists what must change.
+ */
+export function buildDeliveryFixPrompt(
+  confirmedIssues: Array<{ kind: 'static' | 'review'; file: string; message: string }>,
+  warnings: ReviewIssue[],
+  targetLang: TargetLanguage
+): string {
+  const lines: string[] = [];
+  lines.push('THE GENERATED PROJECT HAS DEFECTS THAT MUST BE CORRECTED BEFORE DELIVERY.');
+  if (confirmedIssues.length > 0) {
+    lines.push('');
+    lines.push('CONFIRMED DEFECTS (must fix):');
+    for (const c of confirmedIssues) lines.push(`- [${c.kind}] ${c.file}: ${c.message}`);
+  }
+  if (warnings.length > 0) {
+    lines.push('');
+    lines.push('REVIEWER WARNINGS (non-blocking, worth a look):');
+    for (const w of warnings) lines.push(`- [${w.severity}] ${w.file}: ${w.message}`);
+  }
+  lines.push('');
+  lines.push(`Fix the defects above in the generated ${targetLang.toUpperCase()} project.`);
+  lines.push('Reply ONLY with <file path="..."> or <patch path="..."> tags applying the corrections.');
+  lines.push('If a fix is ambiguous, ask a precision with exactly one line: NEED_CLARIFICATION: <your question>. Never guess.');
+  return lines.join('\n');
+}
+
+/**
  * Runs the consolidation agent over a freshly generated artifact.
  *
  * 1. Deterministic gate: cross-check imports against generated files (0 tokens).
@@ -123,9 +157,10 @@ export async function consolidateArtifact(
 
   let files = parseMultiFileXml(artifactXml);
 
-  // 1. Deterministic gate (free).
+  // 1. Deterministic gate (free): imports + JSON + form-factor mismatches.
   const staticIssues = findMissingModuleRefs(files);
   let jsonIssues = findInvalidJson(files);
+  let formIssues = findFormMismatches(files, options.formFactor);
 
   // 2. Systematic LLM review.
   let reviewIssues: ReviewIssue[] = [];
@@ -153,8 +188,10 @@ export async function consolidateArtifact(
       confirmedIssues.push(f);
     }
   };
+  const formToFindings = (fi: FormMismatch[]) =>
+    fi.map(f => ({ kind: 'static' as const, file: f.file, message: f.suggestion, severity: 'error' as const }));
 
-  let findings = mergeFindings(staticIssues, jsonIssues, reviewIssues);
+  let findings = [...formToFindings(formIssues), ...mergeFindings(staticIssues, jsonIssues, reviewIssues)];
   let errorFindings = findings.filter(f => f.severity === 'error');
   for (const f of errorFindings) pushConfirmed(f);
 
@@ -182,6 +219,7 @@ export async function consolidateArtifact(
       // Re-run gates + re-review on the fixed tree to confirm the fix landed.
       const newStatic = findMissingModuleRefs(files);
       jsonIssues = findInvalidJson(files);
+      formIssues = findFormMismatches(files, options.formFactor);
       let newReview: ReviewIssue[] = [];
       if (systematic) {
         try {
@@ -194,7 +232,7 @@ export async function consolidateArtifact(
           log(`Re-review failed: ${err.message}`, 'warn');
         }
       }
-      const nextErrors = mergeFindings(newStatic, jsonIssues, newReview).filter(f => f.severity === 'error');
+      const nextErrors = [...formToFindings(formIssues), ...mergeFindings(newStatic, jsonIssues, newReview)].filter(f => f.severity === 'error');
       for (const f of nextErrors) pushConfirmed(f);
 
       // Stop when nothing still-erroneous remains, or when a pass produced no
@@ -212,8 +250,8 @@ export async function consolidateArtifact(
   }
 
   // 5. Delivery report.
-  const report = buildDeliveryReport(files, staticIssues, jsonIssues, reviewIssues, confirmedIssues, passesUsed, changed);
-  return { files, staticIssues, jsonIssues, reviewIssues, confirmedIssues, passesUsed, changed, report };
+  const report = buildDeliveryReport(files, staticIssues, jsonIssues, reviewIssues, confirmedIssues, passesUsed, changed, formIssues, options.formFactor);
+  return { files, staticIssues, jsonIssues, formIssues, reviewIssues, confirmedIssues, passesUsed, changed, report };
 }
 
 export interface ConsolidationSummary {
@@ -233,6 +271,7 @@ export function summarizeConsolidation(result: ConsolidationResult): Consolidati
     found:
       result.staticIssues.length +
       result.jsonIssues.length +
+      (result.formIssues?.length ?? 0) +
       result.reviewIssues.filter(i => i.severity !== 'info').length,
     fixed: result.changed ? result.passesUsed : 0,
     remaining: result.confirmedIssues.length,
@@ -248,10 +287,12 @@ export function buildDeliveryReport(
   reviewIssues: ReviewIssue[],
   confirmedIssues: Array<{ kind: 'static' | 'review'; file: string; message: string }>,
   passesUsed: number,
-  changed: boolean
+  changed: boolean,
+  formIssues: FormMismatch[] = [],
+  formFactor?: FormFactor
 ): string {
   const lines: string[] = ['--- CONSOLIDATION REPORT ---'];
-  if (staticIssues.length === 0 && jsonIssues.length === 0 && confirmedIssues.length === 0) {
+  if (staticIssues.length === 0 && jsonIssues.length === 0 && formIssues.length === 0 && confirmedIssues.length === 0) {
     lines.push('✅ No confirmed defects found.');
   }
   if (staticIssues.length > 0) {
@@ -261,6 +302,10 @@ export function buildDeliveryReport(
   if (jsonIssues.length > 0) {
     lines.push(`Static JSON gate: ${jsonIssues.length} invalid JSON file(s):`);
     for (const j of jsonIssues) lines.push(`  - ${j.file}: ${j.reason}`);
+  }
+  if (formIssues.length > 0) {
+    lines.push(`Form gate (${formFactor ?? 'cli'}): ${formIssues.length} mismatch(es) with the chosen execution form:`);
+    for (const f of formIssues) lines.push(`  - ${f.file}: ${f.reason}`);
   }
   const reviewWarnings = reviewIssues.filter(i => i.severity === 'warning');
   if (reviewWarnings.length > 0) {

@@ -1,5 +1,5 @@
 import type * as monaco from 'monaco-editor';
-import type { TargetLanguage, LLMConfig, RunTokenUsage } from '../engine/llmGenerator';
+import type { TargetLanguage, LLMConfig, RunTokenUsage, FormFactor } from '../engine/llmGenerator';
 import type { SyntaxErrorItem, IPLVerb } from '../engine/iplGrammar';
 import type { ConsolidationResult } from '../engine/consolidationAgent';
 import type { StateCreator } from 'zustand';
@@ -87,6 +87,9 @@ export interface IDEState {
   isGitModalOpen: boolean;
   isTutorialOpen: boolean;
   toggleTutorial: () => void;
+  /** Execution form factor (P4): CLI / web / library. */
+  formFactor: FormFactor;
+  setFormFactor: (formFactor: FormFactor) => void;
   /** Systematic pre-delivery consolidation agent (deterministic gates + LLM review + auto-fix). */
   consolidationEnabled: boolean;
   toggleConsolidation: () => void;

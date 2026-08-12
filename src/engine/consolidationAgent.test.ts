@@ -17,9 +17,11 @@ import {
   mergeFindings,
   buildConsolidationDirective,
   buildDeliveryReport,
+  buildDeliveryFixPrompt,
   summarizeConsolidation,
   consolidateArtifact
 } from './consolidationAgent';
+import type { FormMismatch } from './staticChecker';
 import type { ProjectArtifactFile } from './artifactGenerator';
 import type { MissingModuleRef } from './staticChecker';
 const file = (relativePath: string, content: string): ProjectArtifactFile => ({ relativePath, content });
@@ -184,6 +186,63 @@ describe('summarizeConsolidation (Delivery panel numbers)', () => {
       ]
     });
     expect(s.remaining).toBe(2);
+  });
+
+  it('counts form-factor mismatches in found', () => {
+    const formIssues: FormMismatch[] = [
+      { file: 'index.html', reason: 'web asset present for a CLI target', suggestion: 'remove it' }
+    ];
+    const s = summarizeConsolidation({ ...base, formIssues });
+    expect(s.found).toBe(1);
+  });
+});
+
+describe('form-factor gate in consolidation (P4)', () => {
+  it('publishes a CLI-target HTML asset as a confirmed issue', async () => {
+    mocks.callLLM.mockResolvedValue('{ "issues": [] }');
+    mocks.refineIPLArtifact.mockResolvedValue('I cannot fix this.');
+    const xml = filesToXml([file('index.html', '<html></html>'), file('src/index.js', 'console.log("hi");')]);
+    const result = await consolidateArtifact(xml, 'javascript', llmConfig, {
+      maxConsolidationPasses: 1,
+      systematicReview: false,
+      formFactor: 'cli'
+    });
+    expect(result.formIssues).toHaveLength(1);
+    expect(result.formIssues![0].file).toBe('index.html');
+    expect(result.confirmedIssues.some(c => c.kind === 'static' && c.file === 'index.html')).toBe(true);
+  });
+
+  it('reports the Form gate section in the delivery report', () => {
+    const formIssues: FormMismatch[] = [
+      { file: 'index.html', reason: 'web asset present for a CLI target', suggestion: 'remove it' }
+    ];
+    const report = buildDeliveryReport([file('a.js', '')], [], [], [], [{ kind: 'static', file: 'index.html', message: 'remove it' }], 1, true, formIssues, 'cli');
+    expect(report).toContain('Form gate (cli): 1 mismatch(es)');
+    expect(report).toContain('index.html: web asset present');
+  });
+});
+
+describe('buildDeliveryFixPrompt (copy-paste human repair prompt)', () => {
+  it('lists confirmed defects and warnings as a copy-paste directive', () => {
+    const prompt = buildDeliveryFixPrompt(
+      [{ kind: 'review', file: 'src/app.js', message: 'borderLeft overwritten' }],
+      [{ severity: 'warning', file: 'src/app.js', message: 'dead code' }],
+      'javascript'
+    );
+    expect(prompt).toContain('src/app.js: borderLeft overwritten');
+    expect(prompt).toContain('REVIEWER WARNINGS');
+    expect(prompt).toContain('<file path="...">');
+    expect(prompt).toContain('NEED_CLARIFICATION');
+  });
+
+  it('skips the warnings section when there are none', () => {
+    const prompt = buildDeliveryFixPrompt(
+      [{ kind: 'static', file: 'src/entities.js', message: 'file is imported but not generated' }],
+      [],
+      'python'
+    );
+    expect(prompt).not.toContain('REVIEWER WARNINGS');
+    expect(prompt).toContain('[static] src/entities.js');
   });
 });
 

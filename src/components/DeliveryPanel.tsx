@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
-import { summarizeConsolidation } from '../engine/consolidationAgent';
+import { summarizeConsolidation, buildDeliveryFixPrompt } from '../engine/consolidationAgent';
 import type { ConsolidationResult } from '../engine/consolidationAgent';
-import { CheckCircle2, AlertTriangle, AlertCircle, Search, Wrench, ClipboardList, ChevronDown, ChevronUp, FileSearch, PackageCheck } from 'lucide-react';
+import { DeliveryReportModal } from './DeliveryReportModal';
+import { CheckCircle2, AlertTriangle, AlertCircle, Search, Wrench, ClipboardList, ChevronDown, ChevronUp, FileSearch, PackageCheck, Maximize2, Copy, Check } from 'lucide-react';
 
 const EMPTY: ConsolidationResult = {
   files: [],
@@ -21,19 +22,35 @@ const EMPTY: ConsolidationResult = {
  * human judgment. Each remaining issue jumps to its file in the Files viewer.
  */
 export const DeliveryPanel: React.FC = () => {
-  const { consolidationResult, setActivePanelTab, setSelectedFilePath, addLog, consolidationEnabled, runUsage } = useIdeStore();
+  const { consolidationResult, setActivePanelTab, setSelectedFilePath, addLog, consolidationEnabled, runUsage, targetLang } = useIdeStore();
   const [showReport, setShowReport] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
 
   const result = consolidationResult ?? EMPTY;
   const { found, fixed, remaining, warnings } = summarizeConsolidation(result);
 
   const hasReport = consolidationResult !== null;
   const isClean = hasReport && found === 0 && remaining === 0;
+  const hasActionable = remaining > 0 || warnings.length > 0;
 
   const navigate = (file: string) => {
     setActivePanelTab('files');
     setSelectedFilePath(file);
     addLog(`Delivery: opened "${file}" in the generated-files viewer.`, 'info');
+  };
+
+  const copyFixPrompt = async () => {
+    if (!hasActionable) return;
+    const prompt = buildDeliveryFixPrompt(result.confirmedIssues, warnings, targetLang);
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopiedPrompt(true);
+      addLog('Delivery: correction prompt copied — paste it in the LLM Chat to fix the remaining issues.', 'info');
+      setTimeout(() => setCopiedPrompt(false), 2000);
+    } catch {
+      addLog('Delivery: could not copy the prompt to the clipboard.', 'warn');
+    }
   };
 
   if (!hasReport) {
@@ -60,15 +77,42 @@ export const DeliveryPanel: React.FC = () => {
           <ClipboardList size={13} />
           <span>CONSOLIDATION DELIVERY REPORT</span>
         </div>
-        <button
-          onClick={() => setShowReport(!showReport)}
-          className="flex items-center space-x-1 text-[10px] font-mono text-gray-400 hover:text-white transition-colors"
-          title="Toggle the raw report text"
-        >
-          <span>{showReport ? 'Hide raw report' : 'Show raw report'}</span>
-          {showReport ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={copyFixPrompt}
+            disabled={!hasActionable}
+            className={`flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-semibold border transition-colors ${
+              copiedPrompt
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                : hasActionable
+                  ? 'bg-amber-500/10 hover:bg-amber-500/25 border-amber-500/30 text-amber-300'
+                  : 'bg-transparent border-[#2a2f42] text-gray-600 cursor-not-allowed'
+            }`}
+            title={hasActionable ? 'Copy a ready-to-paste repair prompt (paste it in the LLM Chat)' : 'Nothing to fix — no remaining issues'}
+          >
+            {copiedPrompt ? <Check size={11} /> : <Copy size={11} />}
+            <span>{copiedPrompt ? 'Copié' : 'Copier le prompt'}</span>
+          </button>
+          <button
+            onClick={() => setShowReport(!showReport)}
+            className="flex items-center space-x-1 text-[10px] font-mono text-gray-400 hover:text-white transition-colors"
+            title="Toggle the raw report text"
+          >
+            <span>{showReport ? 'Hide raw report' : 'Show raw report'}</span>
+            {showReport ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          </button>
+          <button
+            onClick={() => setReportOpen(true)}
+            className="flex items-center space-x-1 px-2 py-0.5 rounded bg-cyan-500/10 hover:bg-cyan-500/25 text-cyan-300 text-[10px] font-semibold border border-cyan-500/30 transition-colors"
+            title="Open the full delivery report in a popup"
+          >
+            <Maximize2 size={11} />
+            <span>Rapport</span>
+          </button>
+        </div>
       </div>
+
+      <DeliveryReportModal open={reportOpen} onClose={() => setReportOpen(false)} />
 
       {/* Token-economy budget (P2): what the run spent to prepare the terrain. */}
       {runUsage && (

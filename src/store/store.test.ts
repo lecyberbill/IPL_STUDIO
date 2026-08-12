@@ -232,6 +232,13 @@ describe('settingsSlice', () => {
     const proj = store.getState().projects.find(p => p.id === store.getState().activeProjectId)!;
     expect(proj.polyglotConfig?.autoDecide).toBe(false);
   });
+
+  it('formFactor defaults to cli and is updated by setFormFactor', () => {
+    const store = createTestStore();
+    expect(store.getState().formFactor).toBe('cli');
+    store.getState().setFormFactor('gui');
+    expect(store.getState().formFactor).toBe('gui');
+  });
 });
 
 describe('generationSlice', () => {

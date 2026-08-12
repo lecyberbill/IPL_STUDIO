@@ -41,6 +41,15 @@ export interface InvalidJson {
   suggestion: string;
 }
 
+export interface FormMismatch {
+  /** The file responsible (or `(project)` when the whole tree is wrong). */
+  file: string;
+  /** Short description of the mismatch, e.g. "web asset present for a CLI target". */
+  reason: string;
+  /** Human-readable hint on how to realign the tree with the chosen form. */
+  suggestion: string;
+}
+
 /**
  * Normalizes a relative path to forward slashes with no leading `./` or `/`.
  * `src/../lib` -> `lib`, `./entities` -> `entities`, `../a.js` -> `a.js`.
@@ -191,5 +200,123 @@ export function findInvalidJson(files: ProjectArtifactFile[]): InvalidJson[] {
       });
     }
   }
+  return issues;
+}
+
+const WEB_ASSET_RE = /\.html?$/i;
+const DOM_USE_RE = /document\.|window\.|getElementById|querySelector(All)?\s*\(|addEventListener\s*\(/;
+const CODE_EXT_RE = /\.(jsx?|tsx?|py|rs|go|cpp|c|h|sh|mjs|cjs)$/i;
+/** Signals a native desktop window / game loop (C++, Python, Rust, JS/Electron...). */
+const GUI_TOOLKIT_RE = /CreateWindow|WinMain|SDL_Init|SDL_CreateWindow|SDL_Renderer|GLFW|OpenGL|glut|SFML|\bsf::|wxWidgets|wxWindow|tkinter|\bTk\(|pygame|PyQt|QtWidgets|egui|eframe|winit|iced|slint|appkit|NSApplication|electron|from ['"]electron['"]/i;
+/** Signals a backend service that listens for requests (framework or explicit server start). */
+const SERVER_FRAMEWORK_RE = /FastAPI|uvicorn|Flask|Django|Express|Fastify|Koa|Hono|Starlette|Tornado|axum|actix|spring|listen\s*\(|app\.run\s*\(|uvicorn\.run|http\.Server|new\s+Server/i;
+
+/**
+ * Form-factor gate (P4) — deterministic (0 tokens). The model drifts toward
+ * browser apps for CLI specs (`index.html`, `public/`, DOM calls), and the
+ * same-model reviewer ratifies it. This gate READS the artifact and flags when
+ * the produced tree contradicts the user-chosen execution form:
+ *  - `cli`: any HTML asset or DOM/`window` usage is a mismatch.
+ *  - `web`: absence of any HTML entry is a mismatch.
+ *  - `gui`: browser assets or DOM usage are mismatches; so is a tree with no
+ *    native GUI-toolkit signal (the model fell back to CLI or nothing).
+ *  - `server`: browser assets or DOM usage are mismatches; so is a tree with
+ *    no server-framework signal (the model fell back to a CLI script).
+ *  - `library`: no check (module shape can't be asserted structurally here).
+ *  - `undefined`: no check (historical behavior preserved).
+ */
+export function findFormMismatches(files: ProjectArtifactFile[], formFactor?: 'cli' | 'web' | 'gui' | 'server' | 'library'): FormMismatch[] {
+  if (!formFactor || formFactor === 'library') return [];
+  const issues: FormMismatch[] = [];
+
+  if (formFactor === 'cli') {
+    for (const f of files) {
+      const p = f.relativePath.replace(/\\/g, '/');
+      if (WEB_ASSET_RE.test(p)) {
+        issues.push({
+          file: f.relativePath,
+          reason: 'web asset present for a CLI target',
+          suggestion: `"${f.relativePath}" is a browser asset (HTML/static) but the target is an autonomous CLI — remove it and rebuild as a headless console script`
+        });
+      }
+    }
+    if (issues.length === 0) {
+      for (const f of files) {
+        if (!CODE_EXT_RE.test(f.relativePath)) continue;
+        if (DOM_USE_RE.test(f.content)) {
+          issues.push({
+            file: f.relativePath,
+            reason: 'DOM/browser usage in a CLI target',
+            suggestion: `"${f.relativePath}" touches the browser DOM (document/window/getElementById/querySelector) but the target is an autonomous CLI — remove DOM code so it runs headless`
+          });
+          break;
+        }
+      }
+    }
+  } else if (formFactor === 'web') {
+    const hasHtml = files.some(f => WEB_ASSET_RE.test(f.relativePath.replace(/\\/g, '/')));
+    if (!hasHtml) {
+      issues.push({
+        file: '(project)',
+        reason: 'no HTML entry for a web target',
+        suggestion: 'the target is a web app but no index.html / .html / public/ asset was generated — provide an HTML entry point'
+      });
+    }
+  } else if (formFactor === 'gui') {
+    for (const f of files) {
+      const p = f.relativePath.replace(/\\/g, '/');
+      if (WEB_ASSET_RE.test(p)) {
+        issues.push({
+          file: f.relativePath,
+          reason: 'web asset present for a GUI target',
+          suggestion: `"${f.relativePath}" is a browser asset (HTML/static) but the target is a native windowed app — remove it and use a desktop GUI toolkit instead`
+        });
+      } else if (CODE_EXT_RE.test(p) && DOM_USE_RE.test(f.content)) {
+        issues.push({
+          file: f.relativePath,
+          reason: 'DOM/browser usage in a GUI target',
+          suggestion: `"${f.relativePath}" touches the browser DOM but the target is a native windowed app — use a desktop GUI toolkit instead`
+        });
+      }
+    }
+    if (issues.length === 0) {
+      const hasGui = files.some(f => CODE_EXT_RE.test(f.relativePath) && GUI_TOOLKIT_RE.test(f.content));
+      if (!hasGui) {
+        issues.push({
+          file: '(project)',
+          reason: 'no native GUI toolkit detected',
+          suggestion: 'the target is a native windowed app (C++/SDL, Python/tkinter-pygame, Rust/egui, JS/Electron...) but no GUI toolkit (CreateWindow/SDL/tkinter/pygame/egui/Electron...) is used — the model likely fell back to a CLI or plain script'
+        });
+      }
+    }
+  } else if (formFactor === 'server') {
+    for (const f of files) {
+      const p = f.relativePath.replace(/\\/g, '/');
+      if (WEB_ASSET_RE.test(p)) {
+        issues.push({
+          file: f.relativePath,
+          reason: 'web asset present for a server target',
+          suggestion: `"${f.relativePath}" is a browser asset (HTML/static) but the target is a headless backend service — remove it and serve the API only`
+        });
+      } else if (CODE_EXT_RE.test(p) && DOM_USE_RE.test(f.content)) {
+        issues.push({
+          file: f.relativePath,
+          reason: 'DOM/browser usage in a server target',
+          suggestion: `"${f.relativePath}" touches the browser DOM but the target is a headless backend service — remove DOM code`
+        });
+      }
+    }
+    if (issues.length === 0) {
+      const hasServer = files.some(f => CODE_EXT_RE.test(f.relativePath) && SERVER_FRAMEWORK_RE.test(f.content));
+      if (!hasServer) {
+        issues.push({
+          file: '(project)',
+          reason: 'no server framework detected',
+          suggestion: 'the target is a backend service but no server framework (FastAPI/Flask/Express/gin/axum...) and no listen()/app.run() was found — the model likely fell back to a CLI script that exits'
+        });
+      }
+    }
+  }
+
   return issues;
 }

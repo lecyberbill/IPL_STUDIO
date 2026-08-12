@@ -1,4 +1,4 @@
-import type { LLMConfig } from '../../engine/llmGenerator';
+import type { LLMConfig, FormFactor } from '../../engine/llmGenerator';
 import { DEFAULT_LLM_CONFIG } from '../../engine/llmGenerator';
 import type { CustomTarget, PolyglotConfig } from '../types';
 import type { StoreSlice } from '../types';
@@ -18,6 +18,8 @@ export interface SettingsSlice {
   hasSeenWelcome: boolean;
   /** Systematic pre-delivery consolidation agent (deterministic gates + LLM review + auto-fix). */
   consolidationEnabled: boolean;
+  /** Execution form factor (P4): CLI / web / library — pinned in the prompt and gated deterministically. */
+  formFactor: FormFactor;
   setPolyglotConfig: (config: PolyglotConfig) => void;
   togglePolyglotModal: () => void;
   addCustomTarget: (target: Omit<CustomTarget, 'id'>) => void;
@@ -31,6 +33,7 @@ export interface SettingsSlice {
   setLeftSidebarWidth: (width: number) => void;
   setRightSidebarWidth: (width: number) => void;
   toggleConsolidation: () => void;
+  setFormFactor: (formFactor: FormFactor) => void;
 }
 
 export const settingsSlice: StoreSlice<SettingsSlice> = (set, get) => ({
@@ -46,6 +49,7 @@ export const settingsSlice: StoreSlice<SettingsSlice> = (set, get) => ({
   rightSidebarWidth: DEFAULT_LAYOUT.rightSidebarWidth,
   hasSeenWelcome: false,
   consolidationEnabled: true,
+  formFactor: 'cli',
 
   setPolyglotConfig: (config) => set((state) => ({
     polyglotConfig: config,
@@ -83,5 +87,7 @@ export const settingsSlice: StoreSlice<SettingsSlice> = (set, get) => ({
   setLeftSidebarWidth: (w) => set({ leftSidebarWidth: Math.max(160, Math.min(650, w)) }),
   setRightSidebarWidth: (w) => set({ rightSidebarWidth: Math.max(260, Math.min(950, w)) }),
 
-  toggleConsolidation: () => set((state) => ({ consolidationEnabled: !state.consolidationEnabled }))
+  toggleConsolidation: () => set((state) => ({ consolidationEnabled: !state.consolidationEnabled })),
+
+  setFormFactor: (formFactor) => set({ formFactor })
 });

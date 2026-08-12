@@ -55,7 +55,8 @@ export const useIdeStore = create<IDEState>()(
         customTargets: state.customTargets,
         hasSeenWelcome: state.hasSeenWelcome,
         leftSidebarWidth: state.leftSidebarWidth,
-        rightSidebarWidth: state.rightSidebarWidth
+        rightSidebarWidth: state.rightSidebarWidth,
+        formFactor: state.formFactor
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {

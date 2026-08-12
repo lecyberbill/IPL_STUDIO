@@ -1,6 +1,6 @@
 import React from 'react';
 import { useIdeStore } from '../store/useIdeStore';
-import type { TargetLanguage } from '../engine/llmGenerator';
+import type { TargetLanguage, FormFactor } from '../engine/llmGenerator';
 import { 
   Play, 
   Settings, 
@@ -35,7 +35,9 @@ export const Navbar: React.FC = () => {
     exportProject,
     customTargets,
     polyglotConfig,
-    togglePolyglotModal
+    togglePolyglotModal,
+    formFactor,
+    setFormFactor
   } = useIdeStore();
 
   return (
@@ -169,6 +171,25 @@ export const Navbar: React.FC = () => {
               <span>{polyglotConfig.autoDecide ? 'Auto Polyglot' : `${polyglotConfig.layers.length} Component(s)`}</span>
             </button>
           )}
+
+          <div className="h-5 w-[1px] bg-[#2a2f42]" />
+
+          {/* Execution Form Factor Selector (P4): pins the generated app to CLI / web / library */}
+          <div className="flex items-center space-x-2">
+            <span className="text-xs text-gray-400 font-medium">Forme:</span>
+            <select
+              value={formFactor}
+              onChange={(e) => setFormFactor(e.target.value as FormFactor)}
+              className="bg-[#0f1117] border border-[#2a2f42] rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 cursor-pointer font-mono"
+              title="Execution form: pin the generated app to a CLI / web / library so the model does not drift to a web app for a console spec"
+            >
+              <option value="cli" className="bg-[#161922]">🖥️ CLI autonome</option>
+              <option value="web" className="bg-[#161922]">🌐 Web app</option>
+              <option value="gui" className="bg-[#161922]">🪟 Appli avec UI (bureau / jeu)</option>
+              <option value="server" className="bg-[#161922]">🔌 Serveur / API</option>
+              <option value="library" className="bg-[#161922]">📦 Bibliothèque</option>
+            </select>
+          </div>
         </div>
       </div>
 

@@ -91,6 +91,31 @@ export function recordTokenUsage(
 
 export type TargetLanguage = 'polyglot' | 'rust' | 'python' | 'javascript' | 'go' | 'cpp' | 'html' | 'pll' | string;
 
+/**
+ * Execution form factor of the generated project (P4): the model drifts toward
+ * web apps for CLI-ish specs unless the prompt pins the form explicitly.
+ * `undefined` keeps the historical behavior (no form directive).
+ */
+export type FormFactor = 'cli' | 'web' | 'gui' | 'server' | 'library';
+
+/** Returns the form-factor directive block ('' when no form is requested). */
+export function buildFormDirective(formFactor?: FormFactor): string {
+  switch (formFactor) {
+    case 'cli':
+      return 'EXECUTION FORM: a standalone command-line executable. NO web server, NO DOM, NO browser APIs (document/window), NO app.run. It must run headless and print its output to stdout/console.';
+    case 'web':
+      return 'EXECUTION FORM: a browser web application. Provide an index.html entry (or public/ assets) and client-side code; a headless CLI is NOT required.';
+    case 'gui':
+      return 'EXECUTION FORM: a native desktop application WITH A WINDOW (a windowed program or a game with a loop). NOT a CLI script, NOT a browser app. Use the platform GUI toolkit (Win32/SDL/OpenGL/SFML for C++, tkinter/pygame for Python, egui/winit/eframe for Rust, Electron for JS) and open a real window / game loop.';
+    case 'server':
+      return 'EXECUTION FORM: a backend service / API server with NO browser UI (no index.html, no DOM). Provide a server that listens on a port and exposes routes/endpoints (FastAPI/uvicorn/Flask for Python, Express/Fastify for Node, gin/echo for Go, axum/actix for Rust). It must START and serve requests — a CLI script that exits is NOT acceptable.';
+    case 'library':
+      return 'EXECUTION FORM: a reusable library/module. Export functions and classes; do NOT execute side effects at import time and provide NO runnable entry point.';
+    default:
+      return '';
+  }
+}
+
 export interface ProjectTopology {
   projectName: string;
   targetLang: string;
@@ -329,20 +354,28 @@ export async function callLLM(
 }
 
 /**
- * Builds the per-target stack instruction used by both passes.
+ * Builds the per-target stack instruction used by both passes. When a form
+ * factor is provided, its directive is appended so the model cannot drift
+ * toward a web app for a CLI spec (P4).
  */
 export function buildLangInstruction(
   targetLang: TargetLanguage,
-  polyglotConfig?: { autoDecide: boolean; layers: Array<{ role: string; tech: string }> }
+  polyglotConfig?: { autoDecide: boolean; layers: Array<{ role: string; tech: string }> },
+  formFactor?: FormFactor
 ): string {
+  let base: string;
   if (targetLang === 'polyglot') {
     if (polyglotConfig && !polyglotConfig.autoDecide && polyglotConfig.layers.length > 0) {
       const layersList = polyglotConfig.layers.map(l => `- Component/Role "${l.role}": ${l.tech}`).join('\n');
-      return `Target Polyglot Stack Architecture:\n${layersList}\nProvide clean, decoupled multi-file source code for each specified component layer!`;
+      base = `Target Polyglot Stack Architecture:\n${layersList}\nProvide clean, decoupled multi-file source code for each specified component layer!`;
+    } else {
+      base = 'Select ONE cohesive architecture stack (e.g., Frontend UI in HTML5/JS/Tailwind, or Python/Node/Rust backend service) that best fulfills the IPL specification. Build ONE single, complete, production-ready application. Do NOT output multiple redundant implementations in different languages!';
     }
-    return 'Select ONE cohesive architecture stack (e.g., Frontend UI in HTML5/JS/Tailwind, or Python/Node/Rust backend service) that best fulfills the IPL specification. Build ONE single, complete, production-ready application. Do NOT output multiple redundant implementations in different languages!';
+  } else {
+    base = `Target language: ${targetLang.toUpperCase()}. Generate clean, production-ready code for this specific ecosystem.`;
   }
-  return `Target language: ${targetLang.toUpperCase()}. Generate clean, production-ready code for this specific ecosystem.`;
+  const form = buildFormDirective(formFactor);
+  return form ? `${base}\n\n${form}` : base;
 }
 
 /**
@@ -351,12 +384,13 @@ export function buildLangInstruction(
 export function buildPass1Prompt(
   iplCode: string,
   targetLang: TargetLanguage,
-  polyglotConfig?: { autoDecide: boolean; layers: Array<{ role: string; tech: string }> }
+  polyglotConfig?: { autoDecide: boolean; layers: Array<{ role: string; tech: string }> },
+  formFactor?: FormFactor
 ): string {
   return `You are a Lead Software Architect.
 
 TARGET STACK:
-${buildLangInstruction(targetLang, polyglotConfig)}
+${buildLangInstruction(targetLang, polyglotConfig, formFactor)}
 
 BUSINESS REQUIREMENTS (Structured Pseudo-Code):
 \`\`\`
@@ -386,13 +420,14 @@ export function buildPass2Prompt(
   iplCode: string,
   targetLang: TargetLanguage,
   topologyJsonStr: string,
-  polyglotConfig?: { autoDecide: boolean; layers: Array<{ role: string; tech: string }> }
+  polyglotConfig?: { autoDecide: boolean; layers: Array<{ role: string; tech: string }> },
+  formFactor?: FormFactor
 ): string {
   return `You are a Senior Full-Stack Software Engineer.
 Build a complete, production-ready software application that directly fulfills the business requirements described in the structured pseudo-code below.
 
 1. TARGET STACK:
-${buildLangInstruction(targetLang, polyglotConfig)}
+${buildLangInstruction(targetLang, polyglotConfig, formFactor)}
 
 2. BUSINESS REQUIREMENTS (Structured Pseudo-Code):
 \`\`\`
@@ -424,13 +459,14 @@ export async function generateIPL(
   onLog: (msg: string, type: 'info' | 'success' | 'warn' | 'error') => void,
   onStreamChunk?: (accumulatedText: string) => void,
   polyglotConfig?: { autoDecide: boolean; layers: Array<{ role: string; tech: string }> },
-  usage?: TokenUsageHook
+  usage?: TokenUsageHook,
+  formFactor?: FormFactor
 ): Promise<string> {
   onLog(`🚀 Starting the 2-Pass LLM Code Generator for target: [${targetLang.toUpperCase()}]...`, 'info');
 
   // PASS 1: Topology Analysis
   onLog('Pass 1: Analyzing project topology & multi-file structure...', 'info');
-  const pass1Prompt = buildPass1Prompt(iplCode, targetLang, polyglotConfig);
+  const pass1Prompt = buildPass1Prompt(iplCode, targetLang, polyglotConfig, formFactor);
 
   let topologyJsonStr = '';
   try {
@@ -441,7 +477,7 @@ export async function generateIPL(
 
   // PASS 2: Complete Code Generation
   onLog('Pass 2: Generating full multi-file source code with XML tagging...', 'info');
-  const pass2Prompt = buildPass2Prompt(iplCode, targetLang, topologyJsonStr, polyglotConfig);
+  const pass2Prompt = buildPass2Prompt(iplCode, targetLang, topologyJsonStr, polyglotConfig, formFactor);
 
   const generatedArtifact = await callLLM(pass2Prompt, config, onLog, onStreamChunk, { usage });
   onLog('🎉 2-Pass generation completed successfully!', 'success');

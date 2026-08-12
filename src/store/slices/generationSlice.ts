@@ -7,7 +7,7 @@ import { applyDeterministicRepairs } from '../../engine/deterministicRepair';
 import { consolidateArtifact } from '../../engine/consolidationAgent';
 import type { ConsolidationResult } from '../../engine/consolidationAgent';
 import { createRunTokenUsage } from '../../engine/llmGenerator';
-import type { RunTokenUsage } from '../../engine/llmGenerator';
+import type { RunTokenUsage, FormFactor } from '../../engine/llmGenerator';
 import { defaultOutputDir } from '../../engine/paths';
 import type { ClarificationRequest } from '../types';
 import type { StoreSlice } from '../types';
@@ -39,7 +39,8 @@ async function runConsolidation(
   xml: string,
   targetLang: any,
   llmConfig: any,
-  usage: RunTokenUsage
+  usage: RunTokenUsage,
+  formFactor?: FormFactor
 ): Promise<{ xml: string; changed: boolean }> {
   const { addLog, consolidationEnabled } = get();
   if (!consolidationEnabled) {
@@ -51,7 +52,8 @@ async function runConsolidation(
   const result = await consolidateArtifact(xml, targetLang, llmConfig, {
     onLog: (msg, type) => addLog(msg, type),
     systematicReview: true,
-    usage: { usage, bucket: 'consolidation' }
+    usage: { usage, bucket: 'consolidation' },
+    formFactor
   });
   get().setConsolidationResult(result);
   if (result.changed) {
@@ -83,7 +85,7 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
   clearGenerationError: () => set({ generationError: null }),
 
   runGeneration: async () => {
-    const { code, targetLang, llmConfig, polyglotConfig, addLog, projects, activeProjectId } = get();
+    const { code, targetLang, llmConfig, polyglotConfig, addLog, projects, activeProjectId, formFactor } = get();
     const activeProj = projects.find(p => p.id === activeProjectId);
     // P2: a fresh run accumulator — spec tokens from the active editor buffer.
     const runUsage = createRunTokenUsage(code.length);
@@ -136,12 +138,13 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
           set({ generatedCode: streamChunkText });
         },
         polyglotConfig,
-        { usage: runUsage, bucket: 'generation' }
+        { usage: runUsage, bucket: 'generation' },
+        formFactor
       );
 
       // Delivery gate: consolidation agent (deterministic gates + systematic
       // LLM review + auto-fix) runs BEFORE the project is handed to the user.
-      const consolidated = await runConsolidation(get, result, targetLang, llmConfig, runUsage);
+      const consolidated = await runConsolidation(get, result, targetLang, llmConfig, runUsage, formFactor);
       set({ generatedCode: consolidated.xml, isGenerating: false, generationError: null, runUsage: { ...runUsage } });
       await get().writeArtifactToDisk();
     } catch (err: any) {
@@ -154,7 +157,7 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
   },
 
   requestLLMCorrection: async (userPrompt: string) => {
-    const { generatedCode, targetLang, llmConfig, addLog, code } = get();
+    const { generatedCode, targetLang, llmConfig, addLog, code, formFactor } = get();
     if (!userPrompt.trim()) return { textReply: '', codeChanged: false };
 
     set({ isGenerating: true });
@@ -183,7 +186,7 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
         const newXmlCode = updatedFiles.map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`).join('\n\n');
 
         // Re-run the delivery-gate consolidation after a user-driven correction.
-        const consolidated = await runConsolidation(get, newXmlCode, targetLang, llmConfig, runUsage);
+        const consolidated = await runConsolidation(get, newXmlCode, targetLang, llmConfig, runUsage, formFactor);
         set({ generatedCode: consolidated.xml, isGenerating: false, runUsage: { ...runUsage } });
         await get().writeArtifactToDisk();
 

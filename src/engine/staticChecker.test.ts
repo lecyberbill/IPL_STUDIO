@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findMissingModuleRefs, normalizeRelative, resolveCandidates, extractRelativeImports } from './staticChecker';
+import { findMissingModuleRefs, findFormMismatches, normalizeRelative, resolveCandidates, extractRelativeImports } from './staticChecker';
 import type { ProjectArtifactFile } from './artifactGenerator';
 
 const file = (relativePath: string, content: string): ProjectArtifactFile => ({ relativePath, content });
@@ -102,5 +102,96 @@ describe('findMissingModuleRefs', () => {
     expect(missing.length).toBe(1);
     expect(missing[0].resolved).toBe('src/models/config.py');
     expect(missing[0].specifier).toBe('.config');
+  });
+});
+
+describe('findFormMismatches (P4 form-factor gate)', () => {
+  it('flags an HTML asset for a CLI target', () => {
+    const issues = findFormMismatches(
+      [file('index.html', '<html><body>hi</body></html>'), file('src/app.js', 'console.log(1);')],
+      'cli'
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0].file).toBe('index.html');
+    expect(issues[0].reason).toContain('web asset');
+  });
+
+  it('flags DOM usage in a CLI target when no web asset exists', () => {
+    const issues = findFormMismatches(
+      [file('src/app.js', 'document.getElementById("app").textContent = "hi";')],
+      'cli'
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0].reason).toContain('DOM/browser usage');
+  });
+
+  it('accepts a clean headless console script', () => {
+    const issues = findFormMismatches(
+      [file('index.js', 'const total = 100 * 1.2; console.log(total);')],
+      'cli'
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it('flags a missing HTML entry for a web target', () => {
+    const issues = findFormMismatches([file('src/app.js', 'console.log(1);')], 'web');
+    expect(issues).toHaveLength(1);
+    expect(issues[0].reason).toContain('no HTML entry');
+  });
+
+  it('accepts a web tree with an HTML entry', () => {
+    const issues = findFormMismatches([file('index.html', '<html>app</html>'), file('src/app.js', 'console.log(1);')], 'web');
+    expect(issues).toEqual([]);
+  });
+
+  it('performs no check when formFactor is undefined or library', () => {
+    expect(findFormMismatches([file('index.html', '<html>app</html>')], undefined)).toEqual([]);
+    expect(findFormMismatches([file('index.html', '<html>app</html>')], 'library')).toEqual([]);
+  });
+
+  it('flags a web asset and DOM usage for a GUI target', () => {
+    const web = findFormMismatches([file('index.html', '<html></html>'), file('src/app.js', 'SDL_Init();')], 'gui');
+    expect(web[0].file).toBe('index.html');
+    expect(web[0].reason).toContain('GUI target');
+
+    const dom = findFormMismatches([file('src/app.js', 'document.getElementById("a").textContent = "x";')], 'gui');
+    expect(dom).toHaveLength(1);
+    expect(dom[0].reason).toContain('DOM/browser usage');
+  });
+
+  it('flags a GUI target that never opens a window (model fell back to CLI/script)', () => {
+    const issues = findFormMismatches([file('main.cpp', 'int main() { std::cout << "hi"; return 0; }')], 'gui');
+    expect(issues).toHaveLength(1);
+    expect(issues[0].reason).toContain('no native GUI toolkit detected');
+  });
+
+  it('accepts a GUI tree that uses a native toolkit', () => {
+    const cpp = findFormMismatches([file('main.cpp', 'SDL_Init(SDL_INIT_VIDEO); SDL_CreateWindow("Snake", 640, 480);')], 'gui');
+    expect(cpp).toEqual([]);
+    const py = findFormMismatches([file('main.py', 'import pygame; pygame.init();')], 'gui');
+    expect(py).toEqual([]);
+  });
+
+  it('flags a web asset and DOM usage for a server target', () => {
+    const web = findFormMismatches([file('index.html', '<html></html>'), file('src/main.py', 'uvicorn.run(app);')], 'server');
+    expect(web[0].file).toBe('index.html');
+    expect(web[0].reason).toContain('server target');
+
+    const dom = findFormMismatches([file('src/main.js', 'document.body.innerHTML = "x"; express();')], 'server');
+    expect(dom).toHaveLength(1);
+    expect(dom[0].reason).toContain('DOM/browser usage');
+  });
+
+  it('flags a server target that never starts a server (model fell back to CLI)', () => {
+    const issues = findFormMismatches([file('main.py', 'print("hi")')], 'server');
+    expect(issues).toHaveLength(1);
+    expect(issues[0].reason).toContain('no server framework detected');
+  });
+
+  it('accepts a server tree that listens on a port', () => {
+    const py = findFormMismatches([file('main.py', 'from fastapi import FastAPI\napp = FastAPI()\nuvicorn.run(app);')], 'server');
+    expect(py).toEqual([]);
+    const js = findFormMismatches([file('index.js', 'const express = require("express"); const app = express(); app.listen(3000);')], 'server');
+    expect(js).toEqual([]);
   });
 });

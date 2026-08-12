@@ -3,12 +3,13 @@ import { useIdeStore } from '../store/useIdeStore';
 import { TerminalPanel } from './TerminalPanel';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
 import { DeliveryPanel } from './DeliveryPanel';
-import { Terminal, Trash2, Info, CheckCircle2, AlertTriangle, AlertCircle, ChevronUp, ChevronDown, ListChecks, PackageCheck } from 'lucide-react';
+import { Terminal, Trash2, Info, CheckCircle2, AlertTriangle, AlertCircle, ChevronUp, ChevronDown, ListChecks, PackageCheck, Maximize2, Minimize2 } from 'lucide-react';
 
 export const ConsolePanel: React.FC = () => {
   const { logs, clearLogs, syntaxErrors, consolidationResult } = useIdeStore();
   const [activeTab, setActiveTab] = useState<'terminal' | 'diagnostics' | 'delivery' | 'logs'>('terminal');
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
+  const [isMaximized, setIsMaximized] = useState<boolean>(false);
 
   const deliveryRemaining = consolidationResult?.confirmedIssues.length ?? 0;
 
@@ -97,12 +98,20 @@ export const ConsolePanel: React.FC = () => {
           >
             {isExpanded ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
           </button>
+
+          <button
+            onClick={() => { setIsMaximized(!isMaximized); setIsExpanded(true); }}
+            className={`p-1 rounded transition-colors ${isMaximized ? 'text-cyan-400 hover:text-cyan-300' : 'text-gray-400 hover:text-white hover:bg-[#2a2f42]'}`}
+            title={isMaximized ? 'Restore console height' : 'Maximize console height (read reports in detail)'}
+          >
+            {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          </button>
         </div>
       </div>
 
       {/* Expanded Console Body */}
       {isExpanded && (
-        <div className="h-44 bg-[#0b0d13] overflow-hidden">
+        <div className={`${isMaximized ? 'h-[55vh]' : 'h-44'} bg-[#0b0d13] overflow-hidden`}>
           {activeTab === 'terminal' ? (
             <TerminalPanel />
           ) : activeTab === 'diagnostics' ? (
