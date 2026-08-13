@@ -51,7 +51,9 @@ async function runConsolidation(
   addLog('Running consolidation agent (deterministic gates + LLM review before delivery)...', 'info');
   const result = await consolidateArtifact(xml, targetLang, llmConfig, {
     onLog: (msg, type) => addLog(msg, type),
-    systematicReview: true,
+    // P6: adaptive — the LLM review + auto-fix only run when a deterministic
+    // gate fired; a clean tree is delivered on the 0-token gates alone.
+    systematicReview: 'adaptive',
     usage: { usage, bucket: 'consolidation' },
     formFactor
   });

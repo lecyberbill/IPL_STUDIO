@@ -9,10 +9,12 @@
  *  - A reviewer that hallucinates is worse than none: every LLM finding must be
  *    confirmed against a deterministic gate (imports cross-checked against the
  *    generated file set) before it is acted on.
- *  - The review is SYSTEMATIC — it runs on every generation, even when the
- *    deterministic gates are clean, because the LLM sees holes regex cannot
- *    (dead code, unreachable entry point, swallowed errors). On average across
- *    many projects the cost is amortized by the fixes it prevents.
+ *  - The review is ADAPTIVE (P6, data-driven: an A/B showed the systematic
+ *    review cost ~3.5× generation without improving the bench pass rate) — the
+ *    LLM review + auto-fix run only when a deterministic gate (imports/JSON/
+ *    form/IPL/patch) fired. A clean tree is delivered on the 0-token gates
+ *    alone; `true`/`false` still force/disable the review for callers that want
+ *    to override (e.g. the benchmark).
  *  - Output is a delivery report: what was found, what was auto-fixed, what
  *    still needs human judgment.
  *
@@ -35,8 +37,14 @@ import type { ReviewIssue } from './reviewAgent.ts';
 export interface ConsolidationOptions {
   /** Max review→fix loops (each costs LLM tokens). Default 2. */
   maxConsolidationPasses?: number;
-  /** Force the systematic LLM review even when deterministic gates are clean. Default true. */
-  systematicReview?: boolean;
+  /**
+   * Review mode (P6 — data-driven: the systematic review cost ~3.5× generation
+   * without improving the bench pass rate). Default `'adaptive'`: the LLM
+   * review + auto-fix only run when a deterministic gate (imports/JSON/form/IPL/
+   * patch) fired. `true` forces the systematic review on every tree; `false`
+   * never runs it (deterministic gates only).
+   */
+  systematicReview?: boolean | 'adaptive';
   onLog?: (msg: string, type: 'info' | 'success' | 'warn' | 'error') => void;
   timeoutPerPassMs?: number;
   /** Token-usage hook (P2): consolidation review + fix passes are counted here. */
@@ -156,7 +164,6 @@ export async function consolidateArtifact(
   options: ConsolidationOptions = {}
 ): Promise<ConsolidationResult> {
   const maxPasses = options.maxConsolidationPasses ?? 2;
-  const systematic = options.systematicReview ?? true;
   const log = options.onLog ?? (() => {});
   // P3: the review runs on the independent reviewer config when one is set
   // (cross-endpoint possible); the auto-fix keeps the generator config.
@@ -171,9 +178,26 @@ export async function consolidateArtifact(
   let iplIssues = findIplLeakage(files);
   let patchIssues = findPatchLeakage(files);
 
-  // 2. Systematic LLM review.
+  // 2. Adaptive LLM review (P6): run it only when a deterministic gate fired —
+  //    on a clean tree the 0-token gates are the verdict, no review tokens spent.
+  const mode = options.systematicReview ?? 'adaptive';
+  const formToFindings = (fi: FormMismatch[]) =>
+    fi.map(f => ({ kind: 'static' as const, file: f.file, message: f.suggestion, severity: 'error' as const }));
+  const iplToFindings = (li: IplLeakage[]) =>
+    li.map(f => ({ kind: 'static' as const, file: f.file, message: f.suggestion, severity: 'error' as const }));
+  const patchToFindings = (pi: PatchLeakage[]) =>
+    pi.map(f => ({ kind: 'static' as const, file: f.file, message: f.suggestion, severity: 'error' as const }));
+  const deterministicFindings = [
+    ...formToFindings(formIssues),
+    ...iplToFindings(iplIssues),
+    ...patchToFindings(patchIssues),
+    ...mergeFindings(staticIssues, jsonIssues, [])
+  ];
+  const shouldReview = mode === true || (mode === 'adaptive' && deterministicFindings.some(f => f.severity === 'error'));
+  let reviewRan = false;
   let reviewIssues: ReviewIssue[] = [];
-  if (systematic) {
+  if (shouldReview) {
+    reviewRan = true;
     try {
       const raw = await callLLM(buildReviewPrompt(files), reviewCfg, () => {}, undefined, {
         temperature: 0.1,
@@ -197,18 +221,10 @@ export async function consolidateArtifact(
       confirmedIssues.push(f);
     }
   };
-  const formToFindings = (fi: FormMismatch[]) =>
-    fi.map(f => ({ kind: 'static' as const, file: f.file, message: f.suggestion, severity: 'error' as const }));
-  const iplToFindings = (li: IplLeakage[]) =>
-    li.map(f => ({ kind: 'static' as const, file: f.file, message: f.suggestion, severity: 'error' as const }));
-  const patchToFindings = (pi: PatchLeakage[]) =>
-    pi.map(f => ({ kind: 'static' as const, file: f.file, message: f.suggestion, severity: 'error' as const }));
 
   let findings = [
-    ...formToFindings(formIssues),
-    ...iplToFindings(iplIssues),
-    ...patchToFindings(patchIssues),
-    ...mergeFindings(staticIssues, jsonIssues, reviewIssues)
+    ...deterministicFindings,
+    ...mergeFindings([], [], reviewIssues)
   ];
   let errorFindings = findings.filter(f => f.severity === 'error');
   for (const f of errorFindings) pushConfirmed(f);
@@ -241,7 +257,7 @@ export async function consolidateArtifact(
       iplIssues = findIplLeakage(files);
       patchIssues = findPatchLeakage(files);
       let newReview: ReviewIssue[] = [];
-      if (systematic) {
+      if (reviewRan) {
         try {
           const raw = await callLLM(buildReviewPrompt(files), reviewCfg, () => {}, undefined, {
             temperature: 0.1,
@@ -270,7 +286,20 @@ export async function consolidateArtifact(
   }
 
   // 5. Delivery report.
-  const report = buildDeliveryReport(files, staticIssues, jsonIssues, reviewIssues, confirmedIssues, passesUsed, changed, formIssues, options.formFactor, reviewerLabel(config), iplIssues, patchIssues);
+  const report = buildDeliveryReport(
+    files,
+    staticIssues,
+    jsonIssues,
+    reviewIssues,
+    confirmedIssues,
+    passesUsed,
+    changed,
+    formIssues,
+    options.formFactor,
+    reviewRan ? reviewerLabel(config) : 'skipped (deterministic gates clean — 0 tokens)',
+    iplIssues,
+    patchIssues
+  );
   return { files, staticIssues, jsonIssues, formIssues, iplIssues, patchIssues, reviewIssues, confirmedIssues, passesUsed, changed, report };
 }
 

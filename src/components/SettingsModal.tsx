@@ -526,9 +526,9 @@ export const SettingsModal: React.FC = () => {
                   Consolidation Agent (pre-delivery review)
                 </label>
                 <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">
-                  Deterministic import gates + systematic LLM review + auto-fix before the
-                  generated project is handed to you. Costs extra tokens per generation,
-                  amortized across projects by the fixes it prevents.
+                  Deterministic 0-token gates (imports, JSON, form, spec/IPL, patch markers)
+                  always run. The LLM review + auto-fix are ADAPTIVE: they only run when a
+                  gate fires — a clean tree is delivered almost for free.
                 </p>
               </div>
               <button

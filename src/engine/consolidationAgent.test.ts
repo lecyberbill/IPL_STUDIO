@@ -240,6 +240,34 @@ describe('form-factor gate in consolidation (P4)', () => {
   });
 });
 
+describe('adaptive review (P6)', () => {
+  it('skips the LLM review on a clean tree (default adaptive)', async () => {
+    mocks.callLLM.mockResolvedValue('{ "issues": [] }');
+    const xml = filesToXml([file('src/index.js', 'console.log("hi");')]);
+    const result = await consolidateArtifact(xml, 'javascript', llmConfig);
+    expect(mocks.callLLM).not.toHaveBeenCalled();
+    expect(result.reviewIssues).toEqual([]);
+    expect(result.confirmedIssues).toEqual([]);
+    expect(result.report).toContain('skipped (deterministic gates clean');
+  });
+
+  it('runs the LLM review when a deterministic gate fires (adaptive)', async () => {
+    mocks.callLLM.mockResolvedValue('{ "issues": [] }');
+    mocks.refineIPLArtifact.mockResolvedValue('<file path="src/index.js">\nconsole.log(1);\n</file>');
+    const xml = filesToXml([file('index.html', '<html></html>'), file('src/index.js', 'console.log("hi");')]);
+    const result = await consolidateArtifact(xml, 'javascript', llmConfig, { formFactor: 'cli' });
+    expect(mocks.callLLM).toHaveBeenCalled();
+    expect(result.formIssues).toHaveLength(1);
+  });
+
+  it('forces the systematic review with systematicReview: true', async () => {
+    mocks.callLLM.mockResolvedValue('{ "issues": [] }');
+    const xml = filesToXml([file('src/index.js', 'console.log("hi");')]);
+    await consolidateArtifact(xml, 'javascript', llmConfig, { systematicReview: true });
+    expect(mocks.callLLM).toHaveBeenCalled();
+  });
+});
+
 describe('independent reviewer (P3)', () => {
   it('runs the review on the reviewer config when one is configured', async () => {
     mocks.callLLM.mockResolvedValue('{ "issues": [] }');
