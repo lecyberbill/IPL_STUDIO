@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
 import { reviewerLabel } from '../engine/llmGenerator';
 import type { LLMConfig, ReviewerConfig } from '../engine/llmGenerator';
+import { TOOLCHAIN_KEYS, DEFAULT_TOOL_NAMES } from '../engine/toolchains';
 import { Settings, X, Server, Key, ShieldCheck, Plus, Trash2, Code2, Cpu, RefreshCw } from 'lucide-react';
 
 interface ProviderPreset {
@@ -80,7 +81,9 @@ export const SettingsModal: React.FC = () => {
     addCustomTarget,
     deleteCustomTarget,
     consolidationEnabled,
-    toggleConsolidation
+    toggleConsolidation,
+    toolchains,
+    setToolchains
   } = useIdeStore();
 
   const [newTargetName, setNewTargetName] = useState('');
@@ -637,6 +640,31 @@ export const SettingsModal: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Toolchains — optional explicit runtime paths (smoke test + run command) */}
+          <div className="bg-[#0f1117] p-3.5 rounded-lg border border-[#2a2f42]">
+            <label className="block text-gray-300 font-bold text-xs mb-1">
+              Toolchains (chemins d'exécutables)
+            </label>
+            <p className="text-[10px] text-gray-500 mb-3 leading-tight">
+              Optionnel — chemins explicites vers les runtimes cibles (venv python, toolchains custom…).
+              Vides = détection PATH. Utilisés par le smoke test (syntaxe + exécution) et la commande de lancement.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {TOOLCHAIN_KEYS.map((key) => (
+                <div key={key}>
+                  <label className="block text-[10px] text-gray-400 mb-0.5 font-mono">{key}</label>
+                  <input
+                    type="text"
+                    value={toolchains[key] || ''}
+                    onChange={(e) => setToolchains({ ...toolchains, [key]: e.target.value.trim() || undefined })}
+                    className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-cyan-300 text-xs focus:outline-none focus:border-cyan-500"
+                    placeholder={`défaut: ${DEFAULT_TOOL_NAMES[key]}`}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
 import { summarizeConsolidation, buildDeliveryFixPrompt } from '../engine/consolidationAgent';
 import type { ConsolidationResult } from '../engine/consolidationAgent';
+import { defaultOutputDir } from '../engine/paths';
+import { apiFetch } from '../services/api';
 import { DeliveryReportModal } from './DeliveryReportModal';
 import { CheckCircle2, AlertTriangle, AlertCircle, Search, Wrench, ClipboardList, ChevronDown, ChevronUp, FileSearch, PackageCheck, Maximize2, Copy, Check } from 'lucide-react';
 
@@ -26,6 +28,8 @@ export const DeliveryPanel: React.FC = () => {
   const [showReport, setShowReport] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [installingTool, setInstallingTool] = useState<string | null>(null);
+  const [installMsg, setInstallMsg] = useState('');
 
   const result = consolidationResult ?? EMPTY;
   const { found, fixed, remaining, warnings } = summarizeConsolidation(result);
@@ -38,6 +42,35 @@ export const DeliveryPanel: React.FC = () => {
     setActivePanelTab('files');
     setSelectedFilePath(file);
     addLog(`Delivery: opened "${file}" in the generated-files viewer.`, 'info');
+  };
+
+  /** Runs a toolchain install command AFTER an explicit user confirmation. */
+  const installTool = async (tool: string, installCommand: string) => {
+    const confirmed = window.confirm(
+      `Il me manque "${tool}" pour vérifier l'exécution de votre application.\n\nCommande d'installation proposée :\n${installCommand}\n\nInstaller cet outil système maintenant ?`
+    );
+    if (!confirmed) return;
+    setInstallingTool(tool);
+    setInstallMsg('');
+    try {
+      const proj = useIdeStore.getState().projects.find(p => p.id === useIdeStore.getState().activeProjectId);
+      const outputDir = proj?.outputDir || defaultOutputDir(proj?.name || 'my_project');
+      const response = await apiFetch('/api/run-command', {
+        method: 'POST',
+        body: JSON.stringify({ command: installCommand, cwd: outputDir })
+      });
+      const text = await response.text();
+      if (response.status === 403) {
+        setInstallMsg(`⛔ Install blocked by security: ${text}`);
+      } else {
+        setInstallMsg(text.slice(0, 400) || '(install finished)');
+        addLog(`[Smoke] Toolchain install: ${tool}`, response.status === 200 ? 'success' : 'warn');
+      }
+    } catch (err: any) {
+      setInstallMsg(`Install failed: ${err.message}`);
+    } finally {
+      setInstallingTool(null);
+    }
   };
 
   const copyFixPrompt = async () => {
@@ -114,17 +147,42 @@ export const DeliveryPanel: React.FC = () => {
 
       <DeliveryReportModal open={reportOpen} onClose={() => setReportOpen(false)} />
 
-      {/* Runtime smoke test (deterministic syntax checks) */}
+      {/* Runtime smoke test (deterministic syntax + bounded execution) */}
       {smokeResult && (
         <div className={`px-3 py-1.5 border-b border-[#2a2f42] font-mono text-[10px] flex items-center space-x-2 select-text ${smokeResult.passed ? 'bg-emerald-500/5' : 'bg-rose-500/10'}`}>
           <span className={smokeResult.passed ? 'text-emerald-300' : 'text-rose-300'}>
             {smokeResult.passed ? '✅' : '⛔'} Smoke test: {smokeResult.files.filter(f => f.ok).length}/{smokeResult.files.length} syntax OK
+            {smokeResult.execution && (smokeResult.execution.ok ? ' · exécution OK' : ` · exécution: ${smokeResult.execution.error || 'failed'}`)}
           </span>
-          {!smokeResult.passed && (
+          {!smokeResult.passed && !smokeResult.missingTools?.length && (
             <span className="text-rose-300/90 truncate">
               {smokeResult.files.filter(f => !f.ok).map(f => `${f.file}: ${(f.error || 'syntax error').split('\n')[0]}`).join(' · ')}
             </span>
           )}
+        </div>
+      )}
+
+      {/* Missing toolchains — install offer (explicit user confirmation) */}
+      {smokeResult?.missingTools && smokeResult.missingTools.length > 0 && (
+        <div className="px-3 py-1.5 border-b border-[#2a2f42] bg-amber-500/10 font-mono text-[10px] select-text space-y-1">
+          <div className="text-amber-300">
+            Il me manque <strong>{smokeResult.missingTools.map(m => m.tool).join(', ')}</strong> pour vérifier l'exécution de votre app.
+          </div>
+          <div className="flex items-center space-x-2">
+            {smokeResult.missingTools.map((m) => (
+              <button
+                key={m.tool}
+                onClick={() => installTool(m.tool, m.installCommand)}
+                disabled={installingTool !== null}
+                className="flex items-center space-x-1 px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-[10px] font-semibold border border-amber-500/40 transition-colors disabled:opacity-50"
+                title={`Installer ${m.tool}: ${m.installCommand}`}
+              >
+                <Wrench size={10} />
+                <span>{installingTool === m.tool ? 'Installation...' : `Installer ${m.tool}`}</span>
+              </button>
+            ))}
+          </div>
+          {installMsg && <div className="text-amber-200/90 whitespace-pre-wrap break-words">{installMsg}</div>}
         </div>
       )}
 

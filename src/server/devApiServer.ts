@@ -5,8 +5,10 @@ import os from 'os';
 import { spawn, exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import { isCommandAllowed, commandPrefix } from '../engine/security.js';
-import { classifySmokeFiles } from '../engine/smokeCheck.js';
-import type { SmokeFileResult, SmokeResult } from '../engine/smokeCheck.js';
+import { classifySmokeFiles, SMOKE_TOOL, smokeCheckArgs, toolLabel } from '../engine/smokeCheck.js';
+import type { SmokeFileResult, SmokeResult, SmokeLang } from '../engine/smokeCheck.js';
+import { resolveTool, installCommandFor, resolveToolchainCommand } from '../engine/toolchains.js';
+import type { Toolchains } from '../engine/toolchains.js';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -85,43 +87,67 @@ interface ActiveStaticServer {
 const activeStaticServers = new Map<string, ActiveStaticServer>();
 
 // ---------------------------------------------------------------------------
-// Runtime smoke test (deterministic syntax checks — `node --check`, py_compile)
+// Runtime smoke test — deterministic syntax checks (all target languages) +
+// bounded execution for CLI/web targets. Missing toolchains are reported with
+// an install suggestion (never auto-installed — the user confirms in the UI).
 // ---------------------------------------------------------------------------
 
-/** Runs `node --check <file>`; resolves with the error text (or undefined when clean). */
-function checkNodeSyntax(file: string): Promise<string | undefined> {
+interface CheckOutcome { error?: string; missing?: string }
+
+/** Runs a checker executable with argv; resolves ENOENT as a missing toolchain. */
+function runChecker(exe: string, args: string[], fallbacks: string[] = []): Promise<CheckOutcome> {
   return new Promise((resolve) => {
-    execFile('node', ['--check', file], { timeout: 15000 }, (err, _stdout, stderr) => {
-      resolve(err ? (stderr || err.message || 'syntax error').slice(0, 400) : undefined);
-    });
+    const attempt = (cmd: string, rest: string[]) => {
+      execFile(cmd, rest, { timeout: 20000 }, (err, _stdout, stderr) => {
+        const e = err as NodeJS.ErrnoException | null;
+        if (e && e.code === 'ENOENT') {
+          // Try the fallback executable if any (python -> py), then report missing.
+          if (fallbacks.length > 0) {
+            const next = fallbacks.shift();
+            if (next) { attempt(next, rest); return; }
+          }
+          resolve({ missing: cmd });
+          return;
+        }
+        resolve(e ? { error: (stderr || e.message || 'syntax error').slice(0, 400) } : {});
+      });
+    };
+    attempt(exe, args);
   });
 }
 
-/** Runs `python -m py_compile <file>` (falls back to `py` when `python` is absent). */
-function checkPythonSyntax(file: string): Promise<string | undefined> {
-  return new Promise((resolve) => {
-    const run = (pythonCmd: string) => {
-      execFile(pythonCmd, ['-m', 'py_compile', file], { timeout: 15000 }, (err, _stdout, stderr) => {
-        if (err && (err as NodeJS.ErrnoException).code === 'ENOENT' && pythonCmd === 'python') {
-          run('py');
-          return;
-        }
-        resolve(err ? (stderr || err.message || 'syntax error').slice(0, 400) : undefined);
-      });
-    };
-    run('python');
-  });
+/** Runs one language's syntax check against a file in the sandbox. */
+async function checkOne(c: { file: string; lang: SmokeLang }, sandbox: string, toolchains?: Toolchains): Promise<SmokeFileResult> {
+  const tool = SMOKE_TOOL[c.lang];
+  const exe = resolveTool(tool, toolchains);
+  const target = path.resolve(sandbox, c.file);
+  const outcome = await runChecker(exe, smokeCheckArgs(c.lang, target), tool === 'python' ? ['py'] : []);
+  if (outcome.missing) {
+    return { file: c.file, ok: false, tool: toolLabel(tool), installCommand: installCommandFor(tool) };
+  }
+  return { file: c.file, ok: !outcome.error, error: outcome.error };
+}
+
+/** Builds the CLI run command for a target (node/python only — fast, bounded). */
+function buildCliCommand(targetLang: string, files: Array<{ relativePath: string; content: string }>): string | null {
+  const hasFile = (name: string) => files.some(f => f.relativePath.split(/[\\/]/).pop() === name);
+  if (targetLang === 'python') return hasFile('main.py') ? 'python main.py' : null;
+  if (targetLang === 'javascript') return hasFile('index.js') ? 'node index.js' : hasFile('main.js') ? 'node main.js' : null;
+  return null;
 }
 
 /**
  * Writes the generated files to a temp sandbox and runs the deterministic
- * syntax checks (JS + Python). Returns per-file results. Portable: the checked
- * runtimes are the same ones the generated apps target.
+ * checks: per-language syntax + a bounded CLI execution (node/python) or a
+ * web HTTP GET. Missing toolchains are reported as install candidates.
  */
-export async function runSyntaxSmoke(files: Array<{ relativePath: string; content: string }>): Promise<SmokeResult> {
+export async function runSyntaxSmoke(
+  files: Array<{ relativePath: string; content: string }>,
+  toolchains?: Toolchains,
+  formFactor?: string,
+  targetLang?: string
+): Promise<SmokeResult> {
   const checks = classifySmokeFiles(files);
-  if (checks.length === 0) return { passed: true, files: [] };
-
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'ipl-smoke-'));
   try {
     for (const f of files) {
@@ -130,18 +156,57 @@ export async function runSyntaxSmoke(files: Array<{ relativePath: string; conten
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.writeFileSync(target, f.content, 'utf8');
     }
-    const results: SmokeFileResult[] = [];
+
+    const fileResults: SmokeFileResult[] = [];
+    const missing = new Map<string, string>();
     for (const c of checks) {
-      const target = path.resolve(sandbox, c.file);
-      if (c.lang === 'js') {
-        const err = await checkNodeSyntax(target);
-        results.push({ file: c.file, ok: !err, error: err });
-      } else {
-        const err = await checkPythonSyntax(target);
-        results.push({ file: c.file, ok: !err, error: err });
+      const r = await checkOne(c, sandbox, toolchains);
+      if (r.tool && r.installCommand) missing.set(r.tool, r.installCommand);
+      fileResults.push(r);
+    }
+
+    let execution: { ok: boolean; error?: string } | null = null;
+    if (formFactor === 'cli' && targetLang) {
+      const baseCmd = buildCliCommand(targetLang, files);
+      if (baseCmd) {
+        const cmd = resolveToolchainCommand(baseCmd, toolchains);
+        execution = await new Promise((resolve) => {
+          const proc = spawn(cmd, { cwd: sandbox, shell: true, timeout: 15000 });
+          let out = '';
+          proc.stdout.on('data', (d: Buffer) => { out += d; });
+          proc.stderr.on('data', (d: Buffer) => { out += d; });
+          proc.on('error', (err: any) => {
+            if (err.code === 'ENOENT') {
+              const tool = cmd.startsWith('py') || cmd.includes('python') ? 'python' : 'node';
+              missing.set(toolLabel(tool as any), installCommandFor(tool as any));
+              resolve({ ok: false, error: `runtime missing: ${tool}` });
+            } else resolve({ ok: false, error: err.message.slice(0, 200) });
+          });
+          proc.on('close', (code) => {
+            resolve(code === 0 ? { ok: true } : { ok: false, error: (out || 'non-zero exit').slice(0, 300) });
+          });
+        });
+      }
+    } else if (formFactor === 'web') {
+      const { url } = await serveStaticDir(sandbox);
+      try {
+        const res = await fetch(`${url}/`);
+        const text = await res.text();
+        execution = { ok: res.status === 200 && /<\/html>/i.test(text), error: res.status !== 200 ? `HTTP ${res.status}` : !/<\/html>/i.test(text) ? 'HTML not closed' : undefined };
+      } catch (err: any) {
+        execution = { ok: false, error: err.message.slice(0, 200) };
+      } finally {
+        stopStaticServer(sandbox);
       }
     }
-    return { passed: results.every(r => r.ok), files: results };
+
+    const missingTools = [...missing.entries()].map(([tool, installCommand]) => ({ tool, installCommand }));
+    return {
+      passed: fileResults.every(r => r.ok) && missingTools.length === 0 && (execution ? execution.ok : true),
+      files: fileResults,
+      missingTools,
+      execution
+    };
   } finally {
     fs.rmSync(sandbox, { recursive: true, force: true });
   }
@@ -436,7 +501,7 @@ export function createDevApiServer(options: DevApiServerOptions): DevApiServer {
             res.end(JSON.stringify({ error: 'files parameter (array) is required' }));
             return;
           }
-          const result = await runSyntaxSmoke(files);
+          const result = await runSyntaxSmoke(files, data.toolchains, data.formFactor, data.targetLang);
           res.statusCode = 200;
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify(result));

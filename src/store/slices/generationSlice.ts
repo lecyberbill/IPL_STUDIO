@@ -9,6 +9,7 @@ import type { ConsolidationResult } from '../../engine/consolidationAgent';
 import { createRunTokenUsage } from '../../engine/llmGenerator';
 import type { RunTokenUsage, FormFactor } from '../../engine/llmGenerator';
 import type { SmokeResult } from '../../engine/smokeCheck';
+import type { Toolchains } from '../../engine/toolchains';
 import { defaultOutputDir } from '../../engine/paths';
 import type { ClarificationRequest } from '../types';
 import type { StoreSlice } from '../types';
@@ -77,23 +78,29 @@ function filesToXml(files: { relativePath: string; content: string }[]): string 
   return files.map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`).join('\n\n');
 }
 
-/** Runs the deterministic runtime smoke test (syntax checks) on the current artifact. */
+/** Runs the deterministic runtime smoke test (syntax + bounded execution) on the current artifact. */
 async function runSmokeCheck(
   files: { relativePath: string; content: string }[],
-  addLog: (msg: string, type: 'info' | 'success' | 'warn' | 'error') => void
+  addLog: (msg: string, type: 'info' | 'success' | 'warn' | 'error') => void,
+  toolchains: Toolchains,
+  formFactor: FormFactor | undefined,
+  targetLang: string
 ): Promise<SmokeResult | null> {
   try {
     const response = await apiFetch('/api/smoke-test', {
       method: 'POST',
-      body: JSON.stringify({ files })
+      body: JSON.stringify({ files, toolchains, formFactor, targetLang })
     });
     const data: SmokeResult = await response.json();
     if (data && Array.isArray(data.files)) {
       const failed = data.files.filter(f => !f.ok);
       if (failed.length > 0) {
-        addLog(`[Smoke] ${failed.length} syntax error(s): ${failed.map(f => f.file).join(', ')}`, 'warn');
-      } else if (data.files.length > 0) {
-        addLog(`[Smoke] Syntax check OK (${data.files.length} file(s)).`, 'success');
+        addLog(`[Smoke] ${failed.length} file(s) with issues: ${failed.map(f => `${f.file}${f.tool ? ` (missing ${f.tool})` : ''}`).join(', ')}`, 'warn');
+      } else if (data.files.length > 0 || data.execution) {
+        addLog(`[Smoke] Check OK${data.execution ? ` · execution: ${data.execution.ok ? 'runs' : data.execution.error || 'failed'}` : ''}.`, data.execution && !data.execution.ok ? 'warn' : 'success');
+      }
+      if (data.missingTools && data.missingTools.length > 0) {
+        addLog(`[Smoke] Toolchain(s) manquants: ${data.missingTools.map(m => m.tool).join(', ')}`, 'warn');
       }
       return data;
     }
@@ -246,9 +253,9 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
       const consolidated = await runConsolidation(get, result, targetLang, llmConfig, runUsage, formFactor);
       set({ generatedCode: consolidated.xml, isGenerating: false, generationError: null, runUsage: { ...runUsage } });
       await get().writeArtifactToDisk();
-      // Runtime smoke: deterministic syntax checks (node --check / py_compile)
-      // surface in the Delivery panel before the user tests the app.
-      const smoke = await runSmokeCheck(parseMultiFileXml(get().generatedCode), addLog);
+      // Runtime smoke: deterministic syntax + bounded execution checks surface
+      // in the Delivery panel before the user tests the app.
+      const smoke = await runSmokeCheck(parseMultiFileXml(get().generatedCode), addLog, get().toolchains, formFactor, targetLang);
       set({ smokeResult: smoke });
     } catch (err: any) {
       const message = err?.message || 'Unknown generation error';
@@ -301,7 +308,7 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
         const consolidated = await runConsolidation(get, newXmlCode, targetLang, llmConfig, runUsage, formFactor);
         set({ generatedCode: consolidated.xml, isGenerating: false, runUsage: { ...runUsage } });
         await get().writeArtifactToDisk();
-        const smoke = await runSmokeCheck(parseMultiFileXml(get().generatedCode), addLog);
+        const smoke = await runSmokeCheck(parseMultiFileXml(get().generatedCode), addLog, get().toolchains, formFactor, targetLang);
         set({ smokeResult: smoke });
 
         // Clean the chat text reply by removing <file> and <patch> tags

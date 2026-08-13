@@ -249,6 +249,37 @@ describe('runtime smoke test (runSyntaxSmoke)', () => {
     expect(result.files).toHaveLength(1);
     expect(result.files[0].file).toBe('src/app.js');
   });
+
+  it('executes a valid CLI app (node) and reports it runs', async () => {
+    const result = await runSyntaxSmoke(
+      [{ relativePath: 'index.js', content: 'console.log("hi");' }],
+      undefined,
+      'cli',
+      'javascript'
+    );
+    expect(result.execution?.ok).toBe(true);
+    expect(result.passed).toBe(true);
+  });
+
+  it('flags a missing toolchain with an install suggestion', async () => {
+    const result = await runSyntaxSmoke(
+      [{ relativePath: 'src/app.js', content: 'console.log(1);' }],
+      { node: 'C:/does/not/exist/node.exe' }
+    );
+    expect(result.missingTools.length).toBeGreaterThan(0);
+    expect(result.missingTools[0].tool).toBe('node');
+    expect(result.missingTools[0].installCommand).toContain('winget');
+    expect(result.passed).toBe(false);
+  });
+
+  it('serves a web target and HTTP-GETs it', async () => {
+    const result = await runSyntaxSmoke(
+      [{ relativePath: 'index.html', content: '<html><body>hi</body></html>' }],
+      undefined,
+      'web'
+    );
+    expect(result.execution?.ok).toBe(true);
+  });
 });
 
 describe('static serving (Serve button)', () => {

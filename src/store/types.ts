@@ -3,6 +3,7 @@ import type { TargetLanguage, LLMConfig, RunTokenUsage, FormFactor } from '../en
 import type { SyntaxErrorItem, IPLVerb } from '../engine/iplGrammar';
 import type { ConsolidationResult } from '../engine/consolidationAgent';
 import type { SmokeResult } from '../engine/smokeCheck';
+import type { Toolchains } from '../engine/toolchains';
 import type { StateCreator } from 'zustand';
 
 export interface LogEntry {
@@ -91,6 +92,9 @@ export interface IDEState {
   /** Execution form factor (P4): CLI / web / library. */
   formFactor: FormFactor;
   setFormFactor: (formFactor: FormFactor) => void;
+  /** Explicit toolchain paths (Settings): used by the smoke test and the run command. */
+  toolchains: Toolchains;
+  setToolchains: (toolchains: Toolchains) => void;
   /** Systematic pre-delivery consolidation agent (deterministic gates + LLM review + auto-fix). */
   consolidationEnabled: boolean;
   toggleConsolidation: () => void;

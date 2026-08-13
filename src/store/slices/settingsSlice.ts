@@ -1,5 +1,6 @@
 import type { LLMConfig, FormFactor } from '../../engine/llmGenerator';
 import { DEFAULT_LLM_CONFIG } from '../../engine/llmGenerator';
+import type { Toolchains } from '../../engine/toolchains';
 import type { CustomTarget, PolyglotConfig } from '../types';
 import type { StoreSlice } from '../types';
 import { DEFAULT_CUSTOM_TARGETS, DEFAULT_POLYGLOT_CONFIG, DEFAULT_LAYOUT } from '../defaults';
@@ -20,6 +21,9 @@ export interface SettingsSlice {
   consolidationEnabled: boolean;
   /** Execution form factor (P4): CLI / web / library — pinned in the prompt and gated deterministically. */
   formFactor: FormFactor;
+  /** Explicit toolchain paths (Settings): override PATH for smoke checks and the run command. */
+  toolchains: Toolchains;
+  setToolchains: (toolchains: Toolchains) => void;
   setPolyglotConfig: (config: PolyglotConfig) => void;
   togglePolyglotModal: () => void;
   addCustomTarget: (target: Omit<CustomTarget, 'id'>) => void;
@@ -50,6 +54,7 @@ export const settingsSlice: StoreSlice<SettingsSlice> = (set, get) => ({
   hasSeenWelcome: false,
   consolidationEnabled: true,
   formFactor: 'cli',
+  toolchains: {},
 
   setPolyglotConfig: (config) => set((state) => ({
     polyglotConfig: config,
@@ -89,5 +94,7 @@ export const settingsSlice: StoreSlice<SettingsSlice> = (set, get) => ({
 
   toggleConsolidation: () => set((state) => ({ consolidationEnabled: !state.consolidationEnabled })),
 
-  setFormFactor: (formFactor) => set({ formFactor })
+  setFormFactor: (formFactor) => set({ formFactor }),
+
+  setToolchains: (toolchains) => set({ toolchains })
 });

@@ -1,33 +1,50 @@
 /**
- * Runtime smoke check — deterministic, 0-token syntax validation of the
- * generated code (JS via `node --check`, Python via `py_compile`).
+ * Runtime smoke check — deterministic, 0-token validation of the generated
+ * code: per-language SYNTAX checks (`node --check`, `py_compile`, `rustc
+ * --emit=metadata`, `gofmt -e`, `g++/gcc -fsyntax-only`) and, for CLI targets,
+ * an actual bounded EXECUTION of the app (the benchmark's `verify` idea,
+ * transposed into the IDE). Web targets are served and HTTP-GETted.
  *
  * The consolidation gates are static (imports/JSON/form/IPL/patch/truncation);
- * this closes part of the gap they cannot see: a JS/Python file cut short or
- * with a syntax error still "passes" every gate yet crashes at runtime (the
- * bonsai run's truncated index.html was inert, and the bench's `node --check`
- * keeps catching broken JS). The actual execution lives in the dev server
- * (a browser tab cannot spawn processes); this module only classifies which
- * files need which check.
+ * this closes part of the gap they cannot see: a file cut short or with a
+ * syntax error "passes" every gate yet crashes at runtime. The actual checks
+ * run in the dev server (a browser tab cannot spawn processes); this module
+ * classifies which files need which check and maps languages to toolchains.
  */
+
+import { DEFAULT_TOOL_NAMES } from './toolchains.js';
+import type { ToolchainKey } from './toolchains.js';
 
 export interface SmokeFileResult {
   /** The file that was checked. */
   file: string;
-  /** True when the syntax check passed. */
+  /** True when the check passed (or no check applies). */
   ok: boolean;
   /** Compiler/stderr message when it failed. */
   error?: string;
+  /** Toolchain that is missing (when the check could not even run). */
+  tool?: string;
+  /** Suggested install command for the missing toolchain (OS-aware). */
+  installCommand?: string;
+}
+
+export interface MissingTool {
+  tool: string;
+  installCommand: string;
 }
 
 export interface SmokeResult {
-  /** True when every checked file passed. */
+  /** True when every applicable check passed and nothing is missing. */
   passed: boolean;
   /** Per-file results (only files that have a check). */
   files: SmokeFileResult[];
+  /** Toolchains that are absent from PATH / Settings (install candidates). */
+  missingTools: MissingTool[];
+  /** Bounded execution result (CLI run / web HTTP GET), when the form allows it. */
+  execution?: { ok: boolean; error?: string } | null;
 }
 
-export type SmokeLang = 'js' | 'python';
+export type SmokeLang = 'js' | 'python' | 'rust' | 'go' | 'cpp' | 'c';
 
 /** Maps files to the deterministic syntax check they need (empty for the rest). */
 export function classifySmokeFiles(
@@ -38,6 +55,37 @@ export function classifySmokeFiles(
     const p = f.relativePath.toLowerCase();
     if (/\.(js|mjs|cjs)$/.test(p)) checks.push({ file: f.relativePath, lang: 'js' });
     else if (/\.py$/.test(p)) checks.push({ file: f.relativePath, lang: 'python' });
+    else if (/\.rs$/.test(p)) checks.push({ file: f.relativePath, lang: 'rust' });
+    else if (/\.go$/.test(p)) checks.push({ file: f.relativePath, lang: 'go' });
+    else if (/\.(cpp|cc|cxx)$/.test(p)) checks.push({ file: f.relativePath, lang: 'cpp' });
+    else if (/\.c$/.test(p)) checks.push({ file: f.relativePath, lang: 'c' });
   }
   return checks;
+}
+
+/** The toolchain used by each language check. */
+export const SMOKE_TOOL: Record<SmokeLang, ToolchainKey> = {
+  js: 'node',
+  python: 'python',
+  rust: 'rustc',
+  go: 'go',
+  cpp: 'gpp',
+  c: 'gcc'
+};
+
+/** Builds the argv for a language's syntax check given the file path. */
+export function smokeCheckArgs(lang: SmokeLang, file: string): string[] {
+  switch (lang) {
+    case 'js': return ['--check', file];
+    case 'python': return ['-m', 'py_compile', file];
+    case 'rust': return ['--crate-type', 'lib', '--emit=metadata', '-o', `${file}.rmeta`, file];
+    case 'go': return ['fmt', '-e', file];
+    case 'cpp': return ['-fsyntax-only', file];
+    case 'c': return ['-fsyntax-only', file];
+  }
+}
+
+/** Human-friendly label for a missing toolchain. */
+export function toolLabel(tool: ToolchainKey): string {
+  return tool === 'gpp' ? 'g++' : DEFAULT_TOOL_NAMES[tool];
 }

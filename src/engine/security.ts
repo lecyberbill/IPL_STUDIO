@@ -16,7 +16,10 @@ export const DEFAULT_ALLOWED_COMMANDS: ReadonlyArray<string> = Object.freeze([
   'cargo', 'rustc', 'go', 'g++', 'gcc', 'cc', 'clang', 'clang++',
   'javac', 'java', 'dotnet', 'cmake', 'make', 'ninja',
   'echo', 'git', 'ls', 'dir', 'pwd', 'cd', 'type', 'cat', 'rg', 'grep',
-  'find', 'mkdir', 'copy', 'xcopy', 'robocopy', 'tar', 'unzip', 'curl', 'wget'
+  'find', 'mkdir', 'copy', 'xcopy', 'robocopy', 'tar', 'unzip', 'curl', 'wget',
+  // Installers — only ever run after an EXPLICIT user confirmation (toolchain
+  // install offer from the smoke test). Never auto-installed.
+  'winget', 'choco', 'brew', 'apt-get', 'apt', 'dnf', 'rustup'
 ]);
 
 /**
