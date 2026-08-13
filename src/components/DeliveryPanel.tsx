@@ -22,7 +22,7 @@ const EMPTY: ConsolidationResult = {
  * human judgment. Each remaining issue jumps to its file in the Files viewer.
  */
 export const DeliveryPanel: React.FC = () => {
-  const { consolidationResult, setActivePanelTab, setSelectedFilePath, addLog, consolidationEnabled, runUsage, targetLang } = useIdeStore();
+  const { consolidationResult, setActivePanelTab, setSelectedFilePath, addLog, consolidationEnabled, runUsage, targetLang, smokeResult } = useIdeStore();
   const [showReport, setShowReport] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
@@ -113,6 +113,20 @@ export const DeliveryPanel: React.FC = () => {
       </div>
 
       <DeliveryReportModal open={reportOpen} onClose={() => setReportOpen(false)} />
+
+      {/* Runtime smoke test (deterministic syntax checks) */}
+      {smokeResult && (
+        <div className={`px-3 py-1.5 border-b border-[#2a2f42] font-mono text-[10px] flex items-center space-x-2 select-text ${smokeResult.passed ? 'bg-emerald-500/5' : 'bg-rose-500/10'}`}>
+          <span className={smokeResult.passed ? 'text-emerald-300' : 'text-rose-300'}>
+            {smokeResult.passed ? '✅' : '⛔'} Smoke test: {smokeResult.files.filter(f => f.ok).length}/{smokeResult.files.length} syntax OK
+          </span>
+          {!smokeResult.passed && (
+            <span className="text-rose-300/90 truncate">
+              {smokeResult.files.filter(f => !f.ok).map(f => `${f.file}: ${(f.error || 'syntax error').split('\n')[0]}`).join(' · ')}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Token-economy budget (P2): what the run spent to prepare the terrain. */}
       {runUsage && (

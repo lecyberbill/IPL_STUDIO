@@ -8,6 +8,7 @@ import { consolidateArtifact } from '../../engine/consolidationAgent';
 import type { ConsolidationResult } from '../../engine/consolidationAgent';
 import { createRunTokenUsage } from '../../engine/llmGenerator';
 import type { RunTokenUsage, FormFactor } from '../../engine/llmGenerator';
+import type { SmokeResult } from '../../engine/smokeCheck';
 import { defaultOutputDir } from '../../engine/paths';
 import type { ClarificationRequest } from '../types';
 import type { StoreSlice } from '../types';
@@ -21,6 +22,8 @@ export interface GenerationSlice {
   setConsolidationResult: (result: ConsolidationResult | null) => void;
   runUsage: RunTokenUsage | null;
   setRunUsage: (usage: RunTokenUsage | null) => void;
+  smokeResult: SmokeResult | null;
+  setSmokeResult: (result: SmokeResult | null) => void;
   clearGenerationError: () => void;
   runGeneration: () => Promise<void>;
   requestLLMCorrection: (userPrompt: string) => Promise<{ textReply: string; codeChanged: boolean }>;
@@ -72,6 +75,33 @@ async function runConsolidation(
 /** Serializes project files back into the <file> XML representation the store uses. */
 function filesToXml(files: { relativePath: string; content: string }[]): string {
   return files.map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`).join('\n\n');
+}
+
+/** Runs the deterministic runtime smoke test (syntax checks) on the current artifact. */
+async function runSmokeCheck(
+  files: { relativePath: string; content: string }[],
+  addLog: (msg: string, type: 'info' | 'success' | 'warn' | 'error') => void
+): Promise<SmokeResult | null> {
+  try {
+    const response = await apiFetch('/api/smoke-test', {
+      method: 'POST',
+      body: JSON.stringify({ files })
+    });
+    const data: SmokeResult = await response.json();
+    if (data && Array.isArray(data.files)) {
+      const failed = data.files.filter(f => !f.ok);
+      if (failed.length > 0) {
+        addLog(`[Smoke] ${failed.length} syntax error(s): ${failed.map(f => f.file).join(', ')}`, 'warn');
+      } else if (data.files.length > 0) {
+        addLog(`[Smoke] Syntax check OK (${data.files.length} file(s)).`, 'success');
+      }
+      return data;
+    }
+    return null;
+  } catch (err: any) {
+    addLog(`[Smoke] check failed: ${err.message}`, 'warn');
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -146,9 +176,11 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
   generationError: null,
   consolidationResult: null,
   runUsage: null,
+  smokeResult: null,
 
   setConsolidationResult: (consolidationResult) => set({ consolidationResult }),
   setRunUsage: (runUsage) => set({ runUsage }),
+  setSmokeResult: (smokeResult) => set({ smokeResult }),
   clearGenerationError: () => set({ generationError: null }),
 
   runGeneration: async () => {
@@ -156,7 +188,7 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
     const activeProj = projects.find(p => p.id === activeProjectId);
     // P2: a fresh run accumulator — spec tokens from the active editor buffer.
     const runUsage = createRunTokenUsage(code.length);
-    set({ isGenerating: true, generationError: null, consolidationResult: null });
+    set({ isGenerating: true, generationError: null, consolidationResult: null, smokeResult: null });
 
     try {
       // Phase 7: build the project union deterministically, rooted at
@@ -214,6 +246,10 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
       const consolidated = await runConsolidation(get, result, targetLang, llmConfig, runUsage, formFactor);
       set({ generatedCode: consolidated.xml, isGenerating: false, generationError: null, runUsage: { ...runUsage } });
       await get().writeArtifactToDisk();
+      // Runtime smoke: deterministic syntax checks (node --check / py_compile)
+      // surface in the Delivery panel before the user tests the app.
+      const smoke = await runSmokeCheck(parseMultiFileXml(get().generatedCode), addLog);
+      set({ smokeResult: smoke });
     } catch (err: any) {
       const message = err?.message || 'Unknown generation error';
       addLog(`Generation error: ${message}`, 'error');
@@ -265,6 +301,8 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
         const consolidated = await runConsolidation(get, newXmlCode, targetLang, llmConfig, runUsage, formFactor);
         set({ generatedCode: consolidated.xml, isGenerating: false, runUsage: { ...runUsage } });
         await get().writeArtifactToDisk();
+        const smoke = await runSmokeCheck(parseMultiFileXml(get().generatedCode), addLog);
+        set({ smokeResult: smoke });
 
         // Clean the chat text reply by removing <file> and <patch> tags
         let textReply = rawResult

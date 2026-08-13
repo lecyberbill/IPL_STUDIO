@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { createDevApiServer, serveStaticDir, stopStaticServer, type DevApiServerOptions } from './devApiServer';
+import { createDevApiServer, serveStaticDir, stopStaticServer, runSyntaxSmoke, type DevApiServerOptions } from './devApiServer';
 
 const tempRoots: string[] = [];
 
@@ -219,6 +219,35 @@ describe('createDevApiServer — write-artifact handler', () => {
     emit();
     expect(res.statusCode).toBe(500);
     expect(parseJson(res).error).toContain('escapes');
+  });
+});
+
+describe('runtime smoke test (runSyntaxSmoke)', () => {
+  it('passes a syntactically valid JS file', async () => {
+    const result = await runSyntaxSmoke([
+      { relativePath: 'src/app.js', content: 'const a = 1;\nconsole.log(a);\n' }
+    ]);
+    expect(result.passed).toBe(true);
+    expect(result.files).toHaveLength(1);
+    expect(result.files[0].ok).toBe(true);
+  });
+
+  it('flags a JS file with a syntax error', async () => {
+    const result = await runSyntaxSmoke([
+      { relativePath: 'src/app.js', content: 'function broken() {\n  const x = 1;\n' }
+    ]);
+    expect(result.passed).toBe(false);
+    expect(result.files[0].ok).toBe(false);
+    expect(result.files[0].error).toBeTruthy();
+  });
+
+  it('reports per-file results and does not touch non-code files', async () => {
+    const result = await runSyntaxSmoke([
+      { relativePath: 'src/app.js', content: 'console.log(1);' },
+      { relativePath: 'index.html', content: '<html></html>' }
+    ]);
+    expect(result.files).toHaveLength(1);
+    expect(result.files[0].file).toBe('src/app.js');
   });
 });
 

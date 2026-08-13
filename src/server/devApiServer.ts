@@ -1,9 +1,12 @@
 import path from 'path';
 import fs from 'fs';
 import http from 'http';
+import os from 'os';
 import { spawn, exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import { isCommandAllowed, commandPrefix } from '../engine/security.js';
+import { classifySmokeFiles } from '../engine/smokeCheck.js';
+import type { SmokeFileResult, SmokeResult } from '../engine/smokeCheck.js';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -80,6 +83,69 @@ interface ActiveStaticServer {
 
 /** One loopback static server per output directory (reused until stopped). */
 const activeStaticServers = new Map<string, ActiveStaticServer>();
+
+// ---------------------------------------------------------------------------
+// Runtime smoke test (deterministic syntax checks — `node --check`, py_compile)
+// ---------------------------------------------------------------------------
+
+/** Runs `node --check <file>`; resolves with the error text (or undefined when clean). */
+function checkNodeSyntax(file: string): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    execFile('node', ['--check', file], { timeout: 15000 }, (err, _stdout, stderr) => {
+      resolve(err ? (stderr || err.message || 'syntax error').slice(0, 400) : undefined);
+    });
+  });
+}
+
+/** Runs `python -m py_compile <file>` (falls back to `py` when `python` is absent). */
+function checkPythonSyntax(file: string): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    const run = (pythonCmd: string) => {
+      execFile(pythonCmd, ['-m', 'py_compile', file], { timeout: 15000 }, (err, _stdout, stderr) => {
+        if (err && (err as NodeJS.ErrnoException).code === 'ENOENT' && pythonCmd === 'python') {
+          run('py');
+          return;
+        }
+        resolve(err ? (stderr || err.message || 'syntax error').slice(0, 400) : undefined);
+      });
+    };
+    run('python');
+  });
+}
+
+/**
+ * Writes the generated files to a temp sandbox and runs the deterministic
+ * syntax checks (JS + Python). Returns per-file results. Portable: the checked
+ * runtimes are the same ones the generated apps target.
+ */
+export async function runSyntaxSmoke(files: Array<{ relativePath: string; content: string }>): Promise<SmokeResult> {
+  const checks = classifySmokeFiles(files);
+  if (checks.length === 0) return { passed: true, files: [] };
+
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'ipl-smoke-'));
+  try {
+    for (const f of files) {
+      const target = path.resolve(sandbox, f.relativePath);
+      if (!isWithinDirectory(sandbox, target)) continue;
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, f.content, 'utf8');
+    }
+    const results: SmokeFileResult[] = [];
+    for (const c of checks) {
+      const target = path.resolve(sandbox, c.file);
+      if (c.lang === 'js') {
+        const err = await checkNodeSyntax(target);
+        results.push({ file: c.file, ok: !err, error: err });
+      } else {
+        const err = await checkPythonSyntax(target);
+        results.push({ file: c.file, ok: !err, error: err });
+      }
+    }
+    return { passed: results.every(r => r.ok), files: results };
+  } finally {
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+}
 
 /** Stops the loopback static server serving `outputDir`, if any. */
 export function stopStaticServer(outputDir: string): boolean {
@@ -351,6 +417,29 @@ export function createDevApiServer(options: DevApiServerOptions): DevApiServer {
           res.statusCode = 200;
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({ success: true, stopped }));
+        } catch (err: any) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+    } else if (req.url === '/api/smoke-test' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk: any) => { body += chunk; });
+      req.on('end', async () => {
+        try {
+          const data = JSON.parse(body);
+          const files = data.files;
+          if (!Array.isArray(files)) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'files parameter (array) is required' }));
+            return;
+          }
+          const result = await runSyntaxSmoke(files);
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(result));
         } catch (err: any) {
           res.statusCode = 500;
           res.setHeader('Content-Type', 'application/json');

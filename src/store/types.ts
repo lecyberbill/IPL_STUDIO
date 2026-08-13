@@ -2,6 +2,7 @@ import type * as monaco from 'monaco-editor';
 import type { TargetLanguage, LLMConfig, RunTokenUsage, FormFactor } from '../engine/llmGenerator';
 import type { SyntaxErrorItem, IPLVerb } from '../engine/iplGrammar';
 import type { ConsolidationResult } from '../engine/consolidationAgent';
+import type { SmokeResult } from '../engine/smokeCheck';
 import type { StateCreator } from 'zustand';
 
 export interface LogEntry {
@@ -99,6 +100,9 @@ export interface IDEState {
   /** Per-run token-economy telemetry (P2): generation + consolidation + repair. */
   runUsage: RunTokenUsage | null;
   setRunUsage: (usage: RunTokenUsage | null) => void;
+  /** Runtime smoke test result (deterministic syntax checks, run after write to disk). */
+  smokeResult: SmokeResult | null;
+  setSmokeResult: (result: SmokeResult | null) => void;
   /** File selected in the generated-files viewer (right sidebar). */
   selectedFilePath: string;
   setSelectedFilePath: (path: string) => void;
