@@ -21,7 +21,7 @@ import {
   summarizeConsolidation,
   consolidateArtifact
 } from './consolidationAgent';
-import type { FormMismatch, IplLeakage, PatchLeakage, TruncatedFile } from './staticChecker';
+import type { FormMismatch, IplLeakage, PatchLeakage, TruncatedFile, EsmScriptMismatch } from './staticChecker';
 import type { ProjectArtifactFile } from './artifactGenerator';
 import type { MissingModuleRef } from './staticChecker';
 const file = (relativePath: string, content: string): ProjectArtifactFile => ({ relativePath, content });
@@ -246,6 +246,15 @@ describe('form-factor gate in consolidation (P4)', () => {
     const report = buildDeliveryReport([file('a.js', '')], [], [], [], [{ kind: 'static', file: 'index.html', message: 'regenerate' }], 1, true, [], undefined, undefined, [], [], truncated);
     expect(report).toContain('Truncation gate: 1 HTML file(s) cut short');
     expect(report).toContain('index.html: HTML file is truncated');
+  });
+
+  it('reports the ES-module gate section in the delivery report', () => {
+    const esm: EsmScriptMismatch[] = [
+      { file: 'index.html', reason: 'ES module "src/game.js" loaded without type="module"', suggestion: 'add type="module"' }
+    ];
+    const report = buildDeliveryReport([file('a.js', '')], [], [], [], [{ kind: 'static', file: 'index.html', message: 'add type="module"' }], 1, true, [], undefined, undefined, [], [], [], esm);
+    expect(report).toContain('ES-module gate: 1 <script> tag(s) missing type="module"');
+    expect(report).toContain('index.html: ES module "src/game.js" loaded without type="module"');
   });
 });
 

@@ -77,6 +77,15 @@ export interface TruncatedFile {
   suggestion: string;
 }
 
+export interface EsmScriptMismatch {
+  /** The HTML file whose <script> tag is missing type="module". */
+  file: string;
+  /** Why it is wrong. */
+  reason: string;
+  /** How to realign. */
+  suggestion: string;
+}
+
 /**
  * Normalizes a relative path to forward slashes with no leading `./` or `/`.
  * `src/../lib` -> `lib`, `./entities` -> `entities`, `../a.js` -> `a.js`.
@@ -413,6 +422,47 @@ export function findTruncatedFiles(files: ProjectArtifactFile[]): TruncatedFile[
         reason: 'HTML file is truncated (does not end with </html>)',
         suggestion: `"${f.relativePath}" was cut short mid-file (missing </html> and likely </body> + closing tags/script). Regenerate the COMPLETE file — every element closed, </body></html> at the end.`
       });
+    }
+  }
+  return issues;
+}
+
+/** A `.js` file that uses ESM syntax (import/export). */
+const ESM_USE_RE = /\b(?:import|export)\s/;
+
+/**
+ * ES-module/script-tag gate — deterministic (0 tokens). When a generated `.js`
+ * uses `import`/`export` (an ES module) but the HTML loads it as a classic
+ * `<script src="...">` WITHOUT `type="module"`, the browser rejects the file at
+ * runtime ("export declarations may only appear at top level of a module") —
+ * and neither `node --check` (Node auto-detects ESM) nor a plain HTTP GET can
+ * see it. Flag every such tag so the auto-fix adds `type="module"`.
+ */
+export function findEsmScriptMismatch(files: ProjectArtifactFile[]): EsmScriptMismatch[] {
+  const esmNames = new Set<string>();
+  for (const f of files) {
+    if (/\.(js|mjs)$/i.test(f.relativePath) && ESM_USE_RE.test(f.content)) {
+      esmNames.add(f.relativePath.split(/[\\/]/).pop()?.toLowerCase() ?? '');
+    }
+  }
+  if (esmNames.size === 0) return [];
+
+  const issues: EsmScriptMismatch[] = [];
+  for (const f of files) {
+    if (!/\.html?$/i.test(f.relativePath)) continue;
+    const scriptRe = /<script\b([^>]*)src=["']([^"']+\.js)["']([^>]*)>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = scriptRe.exec(f.content)) !== null) {
+      const attrs = `${m[1]} ${m[3]}`;
+      if (/\btype\s*=\s*["']module["']/i.test(attrs)) continue;
+      const srcName = m[2].split(/[\\/]/).pop()?.toLowerCase() ?? '';
+      if (esmNames.has(srcName)) {
+        issues.push({
+          file: f.relativePath,
+          reason: `ES module "${m[2]}" loaded without type="module"`,
+          suggestion: `"${f.relativePath}" loads "${m[2]}" (which uses import/export) as a classic script — the browser rejects it. Add type="module" to that <script> tag.`
+        });
+      }
     }
   }
   return issues;

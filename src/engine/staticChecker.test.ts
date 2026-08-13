@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findMissingModuleRefs, findFormMismatches, findIplLeakage, findPatchLeakage, findTruncatedFiles, normalizeRelative, resolveCandidates, extractRelativeImports } from './staticChecker';
+import { findMissingModuleRefs, findFormMismatches, findIplLeakage, findPatchLeakage, findTruncatedFiles, findEsmScriptMismatch, normalizeRelative, resolveCandidates, extractRelativeImports } from './staticChecker';
 import type { ProjectArtifactFile } from './artifactGenerator';
 
 const file = (relativePath: string, content: string): ProjectArtifactFile => ({ relativePath, content });
@@ -18,6 +18,32 @@ describe('findTruncatedFiles (truncation gate)', () => {
 
   it('ignores non-HTML files', () => {
     expect(findTruncatedFiles([file('src/app.js', 'console.log(')])).toEqual([]);
+  });
+});
+
+describe('findEsmScriptMismatch (ES module / script-tag gate)', () => {
+  it('flags a <script src> without type="module" when the JS is an ES module', () => {
+    const issues = findEsmScriptMismatch([
+      file('index.html', '<script src="src/game.js"></script>'),
+      file('src/game.js', 'export function tick() {}')
+    ]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].file).toBe('index.html');
+    expect(issues[0].reason).toContain('type="module"');
+  });
+
+  it('accepts a type="module" script tag for an ES module', () => {
+    expect(findEsmScriptMismatch([
+      file('index.html', '<script type="module" src="src/game.js"></script>'),
+      file('src/game.js', 'export function tick() {}')
+    ])).toEqual([]);
+  });
+
+  it('ignores classic (non-module) JS loaded as a classic script', () => {
+    expect(findEsmScriptMismatch([
+      file('index.html', '<script src="src/app.js"></script>'),
+      file('src/app.js', 'function tick() {}')
+    ])).toEqual([]);
   });
 });
 
