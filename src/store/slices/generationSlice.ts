@@ -72,6 +72,71 @@ function filesToXml(files: { relativePath: string; content: string }[]): string 
   return files.map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`).join('\n\n');
 }
 
+// ---------------------------------------------------------------------------
+// Repo management from the chat ("gérer le dépôt à la demande").
+// `git <cmd>` runs directly (git is allow-listed in the security gate, no LLM
+// token cost); a few natural-language intents map to common git actions. The
+// model never executes arbitrary commands — only git, and only what the user
+// asked for.
+// ---------------------------------------------------------------------------
+
+/** Extracts a commit message from a natural-language prompt (best-effort, defaulted). */
+function extractCommitMessage(prompt: string): string {
+  const cleaned = prompt
+    .replace(/\b(commit|commits|valider|validation|et|puis|pousser|pousse|push|envoie|les|la|le|mes|mon|ma|vers|sur|main|repo|dépôt|depot|changements|modifs|modifications)\b/gi, ' ')
+    .replace(/[^\p{L}\p{N}\s_-]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned || 'chore: update generated project';
+}
+
+/**
+ * Maps a chat prompt to a git command to execute, or null when it is not a
+ * repo-management request. `git ...` passthrough + bounded natural-language
+ * intents (commit / push / status / log / pull / diff).
+ */
+export function buildGitCommand(prompt: string): string | null {
+  const trimmed = prompt.trim();
+  if (/^(git|!git)\s/i.test(trimmed)) return trimmed.replace(/^!/, '');
+
+  const p = trimmed.toLowerCase();
+  if (/\b(commit|commits|valider)\b/.test(p)) {
+    const push = /\b(push|pousse|pousser|envoie|envoyer)\b/.test(p);
+    return `git add . && git commit -m "${extractCommitMessage(trimmed)}"${push ? ' && git push' : ''}`;
+  }
+  if (/\b(push|pousse|pousser|envoie|envoyer)\b/.test(p)) return 'git push';
+  if (/\b(statut|status|etat|état)\b/.test(p)) return 'git status';
+  if (/\blog\b/.test(p)) return 'git log --oneline -10';
+  if (/\b(pull|tire|récupère|recupere)\b/.test(p)) return 'git pull';
+  if (/\b(diff|différences|differences)\b/.test(p)) return 'git diff';
+  return null;
+}
+
+/** Runs a git command via the dev API (security allow-list) and returns the output as a chat reply. */
+export async function runGitFromChat(
+  command: string,
+  cwd: string,
+  addLog: (msg: string, type?: 'info' | 'success' | 'warn' | 'error') => void
+): Promise<{ textReply: string; codeChanged: boolean }> {
+  addLog(`[Git] Running: ${command}`, 'info');
+  try {
+    const response = await apiFetch('/api/run-command', {
+      method: 'POST',
+      body: JSON.stringify({ command, cwd })
+    });
+    if (response.status === 403) {
+      const err = await response.json();
+      return { textReply: `⛔ Command blocked by security: ${err?.error || 'unknown'}`, codeChanged: false };
+    }
+    const text = (await response.text()).trim();
+    addLog(`[Git] ${text.slice(0, 300) || '(no output)'}`, 'success');
+    return { textReply: text ? `\`\`\`\n${text}\n\`\`\`` : '(no output — command ran)', codeChanged: false };
+  } catch (err: any) {
+    addLog(`[Git] Failed: ${err.message}`, 'error');
+    return { textReply: `Error running git: ${err.message}`, codeChanged: false };
+  }
+}
+
 export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
   generatedCode: '',
   isGenerating: false,
@@ -157,8 +222,17 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
   },
 
   requestLLMCorrection: async (userPrompt: string) => {
-    const { generatedCode, targetLang, llmConfig, addLog, code, formFactor } = get();
+    const { generatedCode, targetLang, llmConfig, addLog, code, formFactor, projects, activeProjectId } = get();
     if (!userPrompt.trim()) return { textReply: '', codeChanged: false };
+
+    // Repo management from the chat: "git ..." or a natural-language git intent
+    // runs the command directly (no LLM token cost) and returns the output.
+    const gitCommand = buildGitCommand(userPrompt);
+    if (gitCommand) {
+      const activeProj = projects.find(p => p.id === activeProjectId);
+      const outputDir = activeProj?.outputDir || defaultOutputDir(activeProj?.name || 'my_project');
+      return await runGitFromChat(gitCommand, outputDir, addLog);
+    }
 
     set({ isGenerating: true });
     const runUsage = get().runUsage ?? createRunTokenUsage(code.length);

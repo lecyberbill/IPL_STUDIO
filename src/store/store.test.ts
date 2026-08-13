@@ -5,7 +5,7 @@ import { editorSlice } from './slices/editorSlice';
 import { logsSlice } from './slices/logsSlice';
 import { projectsSlice } from './slices/projectsSlice';
 import { settingsSlice } from './slices/settingsSlice';
-import { generationSlice } from './slices/generationSlice';
+import { generationSlice, buildGitCommand } from './slices/generationSlice';
 import { diskSlice } from './slices/diskSlice';
 import { validateIPLCode } from '../engine/iplGrammar';
 import { DEFAULT_LLM_CONFIG } from '../engine/llmGenerator';
@@ -249,6 +249,30 @@ describe('settingsSlice', () => {
   });
 });
 
+describe('buildGitCommand (repo management from chat)', () => {
+  it('passes through explicit git commands verbatim', () => {
+    expect(buildGitCommand('git status')).toBe('git status');
+    expect(buildGitCommand('git add . && git commit -m "x"')).toBe('git add . && git commit -m "x"');
+    expect(buildGitCommand('!git push')).toBe('git push');
+  });
+
+  it('maps natural-language git intents to commands', () => {
+    expect(buildGitCommand('commit les changements')).toContain('git add . && git commit -m');
+    expect(buildGitCommand('commit et pousse')).toContain('&& git push');
+    expect(buildGitCommand('pousse sur le repo')).toBe('git push');
+    expect(buildGitCommand('statut du dépôt')).toBe('git status');
+    expect(buildGitCommand('montre le log')).toBe('git log --oneline -10');
+    expect(buildGitCommand('fais un pull')).toBe('git pull');
+    expect(buildGitCommand('diff')).toBe('git diff');
+  });
+
+  it('returns null for ordinary code requests', () => {
+    expect(buildGitCommand('ajoute une feature')).toBeNull();
+    expect(buildGitCommand('corrige le bug dans app.js')).toBeNull();
+    expect(buildGitCommand('la liste des boissons est vide')).toBeNull();
+  });
+});
+
 describe('generationSlice', () => {
   it('starts with no pending clarification and clears it', () => {
     const store = createTestStore();
@@ -270,6 +294,17 @@ describe('generationSlice', () => {
     store.setState({ generationError: 'boom' });
     store.getState().clearGenerationError();
     expect(store.getState().generationError).toBeNull();
+  });
+
+  it('requestLLMCorrection runs a git command directly (no LLM) when the prompt starts with git', async () => {
+    const store = createTestStore();
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('On branch main\nnothing to commit, working tree clean', { status: 200 }));
+    const res = await store.getState().requestLLMCorrection('git status');
+    expect(res.codeChanged).toBe(false);
+    expect(res.textReply).toContain('On branch main');
+    // No LLM call was made — only the run-command endpoint.
+    const calls = vi.mocked(fetch).mock.calls.map(c => String(c[0]));
+    expect(calls.some(u => u.includes('/api/run-command'))).toBe(true);
   });
 
   it('setConsolidationResult publishes the delivery report for the Delivery panel', () => {
