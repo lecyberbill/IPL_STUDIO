@@ -87,6 +87,11 @@ add entity WeatherReport {
   isAlertActive: boolean
 }
 
+// `seed` declares concrete catalog / fixture data — entities are TYPES, seed is the DATA.
+seed WeatherReport Paris { city: "Paris", country: "FR", temperature: 24, humidity: 45, windSpeed: 12, condition: "sunny", isAlertActive: false }
+seed WeatherReport Tokyo { city: "Tokyo", country: "JP", temperature: 38, humidity: 70, windSpeed: 30, condition: "stormy", isAlertActive: true }
+seed WeatherReport Rio   { city: "Rio",   country: "BR", temperature: 31, humidity: 80, windSpeed: 8,  condition: "rainy",  isAlertActive: false }
+
 listen event on "weather:search" {
   try {
     read searchParams from locationSearchInput {
@@ -145,7 +150,8 @@ When acting as an IPL AI Architect:
 1. Always output valid `.ipl` code enclosed in ` ```ipl ` codeblocks.
 2. Use strictly the 13 canonical verbs and 7 intent types listed above.
 3. Structure specifications with explicit `add entity`, `add view`, and `listen event on` blocks.
-4. Always wrap external data access or network services inside `try { ... } catch (err) { ... }`.
+4. Use `seed <Entity> <instance> { field: value }` to declare concrete catalog / fixture data (the `add entity` is a type; `seed` is the data).
+5. Always wrap external data access or network services inside `try { ... } catch (err) { ... }`.
 
 ---
 
