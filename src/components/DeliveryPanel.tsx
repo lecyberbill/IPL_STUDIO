@@ -47,7 +47,7 @@ export const DeliveryPanel: React.FC = () => {
   /** Runs a toolchain install command AFTER an explicit user confirmation. */
   const installTool = async (tool: string, installCommand: string) => {
     const confirmed = window.confirm(
-      `Il me manque "${tool}" pour vérifier l'exécution de votre application.\n\nCommande d'installation proposée :\n${installCommand}\n\nInstaller cet outil système maintenant ?`
+      `The "${tool}" runtime is required to verify and run your application.\n\nSuggested install command:\n${installCommand}\n\nInstall it now?`
     );
     if (!confirmed) return;
     setInstallingTool(tool);
@@ -152,7 +152,7 @@ export const DeliveryPanel: React.FC = () => {
         <div className={`px-3 py-1.5 border-b border-[#2a2f42] font-mono text-[10px] flex items-center space-x-2 select-text ${smokeResult.passed ? 'bg-emerald-500/5' : 'bg-rose-500/10'}`}>
           <span className={smokeResult.passed ? 'text-emerald-300' : 'text-rose-300'}>
             {smokeResult.passed ? '✅' : '⛔'} Smoke test: {smokeResult.files.filter(f => f.ok).length}/{smokeResult.files.length} syntax OK
-            {smokeResult.execution && (smokeResult.execution.ok ? ' · exécution OK' : ` · exécution: ${smokeResult.execution.error || 'failed'}`)}
+            {smokeResult.execution && (smokeResult.execution.ok ? ' · runs' : ` · run failed: ${smokeResult.execution.error || 'error'}`)}
           </span>
           {!smokeResult.passed && !smokeResult.missingTools?.length && (
             <span className="text-rose-300/90 truncate">
@@ -166,7 +166,7 @@ export const DeliveryPanel: React.FC = () => {
       {smokeResult?.missingTools && smokeResult.missingTools.length > 0 && (
         <div className="px-3 py-1.5 border-b border-[#2a2f42] bg-amber-500/10 font-mono text-[10px] select-text space-y-1">
           <div className="text-amber-300">
-            Il me manque <strong>{smokeResult.missingTools.map(m => m.tool).join(', ')}</strong> pour vérifier l'exécution de votre app.
+            Missing toolchain: <strong>{smokeResult.missingTools.map(m => m.tool).join(', ')}</strong> — required to verify your app runs.
           </div>
           <div className="flex items-center space-x-2">
             {smokeResult.missingTools.map((m) => (
@@ -175,10 +175,10 @@ export const DeliveryPanel: React.FC = () => {
                 onClick={() => installTool(m.tool, m.installCommand)}
                 disabled={installingTool !== null}
                 className="flex items-center space-x-1 px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-[10px] font-semibold border border-amber-500/40 transition-colors disabled:opacity-50"
-                title={`Installer ${m.tool}: ${m.installCommand}`}
+                title={`Install ${m.tool}: ${m.installCommand}`}
               >
                 <Wrench size={10} />
-                <span>{installingTool === m.tool ? 'Installation...' : `Installer ${m.tool}`}</span>
+                <span>{installingTool === m.tool ? 'Installing...' : `Install ${m.tool}`}</span>
               </button>
             ))}
           </div>

@@ -100,7 +100,7 @@ async function runSmokeCheck(
         addLog(`[Smoke] Check OK${data.execution ? ` · execution: ${data.execution.ok ? 'runs' : data.execution.error || 'failed'}` : ''}.`, data.execution && !data.execution.ok ? 'warn' : 'success');
       }
       if (data.missingTools && data.missingTools.length > 0) {
-        addLog(`[Smoke] Toolchain(s) manquants: ${data.missingTools.map(m => m.tool).join(', ')}`, 'warn');
+        addLog(`[Smoke] Missing toolchain(s): ${data.missingTools.map(m => m.tool).join(', ')}`, 'warn');
       }
       return data;
     }

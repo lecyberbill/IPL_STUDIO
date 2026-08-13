@@ -529,9 +529,9 @@ export const SettingsModal: React.FC = () => {
                   Consolidation Agent (pre-delivery review)
                 </label>
                 <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">
-                  Deterministic 0-token gates (imports, JSON, form, spec/IPL, patch markers)
-                  always run. The LLM review + auto-fix are ADAPTIVE: they only run when a
-                  gate fires — a clean tree is delivered almost for free.
+                  Structural checks (imports, JSON, execution form, spec/IPL files, patch markers)
+                  always run before delivery. The AI review + auto-fix only run when a check
+                  finds an issue, so clean projects are delivered quickly.
                 </p>
               </div>
               <button
@@ -645,11 +645,11 @@ export const SettingsModal: React.FC = () => {
           {/* Toolchains — optional explicit runtime paths (smoke test + run command) */}
           <div className="bg-[#0f1117] p-3.5 rounded-lg border border-[#2a2f42]">
             <label className="block text-gray-300 font-bold text-xs mb-1">
-              Toolchains (chemins d'exécutables)
+              Toolchains (executable paths)
             </label>
             <p className="text-[10px] text-gray-500 mb-3 leading-tight">
-              Optionnel — chemins explicites vers les runtimes cibles (venv python, toolchains custom…).
-              Vides = détection PATH. Utilisés par le smoke test (syntaxe + exécution) et la commande de lancement.
+              Optional — explicit paths to the runtimes your generated projects need. Leave empty to
+              use the executables found on your system. Used to verify your app (smoke test) and to run it.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {TOOLCHAIN_KEYS.map((key) => (
@@ -660,7 +660,7 @@ export const SettingsModal: React.FC = () => {
                     value={toolchains[key] || ''}
                     onChange={(e) => setToolchains({ ...toolchains, [key]: e.target.value.trim() || undefined })}
                     className="w-full bg-[#161922] border border-[#2a2f42] rounded px-3 py-1.5 font-mono text-cyan-300 text-xs focus:outline-none focus:border-cyan-500"
-                    placeholder={`défaut: ${DEFAULT_TOOL_NAMES[key]}`}
+                    placeholder={`default: ${DEFAULT_TOOL_NAMES[key]}`}
                   />
                 </div>
               ))}
