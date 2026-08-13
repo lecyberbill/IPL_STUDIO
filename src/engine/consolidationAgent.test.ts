@@ -278,7 +278,8 @@ describe('adaptive review (P6)', () => {
 
   it('flags a truncated HTML file and triggers the adaptive review', async () => {
     mocks.callLLM.mockResolvedValue('{ "issues": [] }');
-    mocks.refineIPLArtifact.mockResolvedValue('<file path="index.html">\n<html><body></body></html>\n</file>');
+    // The fix does not land (prose reply) so the truncation persists.
+    mocks.refineIPLArtifact.mockResolvedValue('I cannot fix this.');
     const xml = filesToXml([file('index.html', '<div class="receipt-empty">\n<span')]);
     const result = await consolidateArtifact(xml, 'javascript', llmConfig);
     expect(result.truncatedFiles).toHaveLength(1);
