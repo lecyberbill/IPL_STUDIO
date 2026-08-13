@@ -167,18 +167,26 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 
 ---
 
-## ⬜ Phase 9 — Packaging & Distribution
+## ⬜ Phase 9 — Packaging & Distribution (standalone desktop)
 
 **Objective**: Ship IPL Studio as a desktop app and published package.
 
+**Verdict (2026-08-12)**: NOT production-ready yet — the web IDE is a solid dev tool, but packaging, runtime reliability (web headless/behavioral), the Phase 10 kill-list and a multi-model scorecard are still open. The standalone is the NEXT milestone, not today.
+
+**Approach (agreed)**: **Tauri shell (light, Rust) + Node sidecar** — no backend rewrite:
+- `scripts/standalone-server.mjs` (~40 lines, shared Electron/Tauri): serves the Vite `dist` + mounts `createDevApiServer` middlewares on `127.0.0.1` only.
+- Tauri `src-tauri` (thin Rust): spawn the Node sidecar (system `node` first; bundled Node later), open a webview to the localhost URL.
+- Rationale: the product inherently needs node/python/git at runtime (run-command, serve, smoke, git), so a system-`node` sidecar keeps the app light; a bundled Node runtime makes it self-contained (trades ~40 Mo). Electron remains the fallback if the Rust shell becomes a bottleneck.
+
 **Scope**:
-- Electron/Tauri shell embedding the Vite build + Node middleware.
+- Standalone server (`standalone-server.mjs`) + Tauri shell (spawn sidecar + webview).
 - `npm publish`-able package with the engine (`iplCore`, `iplParser`, `iplSemantics`, `artifactGenerator`) exposed as a public API (`@ipl-studio/engine`).
 - Offline asset bundle (Monaco workers, Tailwind) for air-gapped use.
 
 **Prerequisite done**: the dev-only API backend + security gate now live in a reusable, Vite-independent module (`src/server/devApiServer.ts` exposing connect-style middlewares via `createDevApiServer`), so the desktop shell can mount the exact same policy on its own `http` server without Vite.
 
 **Acceptance criteria**:
+- [ ] `standalone-server.mjs` serves `dist` + `/api/*` on `127.0.0.1` (unit-tested).
 - [ ] Desktop build launches with dev endpoints bound to `localhost` only.
 - [ ] `@ipl-studio/engine` consumes/generates IPL from a plain Node script (no browser).
 
