@@ -68,6 +68,15 @@ export interface PatchLeakage {
   suggestion: string;
 }
 
+export interface TruncatedFile {
+  /** The file that was cut short. */
+  file: string;
+  /** Why it is wrong. */
+  reason: string;
+  /** How to realign. */
+  suggestion: string;
+}
+
 /**
  * Normalizes a relative path to forward slashes with no leading `./` or `/`.
  * `src/../lib` -> `lib`, `./entities` -> `entities`, `../a.js` -> `a.js`.
@@ -228,6 +237,8 @@ const CODE_EXT_RE = /\.(jsx?|tsx?|py|rs|go|cpp|c|h|sh|mjs|cjs)$/i;
 const GUI_TOOLKIT_RE = /CreateWindow|WinMain|SDL_Init|SDL_CreateWindow|SDL_Renderer|GLFW|OpenGL|glut|SFML|\bsf::|wxWidgets|wxWindow|tkinter|\bTk\(|pygame|PyQt|QtWidgets|egui|eframe|winit|iced|slint|appkit|NSApplication|electron|from ['"]electron['"]/i;
 /** `.ipl` files are the SPEC (input), never part of the delivered application. */
 const IPL_FILE_RE = /\.ipl$/i;
+/** `.html` files that do not end with `</html>` were cut short (local-model failure mode). */
+const HTML_CLOSE_RE = /<\/html>\s*$/i;
 /** SEARCH/REPLACE diff markers leaking into generated code (a syntax error in most languages). */
 const PATCH_ARTIFACT_RE = /^[ \t]*={7,}[ \t]*$|<<<<<<<\s*SEARCH|>>>>>>>\s*REPLACE/m;
 /** Signals a backend service that listens for requests (framework or explicit server start). */
@@ -379,6 +390,28 @@ export function findPatchLeakage(files: ProjectArtifactFile[]): PatchLeakage[] {
         file: f.relativePath,
         reason: 'SEARCH/REPLACE patch artifact leaked into generated code',
         suggestion: `"${f.relativePath}" contains a <<<<<<< SEARCH / ======= / >>>>>>> REPLACE separator — a broken merge/patch marker that is a syntax error. Remove those marker lines.`
+      });
+    }
+  }
+  return issues;
+}
+
+/**
+ * Truncation gate — deterministic (0 tokens). A complete HTML document ends
+ * with `</html>`; local models sometimes cut their output mid-file (the bonsai
+ * run shipped an `index.html` ending mid-`<span>`, no `</html>`, no script tag
+ * → the whole app was inert). Any `.html` that does not end with `</html>` is
+ * flagged so the auto-fix regenerates the complete file before delivery.
+ */
+export function findTruncatedFiles(files: ProjectArtifactFile[]): TruncatedFile[] {
+  const issues: TruncatedFile[] = [];
+  for (const f of files) {
+    if (!/\.html?$/i.test(f.relativePath)) continue;
+    if (!HTML_CLOSE_RE.test(f.content)) {
+      issues.push({
+        file: f.relativePath,
+        reason: 'HTML file is truncated (does not end with </html>)',
+        suggestion: `"${f.relativePath}" was cut short mid-file (missing </html> and likely </body> + closing tags/script). Regenerate the COMPLETE file — every element closed, </body></html> at the end.`
       });
     }
   }

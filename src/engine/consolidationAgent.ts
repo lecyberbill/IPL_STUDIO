@@ -29,8 +29,8 @@ import { parseMultiFileXml } from './artifactGenerator.ts';
 import type { ProjectArtifactFile } from './artifactGenerator.ts';
 import { callLLM, refineIPLArtifact, reviewConfigFor, reviewerLabel } from './llmGenerator.ts';
 import type { LLMConfig, TargetLanguage, TokenUsageHook, FormFactor } from './llmGenerator.ts';
-import { findMissingModuleRefs, findInvalidJson, findFormMismatches, findIplLeakage, findPatchLeakage } from './staticChecker.ts';
-import type { MissingModuleRef, InvalidJson, FormMismatch, IplLeakage, PatchLeakage } from './staticChecker.ts';
+import { findMissingModuleRefs, findInvalidJson, findFormMismatches, findIplLeakage, findPatchLeakage, findTruncatedFiles } from './staticChecker.ts';
+import type { MissingModuleRef, InvalidJson, FormMismatch, IplLeakage, PatchLeakage, TruncatedFile } from './staticChecker.ts';
 import { buildReviewPrompt, parseReviewOutput } from './reviewAgent.ts';
 import type { ReviewIssue } from './reviewAgent.ts';
 
@@ -66,6 +66,8 @@ export interface ConsolidationResult {
   iplIssues?: IplLeakage[];
   /** SEARCH/REPLACE diff markers leaked into generated code (a syntax error). */
   patchIssues?: PatchLeakage[];
+  /** HTML files cut short mid-file (no `</html>`). */
+  truncatedFiles?: TruncatedFile[];
   /** Findings reported by the LLM reviewer. */
   reviewIssues: ReviewIssue[];
   /** Findings that were confirmed (deterministic) or error-severity (LLM). */
@@ -177,6 +179,7 @@ export async function consolidateArtifact(
   let formIssues = findFormMismatches(files, options.formFactor);
   let iplIssues = findIplLeakage(files);
   let patchIssues = findPatchLeakage(files);
+  let truncatedFiles = findTruncatedFiles(files);
 
   // 2. Adaptive LLM review (P6): run it only when a deterministic gate fired —
   //    on a clean tree the 0-token gates are the verdict, no review tokens spent.
@@ -187,10 +190,13 @@ export async function consolidateArtifact(
     li.map(f => ({ kind: 'static' as const, file: f.file, message: f.suggestion, severity: 'error' as const }));
   const patchToFindings = (pi: PatchLeakage[]) =>
     pi.map(f => ({ kind: 'static' as const, file: f.file, message: f.suggestion, severity: 'error' as const }));
+  const truncatedToFindings = (ti: TruncatedFile[]) =>
+    ti.map(f => ({ kind: 'static' as const, file: f.file, message: f.suggestion, severity: 'error' as const }));
   const deterministicFindings = [
     ...formToFindings(formIssues),
     ...iplToFindings(iplIssues),
     ...patchToFindings(patchIssues),
+    ...truncatedToFindings(truncatedFiles),
     ...mergeFindings(staticIssues, jsonIssues, [])
   ];
   const shouldReview = mode === true || (mode === 'adaptive' && deterministicFindings.some(f => f.severity === 'error'));
@@ -256,6 +262,7 @@ export async function consolidateArtifact(
       formIssues = findFormMismatches(files, options.formFactor);
       iplIssues = findIplLeakage(files);
       patchIssues = findPatchLeakage(files);
+      truncatedFiles = findTruncatedFiles(files);
       let newReview: ReviewIssue[] = [];
       if (reviewRan) {
         try {
@@ -268,7 +275,7 @@ export async function consolidateArtifact(
           log(`Re-review failed: ${err.message}`, 'warn');
         }
       }
-      const nextErrors = [...formToFindings(formIssues), ...iplToFindings(iplIssues), ...patchToFindings(patchIssues), ...mergeFindings(newStatic, jsonIssues, newReview)].filter(f => f.severity === 'error');
+      const nextErrors = [...formToFindings(formIssues), ...iplToFindings(iplIssues), ...patchToFindings(patchIssues), ...truncatedToFindings(truncatedFiles), ...mergeFindings(newStatic, jsonIssues, newReview)].filter(f => f.severity === 'error');
       for (const f of nextErrors) pushConfirmed(f);
 
       // Stop when nothing still-erroneous remains, or when a pass produced no
@@ -298,9 +305,10 @@ export async function consolidateArtifact(
     options.formFactor,
     reviewRan ? reviewerLabel(config) : 'skipped (deterministic gates clean — 0 tokens)',
     iplIssues,
-    patchIssues
+    patchIssues,
+    truncatedFiles
   );
-  return { files, staticIssues, jsonIssues, formIssues, iplIssues, patchIssues, reviewIssues, confirmedIssues, passesUsed, changed, report };
+  return { files, staticIssues, jsonIssues, formIssues, iplIssues, patchIssues, truncatedFiles, reviewIssues, confirmedIssues, passesUsed, changed, report };
 }
 
 export interface ConsolidationSummary {
@@ -323,6 +331,7 @@ export function summarizeConsolidation(result: ConsolidationResult): Consolidati
       (result.formIssues?.length ?? 0) +
       (result.iplIssues?.length ?? 0) +
       (result.patchIssues?.length ?? 0) +
+      (result.truncatedFiles?.length ?? 0) +
       result.reviewIssues.filter(i => i.severity !== 'info').length,
     fixed: result.changed ? result.passesUsed : 0,
     remaining: result.confirmedIssues.length,
@@ -343,13 +352,14 @@ export function buildDeliveryReport(
   formFactor?: FormFactor,
   reviewerLabel?: string,
   iplIssues: IplLeakage[] = [],
-  patchIssues: PatchLeakage[] = []
+  patchIssues: PatchLeakage[] = [],
+  truncatedFiles: TruncatedFile[] = []
 ): string {
   const lines: string[] = ['--- CONSOLIDATION REPORT ---'];
   // P3: honest reviewer indicator — never oversell the review when the reviewer
   // is the same model as the generator (confirmation-bias caveat).
   if (reviewerLabel) lines.push(`Reviewer: ${reviewerLabel}`);
-  if (staticIssues.length === 0 && jsonIssues.length === 0 && formIssues.length === 0 && iplIssues.length === 0 && patchIssues.length === 0 && confirmedIssues.length === 0) {
+  if (staticIssues.length === 0 && jsonIssues.length === 0 && formIssues.length === 0 && iplIssues.length === 0 && patchIssues.length === 0 && truncatedFiles.length === 0 && confirmedIssues.length === 0) {
     lines.push('✅ No confirmed defects found.');
   }
   if (staticIssues.length > 0) {
@@ -371,6 +381,10 @@ export function buildDeliveryReport(
   if (patchIssues.length > 0) {
     lines.push(`Patch-artifact gate: ${patchIssues.length} file(s) carry SEARCH/REPLACE markers:`);
     for (const f of patchIssues) lines.push(`  - ${f.file}: ${f.reason}`);
+  }
+  if (truncatedFiles.length > 0) {
+    lines.push(`Truncation gate: ${truncatedFiles.length} HTML file(s) cut short:`);
+    for (const f of truncatedFiles) lines.push(`  - ${f.file}: ${f.reason}`);
   }
   const reviewWarnings = reviewIssues.filter(i => i.severity === 'warning');
   if (reviewWarnings.length > 0) {

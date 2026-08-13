@@ -1,8 +1,25 @@
 import { describe, it, expect } from 'vitest';
-import { findMissingModuleRefs, findFormMismatches, findIplLeakage, findPatchLeakage, normalizeRelative, resolveCandidates, extractRelativeImports } from './staticChecker';
+import { findMissingModuleRefs, findFormMismatches, findIplLeakage, findPatchLeakage, findTruncatedFiles, normalizeRelative, resolveCandidates, extractRelativeImports } from './staticChecker';
 import type { ProjectArtifactFile } from './artifactGenerator';
 
 const file = (relativePath: string, content: string): ProjectArtifactFile => ({ relativePath, content });
+
+describe('findTruncatedFiles (truncation gate)', () => {
+  it('flags an HTML file that does not end with </html>', () => {
+    const issues = findTruncatedFiles([file('index.html', '<div class="receipt-empty">\n<span')]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].file).toBe('index.html');
+    expect(issues[0].reason).toContain('truncated');
+  });
+
+  it('accepts a complete HTML document', () => {
+    expect(findTruncatedFiles([file('index.html', '<html><body><p>hi</p></body></html>')])).toEqual([]);
+  });
+
+  it('ignores non-HTML files', () => {
+    expect(findTruncatedFiles([file('src/app.js', 'console.log(')])).toEqual([]);
+  });
+});
 
 describe('findPatchLeakage (SEARCH/REPLACE markers are a syntax error)', () => {
   it('flags a stray ======= separator line in generated code', () => {

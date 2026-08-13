@@ -21,7 +21,7 @@ import {
   summarizeConsolidation,
   consolidateArtifact
 } from './consolidationAgent';
-import type { FormMismatch, IplLeakage, PatchLeakage } from './staticChecker';
+import type { FormMismatch, IplLeakage, PatchLeakage, TruncatedFile } from './staticChecker';
 import type { ProjectArtifactFile } from './artifactGenerator';
 import type { MissingModuleRef } from './staticChecker';
 const file = (relativePath: string, content: string): ProjectArtifactFile => ({ relativePath, content });
@@ -238,6 +238,15 @@ describe('form-factor gate in consolidation (P4)', () => {
     expect(report).toContain('Patch-artifact gate: 1 file(s) carry SEARCH/REPLACE markers');
     expect(report).toContain('index.html: SEARCH/REPLACE patch artifact');
   });
+
+  it('reports the truncation gate section in the delivery report', () => {
+    const truncated: TruncatedFile[] = [
+      { file: 'index.html', reason: 'HTML file is truncated (does not end with </html>)', suggestion: 'regenerate' }
+    ];
+    const report = buildDeliveryReport([file('a.js', '')], [], [], [], [{ kind: 'static', file: 'index.html', message: 'regenerate' }], 1, true, [], undefined, undefined, [], [], truncated);
+    expect(report).toContain('Truncation gate: 1 HTML file(s) cut short');
+    expect(report).toContain('index.html: HTML file is truncated');
+  });
 });
 
 describe('adaptive review (P6)', () => {
@@ -265,6 +274,18 @@ describe('adaptive review (P6)', () => {
     const xml = filesToXml([file('src/index.js', 'console.log("hi");')]);
     await consolidateArtifact(xml, 'javascript', llmConfig, { systematicReview: true });
     expect(mocks.callLLM).toHaveBeenCalled();
+  });
+
+  it('flags a truncated HTML file and triggers the adaptive review', async () => {
+    mocks.callLLM.mockResolvedValue('{ "issues": [] }');
+    mocks.refineIPLArtifact.mockResolvedValue('<file path="index.html">\n<html><body></body></html>\n</file>');
+    const xml = filesToXml([file('index.html', '<div class="receipt-empty">\n<span')]);
+    const result = await consolidateArtifact(xml, 'javascript', llmConfig);
+    expect(result.truncatedFiles).toHaveLength(1);
+    expect(result.truncatedFiles![0].file).toBe('index.html');
+    // The truncation gate fired → the LLM review ran (adaptive).
+    expect(mocks.callLLM).toHaveBeenCalled();
+    expect(result.report).toContain('Truncation gate: 1 HTML file(s) cut short');
   });
 });
 
