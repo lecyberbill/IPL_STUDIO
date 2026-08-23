@@ -14,6 +14,9 @@
 
 ---
 
+<img width="1988" height="1034" alt="image" src="https://github.com/user-attachments/assets/6835ca9b-15fb-43bd-8bcd-71d4183981b1" />
+
+
 ## ✨ v1.4.0 Highlights — Product Reliability
 
 - **Delivery panel** (P1) — the consolidation agent's report is visible in the product: found / fixed / remaining, clickable issues, token budget, copy-paste repair prompt, popup + maximize.
