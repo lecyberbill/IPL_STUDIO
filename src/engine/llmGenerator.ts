@@ -3,7 +3,7 @@
  * Transforms IPL intent declarations into complete multi-file applications.
  */
 
-import { grammarSignatureText } from './iplCore.ts';
+import { PASS1_SYSTEM_PROMPT, PASS2_SYSTEM_PROMPT, REPAIR_SYSTEM_PROMPT } from './llmPrompts.ts';
 
 export interface LLMConfig {
   mode: 'local' | 'lmstudio' | 'external';
@@ -174,13 +174,52 @@ export interface ProjectTopology {
 }
 
 /**
+ * A single chat message. Cloud calls send a stable `system` message followed by
+ * a dynamic `user` message so the system prefix is byte-identical (Cache Hit).
+ */
+export interface LLMMessage {
+  role: 'system' | 'user';
+  content: string;
+}
+
+/**
+ * A prompt split into a byte-stable system prompt (the cached prefix) and a
+ * dynamic user payload. Local modes flatten this back to a single string.
+ */
+export interface LLMMessagePair {
+  system: string;
+  user: string;
+}
+
+/** `callLLM` accepts either a raw string (local / review callers) or a pair. */
+export type LLMInput = string | LLMMessagePair;
+
+/** Normalizes an `LLMInput` into an ordered messages array + a flattened text. */
+export function normalizeLLMInput(input: LLMInput): { messages: LLMMessage[]; flat: string } {
+  if (typeof input === 'string') {
+    return { messages: [{ role: 'user', content: input }], flat: input };
+  }
+  return {
+    messages: [
+      { role: 'system', content: input.system },
+      { role: 'user', content: input.user }
+    ],
+    flat: `${input.system}\n\n${input.user}`
+  };
+}
+
+/**
  * Sends a prompt to LLM and streams chunk responses. When `options.usage` is
  * provided, the estimated input/output tokens (chars / 4) of the call are
  * recorded into the run accumulator under the given bucket — the single choke
  * point that makes the P2 token-economy telemetry possible.
+ *
+ * Cloud mode sends the paired `system`/`user` messages verbatim (enabling
+ * DeepSeek prompt caching); local modes flatten the pair back to a single
+ * string so their payloads are unchanged.
  */
 async function callLLMRaw(
-  prompt: string,
+  prompt: LLMInput,
   config: LLMConfig,
   onLog: (msg: string, type: 'info' | 'success' | 'warn' | 'error') => void,
   onStreamChunk?: (accumulatedText: string) => void,
@@ -188,6 +227,7 @@ async function callLLMRaw(
 ): Promise<string> {
   const temp = options?.temperature ?? 0.15;
   const seedVal = options?.seed ?? 42;
+  const { messages, flat } = normalizeLLMInput(prompt);
 
   if (config.mode === 'local') {
     onLog(`Connecting to local Ollama (temp=${temp}) (${config.model} at ${config.localEndpoint})...`, 'info');
@@ -196,7 +236,7 @@ async function callLLMRaw(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: config.model,
-        prompt: prompt,
+        prompt: flat,
         stream: true,
         options: {
           temperature: temp,
@@ -250,7 +290,7 @@ async function callLLMRaw(
       },
       body: JSON.stringify({
         model: selectedModel,
-        messages: [{ role: 'user', content: prompt }],
+        messages: [{ role: 'user', content: flat }],
         temperature: temp,
         seed: seedVal,
         stream: true
@@ -322,7 +362,7 @@ async function callLLMRaw(
 
     const bodyObj: Record<string, any> = {
       model: config.model,
-      messages: [{ role: 'user', content: prompt }],
+      messages,
       temperature: temp,
       stream: true
     };
@@ -388,15 +428,16 @@ async function callLLMRaw(
  * records the estimated input/output token cost into the run accumulator.
  */
 export async function callLLM(
-  prompt: string,
+  prompt: LLMInput,
   config: LLMConfig,
   onLog: (msg: string, type: 'info' | 'success' | 'warn' | 'error') => void,
   onStreamChunk?: (accumulatedText: string) => void,
   options?: { temperature?: number; seed?: number; usage?: TokenUsageHook }
 ): Promise<string> {
+  const { flat } = normalizeLLMInput(prompt);
   const text = await callLLMRaw(prompt, config, onLog, onStreamChunk, options);
   if (options?.usage) {
-    recordTokenUsage(options.usage.usage, options.usage.bucket, prompt.length, text.length);
+    recordTokenUsage(options.usage.usage, options.usage.bucket, flat.length, text.length);
   }
   return text;
 }
@@ -428,41 +469,31 @@ export function buildLangInstruction(
 
 /**
  * Pass 1 prompt: topology architect (JSON project structure).
+ * The byte-stable system prompt lives in PASS1_SYSTEM_PROMPT; only the dynamic
+ * payload (stack + IPL spec) goes into the user message.
  */
 export function buildPass1Prompt(
   iplCode: string,
   targetLang: TargetLanguage,
   polyglotConfig?: { autoDecide: boolean; layers: Array<{ role: string; tech: string }> },
   formFactor?: FormFactor
-): string {
-  return `You are a Lead Software Architect.
-
-TARGET STACK:
+): LLMMessagePair {
+  return {
+    system: PASS1_SYSTEM_PROMPT,
+    user: `TARGET STACK:
 ${buildLangInstruction(targetLang, polyglotConfig, formFactor)}
 
 BUSINESS REQUIREMENTS (Structured Pseudo-Code):
 \`\`\`
 ${iplCode}
-\`\`\`
-
-IPL GRAMMAR SIGNATURE (authorized verbs & intent types — the spec above uses ONLY these):
-${grammarSignatureText()}
-
-ARCHITECTURE GUIDANCE:
-Design a clean, cohesive application architecture. Use multi-file organization ONLY IF NEEDED for complexity, grouping related features logically (e.g. index.html, src/app.js). Avoid unnecessary file fragmentation for simple tasks.
-
-TASK:
-Return ONLY a valid raw JSON object defining the project topology:
-{
-  "projectName": "my_project",
-  "files": [
-    { "relativePath": "path/to/file.ext", "description": "purpose" }
-  ]
-}`;
+\`\`\``
+  };
 }
 
 /**
  * Pass 2 prompt: code generator (XML-tagged source files).
+ * The byte-stable system prompt lives in PASS2_SYSTEM_PROMPT; only the dynamic
+ * payload (stack + IPL spec + topology) goes into the user message.
  */
 export function buildPass2Prompt(
   iplCode: string,
@@ -470,11 +501,10 @@ export function buildPass2Prompt(
   topologyJsonStr: string,
   polyglotConfig?: { autoDecide: boolean; layers: Array<{ role: string; tech: string }> },
   formFactor?: FormFactor
-): string {
-  return `You are a Senior Full-Stack Software Engineer.
-Build a complete, production-ready software application that directly fulfills the business requirements described in the structured pseudo-code below.
-
-1. TARGET STACK:
+): LLMMessagePair {
+  return {
+    system: PASS2_SYSTEM_PROMPT,
+    user: `1. TARGET STACK:
 ${buildLangInstruction(targetLang, polyglotConfig, formFactor)}
 
 2. BUSINESS REQUIREMENTS (Structured Pseudo-Code):
@@ -482,21 +512,9 @@ ${buildLangInstruction(targetLang, polyglotConfig, formFactor)}
 ${iplCode}
 \`\`\`
 
-3. IPL GRAMMAR SIGNATURE (authorized verbs & intent types used in the spec above):
-${grammarSignatureText()}
-
-4. PROJECT TOPOLOGY:
-${topologyJsonStr || 'Standard Multi-File Layout'}
-
-OUTPUT FORMAT INSTRUCTION:
-Wrap EVERY generated project file inside XML tags:
-<file path="relative/path/to/file.ext">
-... complete runnable source code ...
-</file>
-
-Deliver ONLY the target-language application files (e.g. .html/.css/.js/.py/.rs/.go). NEVER emit .ipl files — the IPL spec is the INPUT, never part of the delivered application.
-
-Deliver clean, production-grade code directly fulfilling the requirements.`;
+3. PROJECT TOPOLOGY:
+${topologyJsonStr || 'Standard Multi-File Layout'}`
+  };
 }
 
 /**
@@ -548,47 +566,16 @@ export async function refineIPLArtifact(
 ): Promise<string> {
   onLog(`🤖 Refactoring & updating [${targetLang.toUpperCase()}] project files based on user instruction...`, 'info');
 
-  const prompt = `SYSTEM ROLE: Senior Autonomous Software Architect & Assistant.
-TASK: Answer the user question or modify the multi-file project based on the user request.
-
-EXISTING PROJECT FILES:
+  const prompt: LLMMessagePair = {
+    system: REPAIR_SYSTEM_PROMPT,
+    user: `EXISTING PROJECT FILES:
 \`\`\`xml
 ${existingXml}
 \`\`\`
 
 USER REQUEST:
-"${userCorrectionPrompt}"
-
-CRITICAL OUTPUT INSTRUCTIONS:
-0. IF the request or the error is AMBIGUOUS and you cannot confidently determine the fix
-   (multiple plausible interpretations, missing information, conflicting constraints):
-   DO NOT guess. Reply with EXACTLY one line starting with:
-   NEED_CLARIFICATION: <your precise, one-line question>
-   and emit NO <file> or <patch> tags in that case.
-0b. IF the user reports the application is BROKEN or NOT WORKING (empty UI, crash, missing
-    feature, unclickable control, wrong output): treat it as a CODE-CHANGE request. ANALYZE the
-    EXISTING PROJECT FILES above, locate the defect(s), and FIX them by emitting <file> or
-    <patch> tags. Do NOT reply conversationally when a defect is present — only ask a
-    NEED_CLARIFICATION if you genuinely cannot determine the cause.
-1. IF the user is asking to modify specific lines, fix bugs, or update existing files:
-   - OPTION A (Targeted Line Patching - Preferred for line edits):
-     <patch path="relative/path/to/file.ext">
-     <<<<<<< SEARCH
-     exact lines to find in file
-     =======
-     new replacement lines
-     >>>>>>> REPLACE
-     </patch>
-   
-   - OPTION B (Full File Replacement / New File):
-     <file path="relative/path/to/file.ext">
-     full file content
-     </file>
-
-2. DO NOT write markdown headers (e.g. ## 3. Create file...) or conversational text between or outside <file> or <patch> tags.
-3. IF the user is asking a general question without requesting code changes:
-   - Answer conversationally in plain text.
-   - DO NOT output any <file> or <patch> tags if no code was modified.`;
+"${userCorrectionPrompt}"`
+  };
 
   return await callLLM(prompt, config, onLog, onStreamChunk, { temperature: 0.0, usage });
 }

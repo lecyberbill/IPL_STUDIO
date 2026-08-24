@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { extractClarificationRequest, estimateTokens, createRunTokenUsage, recordTokenUsage, callLLM, buildLangInstruction, buildFormDirective, reviewConfigFor, reviewerLabel } from './llmGenerator';
+import { extractClarificationRequest, estimateTokens, createRunTokenUsage, recordTokenUsage, callLLM, buildLangInstruction, buildFormDirective, reviewConfigFor, reviewerLabel, buildPass1Prompt, buildPass2Prompt, normalizeLLMInput } from './llmGenerator';
+import { PASS1_SYSTEM_PROMPT, PASS2_SYSTEM_PROMPT, REPAIR_SYSTEM_PROMPT } from './llmPrompts';
 import type { LLMConfig } from './llmGenerator';
 
 const localConfig: LLMConfig = {
@@ -160,5 +161,54 @@ describe('extractClarificationRequest', () => {
   it('does not trigger on the word appearing inside a code comment', () => {
     const output = '<file path="a.py">\n# need_clarification: not a real request\nprint(1)\n</file>';
     expect(extractClarificationRequest(output)).toBeNull();
+  });
+});
+
+describe('system prompt byte-stability (DeepSeek Cache Hit)', () => {
+  /** Deterministic 32-bit FNV-1a hash — part of the cache-integrity contract. */
+  function hashText(s: string): string {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return h.toString(16).padStart(8, '0');
+  }
+
+  it('the three system prompts are pure constants (no per-request data)', () => {
+    // Only match markers that exist EXCLUSIVELY in the dynamic user payload.
+    expect(PASS1_SYSTEM_PROMPT).not.toMatch(/TARGET STACK|BUSINESS REQUIREMENTS|```/);
+    expect(PASS2_SYSTEM_PROMPT).not.toMatch(/TARGET STACK|BUSINESS REQUIREMENTS|PROJECT TOPOLOGY|```/);
+    expect(REPAIR_SYSTEM_PROMPT).not.toMatch(/```xml|USER REQUEST:/);
+  });
+
+  it('buildPass1Prompt keeps the SAME system message across different specs/stacks', () => {
+    const a = buildPass1Prompt('add entity A {}', 'python', undefined, 'cli');
+    const b = buildPass1Prompt('add entity B {}', 'rust', { autoDecide: true, layers: [] }, 'web');
+    expect(a.system).toBe(b.system);
+    expect(a.system).toBe(PASS1_SYSTEM_PROMPT);
+    expect(a.user).not.toBe(b.user); // the dynamic part legitimately differs
+    expect(hashText(a.system)).toBe(hashText(b.system));
+    expect(hashText(a.system)).toBe(hashText(PASS1_SYSTEM_PROMPT));
+  });
+
+  it('buildPass2Prompt keeps the SAME system message across different topologies', () => {
+    const a = buildPass2Prompt('add entity A {}', 'javascript', 'path/to/a.js', undefined, 'cli');
+    const b = buildPass2Prompt('add entity B {}', 'python', '', { autoDecide: false, layers: [{ role: 'ui', tech: 'React' }] }, 'server');
+    expect(a.system).toBe(b.system);
+    expect(a.system).toBe(PASS2_SYSTEM_PROMPT);
+    expect(hashText(a.system)).toBe(hashText(b.system));
+  });
+
+  it('flattens a pair into a stable system-first message array for cloud mode', () => {
+    const pair = buildPass1Prompt('add entity A {}', 'python', undefined, 'cli');
+    const { messages, flat } = normalizeLLMInput(pair);
+    expect(messages[0]).toEqual({ role: 'system', content: PASS1_SYSTEM_PROMPT });
+    expect(messages[1].role).toBe('user');
+    expect(flat.startsWith(PASS1_SYSTEM_PROMPT)).toBe(true);
+    // string inputs stay a single user message (local modes unchanged)
+    const str = normalizeLLMInput('just a prompt');
+    expect(str.messages).toEqual([{ role: 'user', content: 'just a prompt' }]);
+    expect(str.flat).toBe('just a prompt');
   });
 });
