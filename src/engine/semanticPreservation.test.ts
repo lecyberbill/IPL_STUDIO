@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractIPLSemanticContract, measureSemanticPreservation, findContractFindings, deriveContractContext, isRequiredContractLost, deriveOutputJsonKeys, deriveBehaviorAssertFromSpec } from './semanticPreservation';
+import { extractIPLSemanticContract, measureSemanticPreservation, findContractFindings, deriveContractContext, isRequiredContractLost, deriveOutputJsonKeys, deriveBehaviorAssertFromSpec, checkOracleParity } from './semanticPreservation';
 
 const SPEC = `
 add entity Vehicle {
@@ -216,5 +216,65 @@ listen event on "x" {
 
   it('returns null when the spec declares no JSON output (falls back to crash-only smoke)', () => {
     expect(deriveBehaviorAssertFromSpec('add message { text: "hi" }\nreturn success')).toBeNull();
+  });
+});
+
+describe('checkOracleParity (generator and oracle share the same fixtures)', () => {
+  const SPEC = `
+add entity Vehicle { plate: text, isVip: boolean }
+add entity Garage { currency: options("EUR", "USD") }
+seed Vehicle car1 { plate: "AB-123", isVip: false }
+listen event on "x" { send receipt to screen { format: "json", plate: vehicle.plate, isVip: vehicle.isVip } }
+`;
+  it('passes when the oracle fixtures are declared options/seed values', () => {
+    const r = checkOracleParity(SPEC, { jsonInOutput: [
+      { path: 'vehicles.0.plate', equals: 'AB-123' },
+      { path: 'currency', equals: 'EUR' }
+    ] });
+    expect(r.ok).toBe(true);
+    expect(r.issues).toEqual([]);
+  });
+
+  it('flags an oracle value the spec never declares (drift)', () => {
+    const r = checkOracleParity(SPEC, { jsonInOutput: [
+      { path: 'currency', equals: 'GBP' }
+    ] });
+    expect(r.ok).toBe(false);
+    expect(r.issues[0]).toContain('"GBP"');
+    expect(r.issues[0]).toContain('no such option/seed value');
+  });
+
+  it('is trivially ok when the oracle asserts no string fixtures (numbers / presence)', () => {
+    const r = checkOracleParity(SPEC, { jsonInOutput: [{ path: 'grandTotal', approx: 14.4 }, { path: 'x', exists: true }] });
+    expect(r.ok).toBe(true);
+  });
+});
+
+describe('control-flow preservation receipt', () => {
+  const SPEC = `
+listen event on "x" {
+  read v from gate { where: v.n > 0 }
+  if v.ok == true {
+    send a to screen { format: "json", key: v.k }
+  } else {
+    send a to screen { format: "json", key: v.k }
+  }
+  for item in list { send b to screen { format: "json", key: item } }
+  return success
+}`;
+  it('extracts the declared control-flow intents', () => {
+    const cf = extractIPLSemanticContract(SPEC).controlFlow;
+    expect(cf).toContain('if');
+    expect(cf).toContain('else');
+    expect(cf).toContain('for');
+    expect(cf).toContain('return');
+  });
+
+  it('measures that the branching survived into the source', () => {
+    const c = extractIPLSemanticContract(SPEC);
+    const good = measureSemanticPreservation(c, [{ relativePath: 'a.js', content: 'if (x) { } else { } for (y of z) { } return 0;' }]);
+    expect(good.controlFlow.preserved).toBe(good.controlFlow.total);
+    const flat = measureSemanticPreservation(c, [{ relativePath: 'a.js', content: 'console.log(1);' }]);
+    expect(flat.controlFlow.preserved).toBeLessThan(flat.controlFlow.total);
   });
 });

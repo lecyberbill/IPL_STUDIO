@@ -6,6 +6,11 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## [Unreleased]
 
+### 🔗 Oracle/spec parity guard + control-flow receipt (John's last two gaps)
+- **Parity guard** (`checkOracleParity`): asserts the behavior oracle's string-valued fixtures are declared by the spec (option values / `seed` data). An oracle expecting a value the spec never declares (e.g. `currency "GBP"`) is flagged — the hand-written oracle silently carries data the spec omits. Indicator only (the spec may be minimal); surfaced as a report section.
+- **Control-flow preservation** (`SemanticReceipt.controlFlow`): the spec's `if`/`for`/`try`/`return`/`else`/`catch` intents vs the source (keyword synonyms), reported as a distinct receipt + column. Complements identity/types/formulas/output-keys.
+- `SemanticContract` gained `seedValues` (fixture data) + `controlFlow`. Report shows control-flow + a new `Oracle / spec parity` section.
+
 ### 🧩 Multi-file IPL benchmark spec (`parking-multi`)
 - `BenchSpec` gains optional `sourceFiles` + `rootFile`; `specInputCode` merges the project via `resolveIPLProject` before generation, contract extraction and token accounting. So the harness can **generate from a multi-module IPL project** (main imports models + seed).
 - New `parking-multi` spec (main imports `models.ipl` + `data.ipl` with 2 `seed Vehicle`) sharing the parking oracle.

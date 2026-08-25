@@ -38,8 +38,8 @@ import type { DeterministicRepair } from '../src/engine/deterministicRepair.ts';
 import { evaluateBehavior } from '../src/engine/behaviorAssert.ts';
 import type { BehaviorAssert } from '../src/engine/behaviorAssert.ts';
 import { analyzeIPLSemantics } from '../src/engine/iplSemantics.ts';
-import { extractIPLSemanticContract, measureSemanticPreservation, deriveContractContext } from '../src/engine/semanticPreservation.ts';
-import type { SemanticReceipt } from '../src/engine/semanticPreservation.ts';
+import { extractIPLSemanticContract, measureSemanticPreservation, deriveContractContext, checkOracleParity } from '../src/engine/semanticPreservation.ts';
+import type { SemanticReceipt, OracleParity } from '../src/engine/semanticPreservation.ts';
 import { resolveIPLProject } from '../src/engine/iplGrammar.ts';
 
 // ---------------------------------------------------------------------------
@@ -639,6 +639,8 @@ interface RunResult {
   };
   /** Phase 3 — semantic-preservation receipt (independent of runtime PASS). */
   semantic?: SemanticReceipt;
+  /** Oracle/spec parity guard: the oracle's string fixtures are declared by the spec. */
+  oracleParity?: OracleParity;
   /** Phase 1 — per-layer evaluation grid (which layer still held a degree of freedom). */
   receipts?: LayerReceipt[];
   /** Phase 2 — status after deterministic repair, before any LLM repair. */
@@ -1591,8 +1593,8 @@ function buildSemanticSection(results: RunResult[]): string[] {
   lines.push('Measured on the final shipped files. Independent of the runtime verdict: a PASS can still leak the contract, a FAIL can still reproduce it.');
   lines.push('Aggregated across iterations: pass count, and the semantic score mean / min–max spread (a wide spread = model variance, not a stable contract).');
   lines.push('');
-  lines.push('| Spec | n | PASS/n | Score mean | Score min–max |');
-  lines.push('| :--- | :---: | :---: | :---: | :--- |');
+  lines.push('| Spec | n | PASS/n | Score mean | Score min–max | Ctrl-flow |');
+  lines.push('| :--- | :---: | :---: | :---: | :--- | :---: |');
   for (const [id, runs] of groupBySpec(results)) {
     const withSem = runs.filter(r => r.semantic);
     if (withSem.length === 0) continue;
@@ -1602,7 +1604,32 @@ function buildSemanticSection(results: RunResult[]): string[] {
     const max = Math.max(...scores);
     const pass = runs.filter(r => r.status === 'PASS').length;
     const spread = min === max ? `${min}` : `${min}–${max}`;
-    lines.push(`| ${id} | ${withSem.length} | ${pass}/${runs.length} | ${mean} | ${spread} |`);
+    const cf = withSem[0].semantic!.controlFlow;
+    const cfLabel = cf.total === 0 ? 'n/a' : `${cf.preserved}/${cf.total}`;
+    lines.push(`| ${id} | ${withSem.length} | ${pass}/${runs.length} | ${mean} | ${spread} | ${cfLabel} |`);
+  }
+  lines.push('');
+  return lines;
+}
+
+/** Oracle/spec parity guard receipt (fixtures the oracle expects vs the spec declares). */
+function buildParitySection(results: RunResult[]): string[] {
+  const lines: string[] = ['## Oracle / spec parity', ''];
+  lines.push('Do the oracle\'s string-valued fixtures come from the spec (option values / `seed` data)? A violation means a hand-written oracle silently carries data the spec never declares.');
+  lines.push('');
+  const withP = results.filter(r => r.oracleParity);
+  if (withP.length === 0) {
+    lines.push('_No oracle parity data (specs without a behavioral oracle)._');
+    lines.push('');
+    return lines;
+  }
+  lines.push('| Spec | Parity | Offending fixtures |');
+  lines.push('| :--- | :---: | :--- |');
+  for (const [id, runs] of groupBySpec(withP)) {
+    const worst = runs.find(r => !r.oracleParity!.ok) ?? runs[0];
+    const p = worst.oracleParity!;
+    const issue = p.issues.slice(0, 2).map(x => x.replace(/^oracle "[^"]+" expects/, '')).join(' · ');
+    lines.push(`| ${id} | ${p.ok ? '✅' : '⚠️ ' + (p.issues.length)} | ${p.ok ? '' : issue} |`);
   }
   lines.push('');
   return lines;
@@ -1771,6 +1798,8 @@ function buildReport(args: CliArgs, config: LLMConfig, results: RunResult[]): st
   lines.push(...buildLayerSection(results));
   // Phase 3 — semantic-preservation receipt.
   lines.push(...buildSemanticSection(results));
+  // Oracle/spec parity guard.
+  lines.push(...buildParitySection(results));
   // Phase 5 — natural-language control witness.
   lines.push(...buildNlSection(results));
 
@@ -1929,8 +1958,11 @@ async function main(): Promise<number> {
         const contract = extractIPLSemanticContract(specInputCode(spec));
         const finalFiles = readRunFiles(runDir);
         const res = measureSemanticPreservation(contract, finalFiles);
-        semantic = { identity: res.identity, types: res.types, formulas: res.formulas, outputKeys: res.outputKeys, score: res.score };
+        semantic = { identity: res.identity, types: res.types, formulas: res.formulas, outputKeys: res.outputKeys, controlFlow: res.controlFlow, score: res.score };
       }
+
+      // Oracle/spec parity guard (does the oracle's fixture data come from the spec?).
+      const oracleParity = checkOracleParity(specInputCode(spec), spec.verify.assert);
 
       // Phase 1 — layer-aware evaluation grid (which layer still held the freedom).
       const receipts = buildLayerReceipts(spec, gen, missingRefs, firstTry, semantic, statusAfterDeterministic, deterministicRepairs, llmRepairPasses);
@@ -1954,6 +1986,7 @@ async function main(): Promise<number> {
           clarificationRoundtrips: usage.clarificationRoundtrips
         },
         semantic,
+        oracleParity,
         receipts,
         statusAfterDeterministic,
         deterministicRepairs,
@@ -1976,7 +2009,7 @@ async function main(): Promise<number> {
           result.nl = {
             status: nlFirstTry.status,
             firstTryStatus: nlFirstTry.status,
-            semantic: { identity: nlRes.identity, types: nlRes.types, formulas: nlRes.formulas, outputKeys: nlRes.outputKeys, score: nlRes.score }
+            semantic: { identity: nlRes.identity, types: nlRes.types, formulas: nlRes.formulas, outputKeys: nlRes.outputKeys, controlFlow: nlRes.controlFlow, score: nlRes.score }
           };
           log(args, `nl-witness: ${nlFirstTry.status} (${nlFirstTry.detail})`, nlFirstTry.status === 'PASS' ? 'success' : 'warn');
         } catch (err: any) {

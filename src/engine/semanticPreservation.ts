@@ -47,10 +47,24 @@ export interface SemanticContract {
   fieldNames: string[];
   types: string[];
   optionValues: string[];
+  /** String literals declared by `seed <Entity> <name> { field: value }` (the fixture data). */
+  seedValues: string[];
   formulaIdentifiers: string[];
   formulaNumbers: number[];
   outputKeys: string[];
+  /** Control-flow kinds present in the spec: if / for / try / return / else / catch. */
+  controlFlow: string[];
 }
+
+/** Language synonyms for the spec's control-flow intents, to measure they survived. */
+const CONTROL_FLOW_SYNONYMS: Record<string, string[]> = {
+  if: ['if'],
+  else: ['else'],
+  for: ['for', 'foreach', 'each'],
+  try: ['try', 'except', 'catch'],
+  catch: ['except', 'catch'],
+  return: ['return']
+};
 
 export interface Coverage {
   preserved: number;
@@ -62,6 +76,8 @@ export interface SemanticReceipt {
   types: Coverage;
   formulas: Coverage;
   outputKeys: Coverage;
+  /** Control-flow preservation (if/for/try/return/else/catch survived into source). */
+  controlFlow: Coverage;
   /** Weighted 0..1 composite (identity .3, types .2, formulas .3, keys .2). */
   score: number;
 }
@@ -128,13 +144,15 @@ function addStatementToContract(stmt: IPLStatement, c: SemanticContract, ids: Se
   }
 
   // `seed Entity instance { field: value, ... }` — the seeded field keys +
-  // literal values participate in identity/type preservation.
+  // literal values participate in identity/type preservation, and the string
+  // literals are the fixture DATA the behavioral oracle must match.
   if (stmt.kind === 'seed') {
     if (stmt.seedEntity) c.entityNames.push(stmt.seedEntity);
     for (const prop of stmt.props) {
       if (prop.key) c.fieldNames.push(prop.key);
-      if (prop.value?.kind === 'literal' && typeof prop.value.value === 'number') {
-        nums.add(String(prop.value.value));
+      if (prop.value?.kind === 'literal') {
+        if (typeof prop.value.value === 'number') nums.add(String(prop.value.value));
+        else if (typeof prop.value.value === 'string') c.seedValues.push(prop.value.value);
       }
     }
     return;
@@ -156,6 +174,13 @@ function addStatementToContract(stmt: IPLStatement, c: SemanticContract, ids: Se
     }
     return;
   }
+
+  // Control-flow intents: the branch structure the spec declares.
+  if (stmt.kind === 'if' || stmt.kind === 'for' || stmt.kind === 'try' || stmt.kind === 'return') {
+    if (!c.controlFlow.includes(stmt.kind)) c.controlFlow.push(stmt.kind);
+  }
+  if (stmt.elseBody && stmt.elseBody.length > 0 && !c.controlFlow.includes('else')) c.controlFlow.push('else');
+  if (stmt.catchBody && stmt.catchBody.length > 0 && !c.controlFlow.includes('catch')) c.controlFlow.push('catch');
 }
 
 export function extractIPLSemanticContract(code: string): SemanticContract {
@@ -164,9 +189,11 @@ export function extractIPLSemanticContract(code: string): SemanticContract {
     fieldNames: [],
     types: [],
     optionValues: [],
+    seedValues: [],
     formulaIdentifiers: [],
     formulaNumbers: [],
-    outputKeys: []
+    outputKeys: [],
+    controlFlow: []
   };
   const ids = new Set<string>();
   const nums = new Set<string>();
@@ -196,9 +223,11 @@ export function extractIPLSemanticContract(code: string): SemanticContract {
     fieldNames: uniq(c.fieldNames),
     types: uniq(c.types),
     optionValues: uniq(c.optionValues),
+    seedValues: uniq(c.seedValues),
     formulaIdentifiers: c.formulaIdentifiers,
     formulaNumbers: c.formulaNumbers,
-    outputKeys: uniq(c.outputKeys)
+    outputKeys: uniq(c.outputKeys),
+    controlFlow: c.controlFlow
   };
 }
 
@@ -292,6 +321,10 @@ export function measureSemanticPreservation(
     preserved: count(contract.outputKeys, it => words.has(it), 'outputKey'),
     total: contract.outputKeys.length
   };
+  const controlFlow = {
+    preserved: count(contract.controlFlow, it => (CONTROL_FLOW_SYNONYMS[it] ?? [it]).some(s => words.has(s)), 'controlFlow'),
+    total: contract.controlFlow.length
+  };
 
   const wScore =
     (identity.total === 0 ? 1 : identity.preserved / identity.total) * 0.3 +
@@ -299,7 +332,7 @@ export function measureSemanticPreservation(
     (formulas.total === 0 ? 1 : formulas.preserved / formulas.total) * 0.3 +
     (outputKeys.total === 0 ? 1 : outputKeys.preserved / outputKeys.total) * 0.2;
 
-  return { identity, types, formulas, outputKeys, score: Math.round(wScore * 1000) / 1000, missing };
+  return { identity, types, formulas, outputKeys, controlFlow, score: Math.round(wScore * 1000) / 1000, missing };
 }
 
 // ---------------------------------------------------------------------------
@@ -358,7 +391,42 @@ export function deriveContractContext(contract: SemanticContract): string {
   if (contract.formulaIdentifiers.length) parts.push(`formula symbols: ${contract.formulaIdentifiers.join(', ')}`);
   if (contract.formulaNumbers.length) parts.push(`formula constants: ${contract.formulaNumbers.join(', ')}`);
   if (contract.outputKeys.length) parts.push(`output keys: ${contract.outputKeys.join(', ')}`);
+  if (contract.seedValues.length) parts.push(`fixture data: ${contract.seedValues.join(', ')}`);
+  if (contract.controlFlow.length) parts.push(`control flow: ${contract.controlFlow.join(', ')}`);
   return parts.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Oracle / spec parity guard ("generator and oracle share the same fixtures")
+// ---------------------------------------------------------------------------
+
+export interface OracleParity {
+  ok: boolean;
+  issues: string[];
+}
+
+/**
+ * Checks that the behavioral oracle's string-valued fixtures are declared by the
+ * spec — every `jsonInOutput.equals <string>` must be an option value or a
+ * `seed` literal of the spec. This is the "generator and oracle share the same
+ * fixtures" guard: an oracle that expects a value the spec never declares (e.g.
+ * currency "GBP" when the spec allows EUR/USD) has drifted from the spec, and a
+ * hand-written oracle can quietly carry data the command-first spec omits.
+ * Indicator only — it does not block (the spec is allowed to be minimal and put
+ * fixtures in the oracle; the guard makes that visible instead of invisible).
+ */
+export function checkOracleParity(specCode: string, assert: BehaviorAssert | undefined): OracleParity {
+  const issues: string[] = [];
+  const asserts = assert?.jsonInOutput ?? [];
+  if (asserts.length === 0) return { ok: true, issues };
+  const c = extractIPLSemanticContract(specCode);
+  const declared = new Set([...c.optionValues, ...c.seedValues]);
+  for (const j of asserts) {
+    if (typeof j.equals === 'string' && !declared.has(j.equals)) {
+      issues.push(`oracle "${j.path}" expects "${j.equals}" but the spec declares no such option/seed value`);
+    }
+  }
+  return { ok: issues.length === 0, issues };
 }
 
 /**
