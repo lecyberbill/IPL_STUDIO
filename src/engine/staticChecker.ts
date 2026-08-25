@@ -254,6 +254,13 @@ const PATCH_ARTIFACT_RE = /^[ \t]*={7,}[ \t]*$|<<<<<<<\s*SEARCH|>>>>>>>\s*REPLAC
 const SERVER_FRAMEWORK_RE = /FastAPI|uvicorn|Flask|Django|Express|Fastify|Koa|Hono|Starlette|Tornado|axum|actix|spring|listen\s*\(|app\.run\s*\(|uvicorn\.run|http\.Server|new\s+Server/i;
 
 /**
+ * Interactive / arg-parsing constructs that a `batch` target must NOT use: the
+ * harness drives the app with a provided fixture and no human args, so an
+ * argparse/click/input() program is undrivable (the parkiing "usage:" FAIL).
+ */
+const BATCH_INTERACTIVE_RE = /argparse|ArgumentParser|\bclick\b|\byargs\b|\bcommander\b|from\s+['"]click|input\s*\(|raw_input\s*\(|getpass|prompt_toolkit|enquirer|\binquirer\b|question\s*\(|sys\.stdin\.readline/i;
+
+/**
  * Form-factor gate (P4) — deterministic (0 tokens). The model drifts toward
  * browser apps for CLI specs (`index.html`, `public/`, DOM calls), and the
  * same-model reviewer ratifies it. This gate READS the artifact and flags when
@@ -265,9 +272,12 @@ const SERVER_FRAMEWORK_RE = /FastAPI|uvicorn|Flask|Django|Express|Fastify|Koa|Ho
  *  - `server`: browser assets or DOM usage are mismatches; so is a tree with
  *    no server-framework signal (the model fell back to a CLI script).
  *  - `library`: no check (module shape can't be asserted structurally here).
+ *  - `batch`: web assets / DOM usage are mismatches; so is an interactive or
+ *    arg-parsing program (argparse/click/input()) that the run harness cannot
+ *    drive with a provided fixture.
  *  - `undefined`: no check (historical behavior preserved).
  */
-export function findFormMismatches(files: ProjectArtifactFile[], formFactor?: 'cli' | 'web' | 'gui' | 'server' | 'library'): FormMismatch[] {
+export function findFormMismatches(files: ProjectArtifactFile[], formFactor?: 'cli' | 'web' | 'gui' | 'server' | 'library' | 'batch'): FormMismatch[] {
   if (!formFactor || formFactor === 'library') return [];
   const issues: FormMismatch[] = [];
 
@@ -356,6 +366,36 @@ export function findFormMismatches(files: ProjectArtifactFile[], formFactor?: 'c
           reason: 'no server framework detected',
           suggestion: 'the target is a backend service but no server framework (FastAPI/Flask/Express/gin/axum...) and no listen()/app.run() was found — the model likely fell back to a CLI script that exits'
         });
+      }
+    }
+  } else if (formFactor === 'batch') {
+    for (const f of files) {
+      const p = f.relativePath.replace(/\\/g, '/');
+      if (WEB_ASSET_RE.test(p)) {
+        issues.push({
+          file: f.relativePath,
+          reason: 'web asset present for a batch target',
+          suggestion: `"${f.relativePath}" is a browser asset (HTML/static) but the target is a headless batch/script program — remove it and print to stdout only`
+        });
+      } else if (CODE_EXT_RE.test(p) && DOM_USE_RE.test(f.content)) {
+        issues.push({
+          file: f.relativePath,
+          reason: 'DOM/browser usage in a batch target',
+          suggestion: `"${f.relativePath}" touches the browser DOM but the target is a headless batch/script program — remove DOM code so it runs headless`
+        });
+      }
+    }
+    if (issues.length === 0) {
+      for (const f of files) {
+        if (!CODE_EXT_RE.test(f.relativePath)) continue;
+        if (BATCH_INTERACTIVE_RE.test(f.content)) {
+          issues.push({
+            file: f.relativePath,
+            reason: 'interactive / arg-parsing program in a batch target',
+            suggestion: `"${f.relativePath}" looks interactive (argparse/click/input()...) but a batch target must read a provided fixture and PRINT the result — remove interactive prompts so the run harness can drive it with the fixture`
+          });
+          break;
+        }
       }
     }
   }

@@ -59,6 +59,13 @@ describe('form-factor directives (P4)', () => {
     expect(buildFormDirective('library')).toContain('runnable entry point');
     expect(buildFormDirective()).toBe('');
   });
+
+  it('builds a batch directive that forbids interactivity/args', () => {
+    const d = buildFormDirective('batch');
+    expect(d).toContain('batch/script');
+    expect(d).toContain('NO interactive prompts');
+    expect(d).toContain('NO argparse');
+  });
 });
 
 describe('independent reviewer config (P3)', () => {

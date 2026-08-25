@@ -147,6 +147,8 @@ interface BenchSpec {
   code: string;
   /** Phase 5 — the SAME requirements as plain prose (natural-language control witness, at equal information). */
   naturalLanguage?: string;
+  /** Execution form pinned for this spec (default derived: html→web, else cli). Headless print-JSON specs pin `batch`. */
+  formFactor?: FormFactor;
   verify: {
     command?: string;
     marker?: string;
@@ -176,6 +178,7 @@ return success`,
   {
     id: 'typed-order',
     name: 'Typed E-Commerce Order Spec',
+    formFactor: 'batch',
     targetLang: 'python',
     code: `add entity Order {
   id: id,
@@ -270,6 +273,7 @@ listen event on "form:submit" {
   {
     id: 'node-hello',
     name: 'Node CLI Greeter',
+    formFactor: 'batch',
     targetLang: 'javascript',
     code: `// IPL Project v1.0 - CLI Greeter
 add message {
@@ -290,6 +294,7 @@ return success`,
   {
     id: 'parking',
     name: 'Smart Parking Garage (dynamic pricing + VIP discount)',
+    formFactor: 'batch',
     targetLang: 'python',
     code: `add entity Vehicle {
   plate: text,
@@ -370,6 +375,7 @@ Use these exact numbers so the output matches the oracle: the first vehicle ente
   {
     id: 'coffee',
     name: 'Coffee Shop Order Management (loyalty pricing)',
+    formFactor: 'batch',
     targetLang: 'javascript',
     code: `// IPL Project v1.4.0 — Coffee Shop
 add entity Drink {
@@ -826,6 +832,22 @@ function copyRunToSandbox(runDir: string, sandboxRoot: string): string {
   return target;
 }
 
+/**
+ * Symptom classifier (Phase 5/part 3): when a run FAILs, detect whether the
+ * failure is really the generated app being *interactive / arg-parsing* (an
+ * argparse `usage:` prompt, click/yargs, blocking input()) that the harness
+ * cannot drive with a bare command. If so, tag the detail as a `form-mismatch`
+ * so the layer grid attributes the failure correctly and suggests pinning the
+ * `batch` form factor — instead of a generic runtime FAIL.
+ */
+const ENTRY_FORM_FAIL_RE = /usage:|ArgumentParser|\bargparse\b|\bclick\b|\byargs\b|\bcommander\b|input\s*\(|raw_input\s*\(|getpass|the following arguments are required|--[a-zA-Z][\w-]*\s+(expected|with)/i;
+
+function entryFormMismatchHint(output: string): string | null {
+  return ENTRY_FORM_FAIL_RE.test(output)
+    ? ' ◀ form-mismatch: the generated app is interactive / requires CLI args the harness cannot drive — pin formFactor "batch" to force a headless print-JSON program'
+    : null;
+}
+
 /** The actual verification logic, decoupled from where the files were copied. */
 async function verifyIn(runDir: string, execDir: string, spec: BenchSpec, args: CliArgs): Promise<{ status: RunStatus; detail: string; output?: string }> {
   const allFiles = readdirSync(execDir, { recursive: true }) as string[];
@@ -895,9 +917,10 @@ async function verifyIn(runDir: string, execDir: string, spec: BenchSpec, args: 
             const extra = deps ? ` deps: ${deps}` : '';
             return { status: 'WARN', detail: `entry missing (${spec.verify.command}) — retried ${retried.map(a => a.command).join(' | ')}: ${lastRetryOutput.slice(0, 160)}; generated app may be browser-based or need missing deps.${extra}` };
           }
+          const hint = entryFormMismatchHint(`${run.output}\n${lastRetryOutput}`) ?? '';
           return {
             status: 'FAIL',
-            detail: `${spec.verify.command} failed (${run.output.slice(0, 120)}) — retried ${retried.map(a => a.command).join(' | ')}: ${lastRetryOutput.slice(0, 160) || 'non-zero exit'}`,
+            detail: `${spec.verify.command} failed (${run.output.slice(0, 120)}) — retried ${retried.map(a => a.command).join(' | ')}: ${lastRetryOutput.slice(0, 160) || 'non-zero exit'}${hint}`,
             output: `${run.output}\n--- retried ---\n${lastRetryOutput}`
           };
         }
@@ -907,7 +930,8 @@ async function verifyIn(runDir: string, execDir: string, spec: BenchSpec, args: 
           const extra = deps ? ` deps: ${deps}` : '';
           return { status: 'WARN', detail: `entry missing (${spec.verify.command}) — generated app may be browser-based.${extra}` };
         }
-        return { status: 'FAIL', detail: `exit code ${run.exitCode}: ${run.output.slice(0, 200)}`, output: run.output };
+        const hint = entryFormMismatchHint(run.output) ?? '';
+        return { status: 'FAIL', detail: `exit code ${run.exitCode}: ${run.output.slice(0, 200)}${hint}`, output: run.output };
       }
     }
 
@@ -1168,6 +1192,7 @@ async function repairAndVerify(
         .map(f => `<file path="${f.relativePath}">\n${f.content}\n</file>`)
         .join('\n\n');
       if (usage) usage.repairPasses += 1;
+      llmRepairPasses = usage?.repairPasses ?? 0;
 
       // The fix directive must carry the behavioral contract too: a run that
       // executes cleanly but outputs the wrong JSON is still a FAIL, and the
@@ -1666,7 +1691,7 @@ async function main(): Promise<number> {
 
       const start = Date.now();
       const usage = createRunTokenUsage(spec.code.length);
-      const formFactor = args.formFactor ?? (spec.targetLang === 'html' ? 'web' : 'cli');
+      const formFactor = args.formFactor ?? spec.formFactor ?? (spec.targetLang === 'html' ? 'web' : 'cli');
       let gen: GenerationOutput;
       let genError = '';
       try {

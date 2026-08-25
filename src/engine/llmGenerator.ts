@@ -144,13 +144,15 @@ export type TargetLanguage = 'polyglot' | 'rust' | 'python' | 'javascript' | 'go
  * web apps for CLI-ish specs unless the prompt pins the form explicitly.
  * `undefined` keeps the historical behavior (no form directive).
  */
-export type FormFactor = 'cli' | 'web' | 'gui' | 'server' | 'library';
+export type FormFactor = 'cli' | 'web' | 'gui' | 'server' | 'library' | 'batch';
 
 /** Returns the form-factor directive block ('' when no form is requested). */
 export function buildFormDirective(formFactor?: FormFactor): string {
   switch (formFactor) {
     case 'cli':
       return 'EXECUTION FORM: a standalone command-line executable. NO web server, NO DOM, NO browser APIs (document/window), NO app.run. It must run headless and print its output to stdout/console.';
+    case 'batch':
+      return 'EXECUTION FORM: a deterministic batch/script program. It must run headless with NO interactive prompts — NO input()/stdin blocking on a user, NO argparse/click/yargs that demands command-line arguments from a human, NO long-running server loop. Read its input from the fixtures or data that are provided, compute deterministically, and PRINT the structured result (JSON) to stdout/console. It must exit on its own.';
     case 'web':
       return 'EXECUTION FORM: a browser web application. Provide an index.html entry (or public/ assets) and client-side code; a headless CLI is NOT required.';
     case 'gui':

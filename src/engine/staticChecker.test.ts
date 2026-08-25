@@ -272,4 +272,24 @@ describe('findFormMismatches (P4 form-factor gate)', () => {
     const js = findFormMismatches([file('index.js', 'const express = require("express"); const app = express(); app.listen(3000);')], 'server');
     expect(js).toEqual([]);
   });
+
+  it('flags an interactive/arg-parsing program for a batch target', () => {
+    const argparse = findFormMismatches([file('main.py', 'import argparse\np = argparse.ArgumentParser()\np.add_argument("--plate")')], 'batch');
+    expect(argparse).toHaveLength(1);
+    expect(argparse[0].reason).toContain('interactive');
+    const clickJs = findFormMismatches([file('index.js', "const { program } = require('commander'); program.option('--x');")], 'batch');
+    expect(clickJs).toHaveLength(1);
+  });
+
+  it('accepts a batch target that prints structured output', () => {
+    const good = findFormMismatches([file('main.py', 'data = { "grandTotal": 14.4 }\nprint(json.dumps(data))')], 'batch');
+    expect(good).toEqual([]);
+  });
+
+  it('flags web assets and DOM usage for a batch target', () => {
+    const web = findFormMismatches([file('index.html', '<html></html>'), file('main.py', 'print(1)')], 'batch');
+    expect(web.some(i => i.reason === 'web asset present for a batch target')).toBe(true);
+    const dom = findFormMismatches([file('main.js', 'document.getElementById("a").textContent = "x";')], 'batch');
+    expect(dom[0].reason).toContain('DOM/browser usage');
+  });
 });
