@@ -347,3 +347,15 @@ Les briefs NL écrits par une IA (épelant chaque valeur exacte) flattaient le c
 | telecom (utilities) | 1/3 PASS | 0% | 100% | 0.724 | NL better |
 
 **Ce que révèle le dé-biais** : le « NL mieux » était en partie un **artefact du brief authored** — sur payroll (rounding + `(1-taxRate)`), le NL déterministe tombe à **0 %** → **Parity**. Sur inventory/telecom (calcul à une étape), NL reste 100 % : même avec une prose complète qui exige de calculer, le modèle calcule juste du premier coup. Sémantique haute partout même en FAIL (0.72–0.98). Conclusion : l'IPL n'a **pas** d'avantage de justesse first-try ; son avantage est la **convergence sur contrats riches** + la **détection de dérive**. Le biais de rédaction est maîtrisé par la baseline déterministe.
+
+### Contrôle humain — brief écrit par un humain (recipe-app, 2026-08-25, n=3)
+
+`Brief author: human`. Un humain dicte (en français, avec ses formulations) un générateur de recettes de cuisine en web + API DeepSeek ; le même intent est traduit en IPL (anglais). Le bras NL utilise le **brief verbatim** (jamais `--nl-render`). Rapport : `output/benchmark/report-2026-08-25T16-08-35-701Z.md`.
+
+| Spec | IPL final | IPL 1st-try | NL 1st-try | Sém. | Verdict |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| recipe-app (web + API ext.) | 3/3 PASS | 100% | 100% | 0.880 (0.866–0.897) | Parity |
+
+**Lecture** : sur un brief humain relativement détaillé (il liste les features : radios entrée/plat/dessert, nb personnes, ingrédients à éviter, boutons générer/archiver, gestionnaire, changer nb personnes, liste des courses), **les deux bras réussissent first-try → Parité**. L'avantage d'IPL n'est **pas universel** : il ne se manifeste pas sur un brief web clair où le modèle fait bien dans les deux cas.
+
+**Limite de vérification (importante)** : pour une app **web**, le `verify` du harness ne fait que `marker` ('ingredient') + `forbid` (ES-module) + gate de forme — il **ne peut pas exécuter l'appel API externe ni l'UI** dans la sandbox (pas de clé, pas de DOM interactif). Donc « PASS » ici = *app web plausible générée* (contenant 'ingredient', sans ES-module), **pas** une preuve fonctionnelle que la génération DeepSeek ou les boutons marchent. Le vrai signal fiable est la **préservation sémantique** (0.88) — le contrat d'intention a survécu dans le code.

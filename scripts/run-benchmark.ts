@@ -715,6 +715,99 @@ listen event on "billing:monthly" {
     }
   },
   {
+    id: 'recipe-app',
+    name: 'Cooking recipe generator (human brief, web + external AI)',
+    formFactor: 'web',
+    targetLang: 'javascript',
+    code: `// IPL Intent — AI cooking recipe generator
+add view RecipeApp {
+  title: "Recipe Generator",
+  connectTo: "DeepSeek API"
+}
+
+add entity Recipe {
+  title: text,
+  courseType: options("starter", "main", "dessert"),
+  persons: number,
+  ingredients: list,
+  steps: list,
+  archived: boolean
+}
+
+add entity GenerationForm {
+  courseType: options("starter", "main", "dessert"),
+  persons: number,
+  avoidIngredients: list
+}
+
+listen event on "recipe:generate" {
+  read form from ui {
+    where: form.courseType == "starter" or form.courseType == "main" or form.courseType == "dessert"
+  }
+  compute recipe from form {
+    formula: generateWithAI(form.courseType, form.persons, form.avoidIngredients, Dp_API_KEY)
+  }
+  send recipe to screen {
+    format: "json",
+    title: recipe.title,
+    courseType: recipe.courseType,
+    persons: recipe.persons,
+    ingredients: recipe.ingredients,
+    steps: recipe.steps
+  }
+  return success
+}
+
+listen event on "recipe:archive" {
+  set recipe.archived = true
+}
+
+listen event on "recipe:load" {
+  read recipe from archive
+  send recipe to screen {
+    format: "json",
+    title: recipe.title,
+    courseType: recipe.courseType,
+    persons: recipe.persons,
+    ingredients: recipe.ingredients,
+    steps: recipe.steps
+  }
+}
+
+listen event on "recipe:changePersons" {
+  read persons from form
+  compute scaledRecipe from recipe {
+    formula: scaleIngredients(recipe.ingredients, persons)
+  }
+  send scaledRecipe to screen {
+    format: "json",
+    title: recipe.title,
+    courseType: recipe.courseType,
+    persons: persons,
+    ingredients: scaledRecipe.ingredients,
+    steps: recipe.steps
+  }
+}
+
+listen event on "recipe:shoppingList" {
+  compute list from recipe {
+    formula: buildShoppingList(recipe.ingredients, recipe.persons)
+  }
+  send list to screen {
+    format: "json",
+    items: list
+  }
+}`,
+    // The human's VERBATIM brief — exactly how a person would dictate it (French).
+    naturalLanguage: `Code un générateur de recette de cuisine via IA, on part sur une application en javascript / HTML / CSS. L'application se connectera sur deep seek api via la variable d'environnement suivante : Dp_API_KEY. On aura : Des boutons radios pour entrée ou plat ou dessert, un formulaire pour le nombre de personne, un formulaire pour indiquer les ingrédients à éviter. Un bouton pour lancer la génération d'une recette, un bouton pour l'archiver, on code également un gestionnaire de recette, possibilité de charger une recette de changer le nombre de personne, un bouton pour générer une liste des courses.`,
+    verify: {
+      // Neutral language-independent check: a recipe app must handle ingredients.
+      marker: 'ingredient',
+      markerCaseInsensitive: true,
+      forbid: ['<script type="module"', 'type="module"']
+    }
+  },
+  {
     id: 'coffee',
     name: 'Coffee Shop Order Management (loyalty pricing)',
     formFactor: 'batch',
