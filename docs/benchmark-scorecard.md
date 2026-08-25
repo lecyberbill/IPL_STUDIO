@@ -323,3 +323,15 @@ Panel de problématiques **sans rapport entre elles**, chacune en IPL **et** en 
 - **Sémantique haute partout (0.705–1.0), même sur les FAIL** : inventory sém. 1.0 mais FAIL runtime — le contrat survit dans le code, l'exécutable diverge (variance modèle sur le calcul).
 
 **Thèse affinée** : l'avantage d'IPL n'est **pas** la justesse numérique first-try (sur des calculs triviaux un bon prompt NL peut battre un IPL qui fait implémenter la formule). C'est la **contrainte + détection de dérive + convergence sur les contrats riches/structurés** (parking : IPL converge, NL échoue first-try). La mesure sépare 4 axes : **sémantique** (contrat dans le code), **runtime** (exécutable diverge), **first-try** (variance modèle), **parité** (seed ferme le trou). Limite : n=1, illustratif.
+
+### Robustesse n=3 (inventory / payroll / telecom, 2026-08-25)
+
+Relaunch à `--iterations 3` pour vérifier que le « NL > IPL first-try » n'est pas du bruit. Rapport : `output/benchmark/report-2026-08-25T15-10-21-794Z.md`.
+
+| Spec (domaine) | Final (n=3) | IPL 1st-try | NL 1st-try | Sém. mean (range) | Ctrl | Verdict |
+| :--- | :---: | :---: | :---: | :---: | :---: | :--- |
+| inventory (retail) | 0/3 FAIL | 0% | 100% | 0.967 (0.95–1.0) | 1/1 | NL better |
+| payroll (HR) | 0/3 FAIL | 0% | 100% | 0.967 (0.95–1.0) | 1/1 | NL better |
+| telecom (utilities) | 2/3 PASS | 0% | 100% | 0.768 (0.593–0.861) | 1/1 | NL better |
+
+**Conclusion robuste** : le « NL mieux que IPL en first-try sur calculs triviaux » est **confirmé en n=3** (100 % NL vs 0 % IPL, constant). Cause : le brief NL épelle les valeurs exactes → le modèle hardcode ; l'IPL fait implémenter la formule → erreur d'implémentation, réparation non convergente (inventory/payroll 0/3, `-1`). La sémantique reste haute même en FAIL (0.95–1.0) — contrat préservé dans le code, exécutable divergent. C'est le constat central, et il circonscrit précisément le régime où l'approche vaut le coup (contrats riches, besoin de convergence) vs où elle n'apporte rien de plus qu'un bon prompt (calculs triviaux).
