@@ -460,7 +460,9 @@ The program processes two orders and prints JSON with a "orders" array and a "gr
           { path: 'orders.1.price', equals: 2.0 },
           { path: 'orders.1.finalPrice', equals: 2.0 },
           { path: 'orders.1.loyaltyDiscount', equals: false },
-          { path: 'grandTotal', equals: 5.78 },
+          // grandTotal is a float sum (3.78 + 2.0): IEEE-754 gives 5.77999999...
+          // — exact-by-intent, tolerant of representation error.
+          { path: 'grandTotal', approx: 5.78, tolerance: 1e-6 },
           { path: 'grandTotal', gt: 0 },
           { path: 'grandTotal', lt: 10 }
         ]

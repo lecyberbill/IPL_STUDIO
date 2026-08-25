@@ -21,6 +21,14 @@ export interface JsonAssert {
   gt?: number;
   lt?: number;
   arrayLength?: number;
+  /**
+   * Approximate numeric equality (float-safe): |actual - approx| must be
+   * <= tolerance (default 1e-9). Use for arithmetic sums/products that carry
+   * FP error (e.g. 3.78 + 2.0 -> 5.779999999999999), so the oracle stays
+   * exact in intent but tolerant of IEEE-754 representation.
+   */
+  approx?: number;
+  tolerance?: number;
 }
 
 export interface BehaviorAssert {
@@ -167,12 +175,21 @@ export function evaluateBehavior(
         if (j.arrayLength !== undefined && !(Array.isArray(actual) && actual.length === j.arrayLength)) {
           failures.push(`json path "${j.path}" expected array length ${j.arrayLength}, got ${Array.isArray(actual) ? actual.length : shown}`);
         }
+        if (j.approx !== undefined) {
+          const tol = j.tolerance ?? 1e-9;
+          if (typeof actual !== 'number') {
+            failures.push(`json path "${j.path}" expected approx ${j.approx} (±${tol}) but is not a number (got ${shown})`);
+          } else if (!(Math.abs(actual - j.approx) <= tol)) {
+            failures.push(`json path "${j.path}" expected approx ${j.approx} (±${tol}), got ${shown}`);
+          }
+        }
         if (
           j.equals === undefined &&
           j.matches === undefined &&
           j.gt === undefined &&
           j.lt === undefined &&
-          j.arrayLength === undefined
+          j.arrayLength === undefined &&
+          j.approx === undefined
         ) {
           failures.push(`json path "${j.path}" has no assertion comparator`);
         }

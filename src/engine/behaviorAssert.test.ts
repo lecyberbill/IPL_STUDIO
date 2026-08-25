@@ -126,4 +126,26 @@ describe('behaviorAssert — evaluateBehavior', () => {
     const r = evaluateBehavior('{"a": 1}', '', 0, { jsonInOutput: [{ path: 'a' }] });
     expect(r.failures.join('')).toContain('has no assertion comparator');
   });
+
+  it('approx tolerates IEEE-754 float error on a number', () => {
+    // 3.78 + 2.0 === 5.779999999999999 in JS — exact intent, FP representation.
+    const r = evaluateBehavior('{"grandTotal": 5.779999999999999}', '', 0, {
+      jsonInOutput: [{ path: 'grandTotal', approx: 5.78, tolerance: 1e-6 }]
+    });
+    expect(r.pass).toBe(true);
+    expect(r.failures).toEqual([]);
+  });
+
+  it('approx fails outside the tolerance and on a non-number', () => {
+    const off = evaluateBehavior('{"v": 5.8}', '', 0, {
+      jsonInOutput: [{ path: 'v', approx: 5.78, tolerance: 1e-6 }]
+    });
+    expect(off.pass).toBe(false);
+    expect(off.failures.join('')).toContain('expected approx 5.78');
+
+    const notNum = evaluateBehavior('{"v": "abc"}', '', 0, {
+      jsonInOutput: [{ path: 'v', approx: 5.78 }]
+    });
+    expect(notNum.failures.join('')).toContain('is not a number');
+  });
 });
