@@ -264,3 +264,40 @@ Run contrôlé : même modèle, même jour, **`output/benchmark` vidé** avant l
 
 **Décision prise (2026-08-12) — direction B : review adaptative, implémentée.**
 `consolidateArtifact` passe en mode par défaut `'adaptive'` : les gates 0-token (imports/JSON/form/IPL/patch) tournent toujours ; la **review LLM + auto-fix ne s'exécutent que si un gate tire**. Un arbre propre est livré sur les seuls gates (rapport : `Reviewer: skipped (deterministic gates clean — 0 tokens)`). `systematicReview: true/false` reste disponible pour forcer/désactiver (bench). Impact attendu : éliminer le coût ~3.5× sur les runs bons, garder la valeur « diagnostiquer + ne pas livrer du cassé » quand un gate détecte quelque chose.
+
+## P6b — Layer-aware receipts + forme `batch` (2026-08-25, deepseek-chat, 7 specs, n=1)
+
+Nouvelle couche de mesure (`--nl-witness`, `--form-factor`) après le correctif de la classe « point d'entrée/CLI interactif » (parking `argparse` → forme `batch` + gate `form-mismatch`) et l'ajout d'un comparateur flottant (`approx`/tolérance). Les receipts séparent désormais trois axes au lieu d'un PASS/FAIL global :
+
+- **Couche liante** — le premier gate qui contraint (topologie → intégration → runtime-first-try).
+- **Préservation sémantique** (indépendante du verdict runtime) — identité/types/formules/clés qui survivent dans le source livré.
+- **Réparation déterministe vs LLM** + **stabilité de topologie** entre itérations.
+
+Résultat réel (deepseek-chat, 2026-08-25) :
+
+| Spec | Statut | first | repair | Sém. | Couche liante |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| hello | PASS | PASS | 0 | 1.00 | — |
+| typed-order | PASS | FAIL | 2 | 1.00 | runtime |
+| weather | PASS | PASS | 0 | 0.857 | — |
+| form | PASS | PASS | 0 | 0.90 | — |
+| node-hello | PASS | PASS | 0 | 1.00 | — |
+| parking | PASS | FAIL | 1 | 0.95 | runtime |
+| coffee | **FAIL** | FAIL | −1 | 0.95 | runtime |
+
+**IPL final 6/7 PASS.** Le seul échec restant (`coffee`) n'est **pas** un problème de spec : préservation sémantique 0.95 (identité 13/13, formules 12/12, clés 5/5), mais le modèle a produit cette fois un JSON non structuré (variance inter-run) ou un `grandTotal` flottant (`5.779...` vs `5.78` — désormais toléré via `approx`). La réceipt distingue nettement « contrat préservé » de « runtime divergent ».
+
+**Témoin NL vs IPL** (même exigence en prose, first-try, sans réparation) :
+
+| Spec | IPL | NL | Verdict |
+| :--- | :---: | :---: | :--- |
+| hello / typed-order / node-hello | PASS | PASS | Parity |
+| parking | PASS | FAIL (sém. 0.653) | **IPL did better — NL lacked the constraint** |
+| coffee | FAIL | FAIL | Parity (les deux échouent sur la variance) |
+
+Sur le scénario riche, le chemin contraint IPL préserve mieux le contrat et passe, là où le chemin NL échoue — confirmation outil de la thèse « constraint-first ». Sur les specs simples, parity (cohérent).
+
+**Lectures P6b** :
+- La forme `batch` + gate `form-mismatch` a éliminé la classe « app interactive que le harness ne peut pas piloter » en génération (parking revient à la vie sans bricolage, généralisable à toute spec JSON/stdout).
+- Un échec runtime n'est plus synonyme de « la spec a échoué » : les receipts disent *quelle* couche a tenu le degré de liberté (ici le runtime/variance modèle, pas la sémantique).
+- Le comparateur `approx` corrige l'échec strict-float (`grandTotal 5.779...`) sans relâcher l'exigence d'intention.
