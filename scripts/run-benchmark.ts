@@ -1077,7 +1077,7 @@ async function generateMock(spec: BenchSpec): Promise<GenerationOutput> {
 // Disk write + verification
 // ---------------------------------------------------------------------------
 
-function writeArtifact(runDir: string, xml: string): { files: string[]; totalBytes: number; parsed: ProjectArtifactFile[] } {
+function writeArtifact(runDir: string, xml: string, specCode?: string): { files: string[]; totalBytes: number; parsed: ProjectArtifactFile[] } {
   const parsed = parseMultiFileXml(xml);
   const files: string[] = [];
   let totalBytes = 0;
@@ -1089,6 +1089,13 @@ function writeArtifact(runDir: string, xml: string): { files: string[]; totalByt
     writeFileSync(target, f.content, 'utf8');
     files.push(f.relativePath);
     totalBytes += Buffer.byteLength(f.content, 'utf8');
+  }
+  // Persist the IPL spec next to the generated files so each on-disk run is
+  // self-documenting (input spec + generated source together).
+  if (specCode) {
+    const specTarget = pathResolve(runDir, 'source/main.ipl');
+    mkdirSync(pathResolve(specTarget, '..'), { recursive: true });
+    writeFileSync(specTarget, specCode, 'utf8');
   }
   return { files, totalBytes, parsed };
 }
@@ -1784,6 +1791,28 @@ function buildLayerReceipts(
   ];
 }
 
+/** Prints the IPL input spec(s) for the run so the report is self-contained. */
+function buildSpecsSection(results: RunResult[]): string[] {
+  const lines: string[] = ['## Specs (IPL input)', ''];
+  const seen = new Set<string>();
+  let any = false;
+  for (const r of results) {
+    if (seen.has(r.specId)) continue;
+    seen.add(r.specId);
+    const spec = SPECS.find(s => s.id === r.specId);
+    if (!spec) continue;
+    any = true;
+    lines.push(`### ${r.specId} — ${spec.name}`);
+    lines.push('');
+    lines.push('```ipl');
+    lines.push(specInputCode(spec));
+    lines.push('```');
+    lines.push('');
+  }
+  if (!any) lines.push('_No specs._\n');
+  return lines;
+}
+
 function endpointForMode(config: LLMConfig, mode: LLMConfig['mode']): string {
   if (mode === 'external') return config.externalEndpoint;
   if (mode === 'lmstudio') return config.lmStudioEndpoint || config.localEndpoint;
@@ -2027,6 +2056,8 @@ function buildReport(args: CliArgs, config: LLMConfig, results: RunResult[]): st
   }
 
   // Phase 1 / 4 — layer-awareness + topology stability.
+  // The IPL input spec(s) — self-contained report.
+  lines.push(...buildSpecsSection(results));
   lines.push(...buildLayerSection(results));
   // Phase 3 — semantic-preservation receipt.
   lines.push(...buildSemanticSection(results));
@@ -2140,7 +2171,7 @@ async function main(): Promise<number> {
         if (cons.changed) genXml = filesToXml(cons.files);
       }
 
-      const written = writeArtifact(runDir, genXml);
+      const written = writeArtifact(runDir, genXml, specInputCode(spec));
       const firstTry = await verify(spec, runDir, args);
 
       // Static "holes in the racket" check — a proactive pass that READS the
@@ -2234,7 +2265,7 @@ async function main(): Promise<number> {
           const nlDir = pathResolve(root, spec.id, `run-${runId}-${i}-nl`);
           rmSync(nlDir, { recursive: true, force: true });
           mkdirSync(nlDir, { recursive: true });
-          const nlWritten = writeArtifact(nlDir, nlg.xml);
+          const nlWritten = writeArtifact(nlDir, nlg.xml, specInputCode(spec));
           const nlFirstTry = await verify(spec, nlDir, args);
           const nlContract = extractIPLSemanticContract(specInputCode(spec));
           const nlRes = measureSemanticPreservation(nlContract, nlWritten.parsed);
