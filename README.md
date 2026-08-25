@@ -12,6 +12,8 @@
 
 > **IPL Studio** is an AI-powered polyglot, intent-based IDE with autonomous agentic capabilities. It transforms high-level declarative specifications written in **IPL (Intent Programming Language)** into runnable, multi-file codebases (Rust, Python, Node.js, Go, C++, HTML5, Java, etc.) written directly to disk.
 
+> **Honest positioning.** An intent language does *not* make the model reliable — it makes the model's **freedom measurable** and a failure **attributable** to a specific layer. IPL pins the *what* (a typed data contract: identities, types, formulas, output keys, fixtures), while the *how* (architecture, exact source tree) stays the LLM's. The measurable ceiling is **model variance**: even when the spec's contract survives into the source (semantic-preservation 0.82–0.95), the executable output can still diverge. Reliability therefore comes from **execution + deterministic gates + layer-aware receipts**, not from the language. This is "rails, not walls": the DSL guides and advises, but never blocks; the LLM remains the final interpreter.
+
 ---
 
 <img width="1988" height="1034" alt="image" src="https://github.com/user-attachments/assets/6835ca9b-15fb-43bd-8bcd-71d4183981b1" />

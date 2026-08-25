@@ -6,6 +6,11 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## [Unreleased]
 
+### 📐 Docs aligned with the honest measure/contain positioning
+- README intro gains an explicit "honest positioning": an intent language does not make the model reliable — it makes the model's freedom *measurable* and a failure *attributable*; IPL pins the *what* (typed data contract), the LLM owns the *how*; the measurable ceiling is **model variance**; reliability comes from execution + deterministic gates + receipts, not the DSL.
+- ROADMAP Vision strengthened to the same framing (value measured, not promised; contain the drift, prove the remainder layer-by-layer; first-try honesty as the yardstick).
+- `docs/degrees-of-freedom.md` and `docs/benchmark-scorecard.md` already documented the honest ceilings — no oversell elsewhere.
+
 ### 🔗 Oracle/spec parity guard + control-flow receipt (John's last two gaps)
 - **Parity guard** (`checkOracleParity`): asserts the behavior oracle's string-valued fixtures are declared by the spec (option values / `seed` data). An oracle expecting a value the spec never declares (e.g. `currency "GBP"`) is flagged — the hand-written oracle silently carries data the spec omits. Indicator only (the spec may be minimal); surfaced as a report section.
 - **Control-flow preservation** (`SemanticReceipt.controlFlow`): the spec's `if`/`for`/`try`/`return`/`else`/`catch` intents vs the source (keyword synonyms), reported as a distinct receipt + column. Complements identity/types/formulas/output-keys.

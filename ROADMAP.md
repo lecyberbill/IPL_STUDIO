@@ -11,6 +11,8 @@
 
 IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not walls"**: the IPL DSL guides and advises (info/warning diagnostics, grammar signatures, semantic checks) but **never blocks** — the LLM remains the final interpreter of ambiguity. Every phase below must preserve that principle.
 
+The project's honest claim is deliberately narrower than "IPL produces better apps": the intent language pins a **typed data contract** (*what*), the LLM owns the *how* (architecture, exact source tree), and the measurable ceiling is **model variance** — the contract can survive into the source while the executable output still drifts. So the value is measured, not promised: **contain the drift as much as possible, prove the remainder layer-by-layer** (receipts), and never present the DSL as a way to *eliminate* the model's freedom. "First-try honesty" (principle 4) is the yardstick for every phase.
+
 ---
 
 ## ✅ Completed
