@@ -58,8 +58,8 @@ export const TerminalPanel: React.FC = () => {
 
         try {
           fitAddon.fit();
-        } catch (_) {}
-      } catch (err) {
+        } catch {}
+      } catch {
         // Ignore xterm async initialization warning
       }
     }, 50);
@@ -67,7 +67,7 @@ export const TerminalPanel: React.FC = () => {
     const handleResize = () => {
       try {
         fitAddon.fit();
-      } catch (err) {
+      } catch {
         // Ignore exceptions on resize
       }
     };
@@ -79,9 +79,9 @@ export const TerminalPanel: React.FC = () => {
       window.removeEventListener('resize', handleResize);
       try {
         term.dispose();
-      } catch (err) {}
+      } catch {}
     };
-  }, []);
+  }, [outputDir]);
 
   const runProjectCommand = async (customCmd?: string, confirmed = false) => {
     if (isRunning) return;

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { DiffEditor } from '@monaco-editor/react';
 import { useIdeStore } from '../store/useIdeStore';
 import { defaultOutputDir } from '../engine/paths';
@@ -22,7 +22,7 @@ export const GitDiffModal: React.FC<GitDiffModalProps> = ({ isOpen, onClose }) =
   const activeProj = projects.find(p => p.id === activeProjectId);
   const outputDir = activeProj?.outputDir || defaultOutputDir(activeProj?.name || 'my_project');
 
-  const fetchGitData = async () => {
+  const fetchGitData = useCallback(async () => {
     setIsLoading(true);
     try {
       const statusRes = await apiFetch(`/api/git/status?cwd=${encodeURIComponent(outputDir)}`);
@@ -37,13 +37,13 @@ export const GitDiffModal: React.FC<GitDiffModalProps> = ({ isOpen, onClose }) =
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [outputDir]);
 
   useEffect(() => {
     if (isOpen) {
       fetchGitData();
     }
-  }, [isOpen, outputDir]);
+  }, [isOpen, fetchGitData]);
 
   const handleCommit = async (e: React.FormEvent) => {
     e.preventDefault();

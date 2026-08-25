@@ -88,7 +88,7 @@ export const MarkdownViewer: React.FC<{ content: string }> = ({ content }) => {
           li: ({ children }) => (
             <li className="leading-normal">{children}</li>
           ),
-          code: ({ node, className, children, ...props }) => {
+          code: ({ className, children, ...props }) => {
             const match = /language-(\w+)/.exec(className || '');
             const isInline = !className && !String(children).includes('\n');
             const codeString = String(children).replace(/\n$/, '');

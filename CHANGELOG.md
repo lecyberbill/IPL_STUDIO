@@ -6,6 +6,10 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## [Unreleased]
 
+### 🧹 Kill-list — zero lint warnings + float-safe oracle
+- **oxlint 0 warnings / 0 errors**: de-escaped redundant regex chars in `iplGrammar.ts` (verified behavior-identical), optional catch bindings (`catch {}`) in `TerminalPanel` + `devApiServer`, dropped an unused `node` prop in `MarkdownViewer`, fixed the `GitDiffModal` exhaustive-deps via `useCallback`, and co-located fast-refresh disable in `BlockViewEditor` (component + util exports). The 6 `[Exemple]` starter templates are kept — they are the onboarding gallery, not dead code.
+- **JSON paths**: `JsonAssert` gained `approx`/`tolerance` (float-safe). _See previous commit._
+
 ### 🧪 Layer-aware evaluation receipts ("which layer still held the freedom")
 - **Phase 1 — layer grid**: every run is attributed to the first binding gate (topology → integration → runtime-first-try), exposing the causal layer instead of a single PASS/FAIL. Semantics and the two repair layers are receipts, never flags.
 - **Phase 2 — deterministic-vs-LLM split**: `statusAfterDeterministic`, `deterministicRepairs`, `llmRepairPasses` — answers "did the 0-token repair resolve it, or did the LLM burn tokens?".

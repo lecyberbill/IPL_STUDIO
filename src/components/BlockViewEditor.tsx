@@ -17,6 +17,11 @@ import {
   CornerDownRight
 } from 'lucide-react';
 
+// This file is both a component (BlockViewEditor) and the home of the block-tree
+// util helpers it exports (`parseIPLToTree`, `treeToIPLCode`, `IPLBlockNode`).
+// Moving them out would ripple across many consumers; disable the fast-refresh
+// rule for the intentional co-location instead.
+/* oxlint-disable react/only-export-components */
 export { parseIPLToTree };
 export type { IPLBlockNode };
 

@@ -131,7 +131,7 @@ export const IPL_LANGUAGE_DEFINITION = {
     '=', '==', '!=', '>', '<', '>=', '<=', '+', '-', '*', '/', '&&', '||', '!'
   ],
 
-  symbols:  /[=><!~?:&|+\-*\/\^%]+/,
+  symbols:  /[=><!~?:&|+\-*/^%]+/,
 
   tokenizer: {
     root: [
@@ -144,14 +144,14 @@ export const IPL_LANGUAGE_DEFINITION = {
       }],
       [/[A-Z][\w$]*/, 'type'],
       { include: '@whitespace' },
-      [/[{}()\[\]]/, '@brackets'],
+      [/[{}()[\]]/, '@brackets'],
       [/@symbols/, {
         cases: {
           '@operators': 'operator',
           '@default': ''
         }
       }],
-      [/\d*\.\d+([eE][\-+]?\d+)?/, 'number.float'],
+      [/\d*\.\d+([eE][-+]?\d+)?/, 'number.float'],
       [/0[xX][0-9a-fA-F]+/, 'number.hex'],
       [/\d+/, 'number'],
       [/[;,.]/, 'delimiter'],
@@ -166,7 +166,7 @@ export const IPL_LANGUAGE_DEFINITION = {
     ],
 
     comment: [
-      [/[^\/*]+/, 'comment'],
+      [/[^/*]+/, 'comment'],
       [/\/\*/, 'comment', '@push'],
       [/\*\//, 'comment', '@pop'],
       [/[/*]/, 'comment']

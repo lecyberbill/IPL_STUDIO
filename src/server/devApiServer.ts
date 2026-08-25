@@ -669,7 +669,7 @@ export function createDevApiServer(options: DevApiServerOptions): DevApiServer {
           branch: branch.trim(),
           statusText: status.trim() || 'Nothing to commit, working tree clean.'
         }));
-      } catch (err: any) {
+      } catch {
         res.statusCode = 200;
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({ branch: 'main', statusText: 'Local Git repository ready.' }));
@@ -680,7 +680,7 @@ export function createDevApiServer(options: DevApiServerOptions): DevApiServer {
         res.statusCode = 200;
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({ diffText: diff || 'No Git differences detected.' }));
-      } catch (err: any) {
+      } catch {
         res.statusCode = 200;
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({ diffText: 'Git repository not initialized or no changes.' }));
