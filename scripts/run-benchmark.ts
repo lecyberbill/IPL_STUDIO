@@ -688,6 +688,14 @@ const MOCK_JSON_ORACLES: Record<string, unknown> = {
       { plate: 'VIP-7', cost: 6.4, durationHours: 2.0, isVip: true }
     ]
   },
+  'parking-multi': {
+    currency: 'EUR',
+    grandTotal: 14.4,
+    vehicles: [
+      { plate: 'AB-123', cost: 8.0, durationHours: 2.0, isVip: false },
+      { plate: 'VIP-7', cost: 6.4, durationHours: 2.0, isVip: true }
+    ]
+  },
   coffee: {
     grandTotal: 5.78,
     orders: [
