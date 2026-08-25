@@ -24,6 +24,7 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 | **M0 — Foundations** | French→English i18n sweep, absolute output paths outside the workspace, terminology rename (compiler → generator). | `2a44877` / `bbddc33` / `9a0cf16` |
 | **Phase 4 — Benchmark Harness** | `scripts/run-benchmark.ts` + `npm run bench`: real 2-Pass e2e vs `deepseek-chat` (60% first-try PASS, 0 FAIL), mock mode for CI, Markdown reports with latency/tokens/files. | `088337e` — harness; real-endpoint run validated |
 | **Phase 5 — Self-Healing & Repair Metrics** | `--repair-passes` loop (deterministic then LLM), `output/benchmark/history.json` + Trend/regression section, deterministic pre-repair (`deterministicRepair.ts`) wired into `autoDebugAndFix` + benchmark, pre-generation IPL quick-fixes (`iplQuickFix.ts`). | repair loop verified (typed-order FAIL→PASS via LLM; node-hello honestly `-1`) |
+| **P6b — Layer-Aware Evaluation Receipts** | Receipts per evaluation layer (binding gate, semantics, topology stability), deterministic-vs-LLM repair split, semantic-preservation receipt (`semanticPreservation.ts`), NL control witness (`--nl-witness`). | layer-aware report + 314 tests green; `--nl-witness` external run pending |
 
 ---
 
@@ -61,6 +62,27 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 - [x] Deterministic pre-repair catches the two documented cloud failure modes (ES modules, missing Tailwind CDN).
 
 **Status**: 🟢 done — repair loop (`--repair-passes`, deterministic then LLM), `history.json` + Trend section, deterministic pre-repair module (`deterministicRepair.ts`) wired into both `autoDebugAndFix` and the benchmark. Bonus: pre-generation IPL quick-fixes (`iplQuickFix.ts`) apply fixable diagnostics before the spec reaches the model.
+
+---
+
+## ✅ P6b — Layer-Aware Evaluation Receipts
+
+**Objective**: Stop aggregating unrelated failures into one PASS/FAIL. Attribute each run to the layer that actually held a degree of freedom, and measure the spec's semantic contract independently of the runtime verdict.
+
+**Scope**:
+- **Layer grid** (`buildLayerReceipts`, `scripts/run-benchmark.ts`): each run is attributed to the first binding gate in causal order `topology → integration → runtime-first-try`. Semantics and repair layers are receipts, not flags.
+- **Deterministic-vs-LLM split** (P2): `statusAfterDeterministic`, `deterministicRepairs`, `llmRepairPasses` — did the 0-token repair resolve it, or did the LLM burn tokens?
+- **Semantic-preservation receipt** (`src/engine/semanticPreservation.ts`, pure + 6 offline tests): identifiants / types / formules / clés-de-sortie of the spec that reach the shipped source, **independent of runtime PASS** — the "app works but the contract leaked" detector.
+- **Topology stability** (P4): distinct Pass 1 topology count across iterations (1 = deterministic, >1 = LLM freedom).
+- **Natural-language control witness** (`--nl-witness` + report section): same requirements as prose, generated first-try, compared head-to-head (IPL over-constrained vs LLM fails regardless).
+- **Docs**: `docs/degrees-of-freedom.md` ledger explicitating promise → owner layer → measured today.
+
+**Acceptance criteria**:
+- [x] Report exposes the three measured receipts (layer, semantics, topology stability).
+- [x] Semantic receipt is pure/offline and covered by dedicated tests.
+- [x] NL-vs-IPL comparison is wired into the report (mock-validated; real external run pending a configured API key).
+
+**Status**: 🟢 done (layer-aware report shipped; `--nl-witness` external run is the remaining validation).
 
 ---
 
