@@ -356,6 +356,13 @@ Les briefs NL écrits par une IA (épelant chaque valeur exacte) flattaient le c
 | :--- | :---: | :---: | :---: | :---: | :--- |
 | recipe-app (web + API ext.) | 3/3 PASS | 100% | 100% | 0.880 (0.866–0.897) | Parity |
 
-**Lecture** : sur un brief humain relativement détaillé (il liste les features : radios entrée/plat/dessert, nb personnes, ingrédients à éviter, boutons générer/archiver, gestionnaire, changer nb personnes, liste des courses), **les deux bras réussissent first-try → Parité**. L'avantage d'IPL n'est **pas universel** : il ne se manifeste pas sur un brief web clair où le modèle fait bien dans les deux cas.
+**Relecture après test manuel de l'utilisateur (l'oracle réel)**. Le harness (marker+forbid) reportait « 3/3 PASS, Parity » — mais c'était un **artefact du verify web faible**. L'utilisateur a ouvert les 6 apps : seule `run-1` (IPL) **fonctionne réellement** (recette générée, changer personnes, liste courses). Les 5 autres plantent : `process is not defined` (Node-isme `process.env` en navigateur, dominant), `missing } after function body` (syntaxe), ou HTML **placeholder** (run-2, un simple commentaire). → Réel : **IPL 1/3, NL 0/3**, pas Parity.
 
-**Limite de vérification (importante)** : pour une app **web**, le `verify` du harness ne fait que `marker` ('ingredient') + `forbid` (ES-module) + gate de forme — il **ne peut pas exécuter l'appel API externe ni l'UI** dans la sandbox (pas de clé, pas de DOM interactif). Donc « PASS » ici = *app web plausible générée* (contenant 'ingredient', sans ES-module), **pas** une preuve fonctionnelle que la génération DeepSeek ou les boutons marchent. Le vrai signal fiable est la **préservation sémantique** (0.88) — le contrat d'intention a survécu dans le code.
+**Gates ajoutés (0-token) pour fermer le trou web** (`verifyIn`) :
+- `node --check` sur tout `.js/.mjs` **quel que soit le target** (avant : seulement CLI) → attrape les `missing }`.
+- Bannir le **Node-isme** (`process.`, `require(`, `module.`, `__dirname`, `Buffer.`) dans un target **web** → attrape le `process is not defined` (un serve-HTTP-GET et un `node --check` ne le voient pas, car Node connaît `process`).
+- Validés contre les 6 artefacts réels : **4/5 pannes attrapées**, l'app fonctionnelle (run-1) passe sans faux positif.
+
+**Trou restant (reconnu)** : l'**HTML placeholder** (run-2) n'est pas gaté — impossible de distinguer sans exécuter le JS (faux positifs sur les SPA rendues par JS). Limite assumée.
+
+**Lecture** : sur ce brief humain, une fois le verify web durci, **IPL > NL** (1 vs 0 fonctionnel, et le Node-isme qui tue les apps NL). **Sémantique 0.88** : le contrat d'intention survit dans le code — mais la **justesse runtime** (une app web qui marche vraiment, sans Node-isme ni erreur de syntaxe) n'est pas garantie et a été mesurée par l'humain, pas par le harness. C'est la limite fondamentale du verify web sans exécution de navigateur.

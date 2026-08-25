@@ -1338,15 +1338,36 @@ async function verifyIn(runDir: string, execDir: string, spec: BenchSpec, args: 
     }
   }
 
-  if (spec.verify.command) {
-    const jsFiles = allFiles.filter(f => f.endsWith('.js'));
+  // Determinist JS syntax check — run for EVERY target, not just CLI. A web app
+  // can carry a `missing } after function body` that a marker/forbid check never
+  // sees (node --check is pure syntax; it does NOT flag `process` which Node knows).
+  const jsFiles = allFiles.filter(f => /\.(js|mjs|cjs)$/i.test(f));
+  for (const f of jsFiles) {
+    const check = spawnSync('node', ['--check', pathResolve(execDir, f)], { encoding: 'utf8', windowsHide: true });
+    if (check.status !== 0) {
+      return { status: 'FAIL', detail: `node --check failed on ${f}: ${(check.stderr || '').trim().slice(0, 200)}` };
+    }
+  }
+
+  // Node-ism in a browser target (the dominant web crash: "process is not defined").
+  // Only the user's real browser surfaces this — a served/HP-GET smoke and a
+  // syntax check both miss it. This is the deterministic equivalent.
+  const isWeb = spec.formFactor === 'web';
+  if (isWeb) {
+    const NODEISM_RE = /(^|[^.\w$])(process\s*\.|require\s*\(|\bmodule\s*\.|__dirname|__filename|Buffer\s*\.)/;
     for (const f of jsFiles) {
-      const check = spawnSync('node', ['--check', pathResolve(execDir, f)], { encoding: 'utf8', windowsHide: true });
-      if (check.status !== 0) {
-        return { status: 'FAIL', detail: `node --check failed on ${f}: ${(check.stderr || '').trim().slice(0, 200)}` };
+      const content = readFileSync(pathResolve(execDir, f), 'utf8');
+      if (NODEISM_RE.test(content)) {
+        return { status: 'FAIL', detail: `Node-ism in a browser target (${f}): uses process/require/module — "process is not defined" in the browser. Use browser APIs; move secrets to an env-backed build, not process.env.` };
       }
     }
+  }
 
+  // (A placeholder/comment-only HTML — run 2 — is a real bug but cannot be
+  //  gated deterministically without false-positives on JS-rendered SPAs; noted
+  //  as a recognized gap, not gated here.)
+
+  if (spec.verify.command) {
     const run = runCommand(execDir, spec.verify.command, args.timeoutRunMs, args.pythonPath);
     if (run.timedOut) return { status: 'WARN', detail: `command timed out after ${args.timeoutRunMs} ms (long-running server?)` };
     if (run.exitCode === null) return { status: 'WARN', detail: 'toolchain not available (command could not be spawned)' };
