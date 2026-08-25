@@ -6,6 +6,10 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## [Unreleased]
 
+### ⛔ Runtime smoke as a pre-delivery gate (the "second eye")
+- `smokeGateVerdict` (pure, `smokeCheck.ts`): derives a 0-token delivery verdict from the runtime smoke — `fail` when the app actually crashed (execution error, e.g. `document is not defined`), `warn` when it parsed but a check/toolchain is incomplete, `pass` otherwise.
+- Wired into the app flow: `generationSlice` computes `smokeVerdict` after the smoke and logs a clear gate line; the **Delivery panel** shows a red `DELIVERY GATE — app failed to run. Don't ship.` banner on `fail` (and an amber `warn` banner). Honest scope: this catches **crash / syntax / toolchain**, not wrong-output-with-exit-0 — that needs a fixture-driven behavioral oracle.
+
 ### 🧭 Contract: advisory vs blocking + contextual oracle + sampling
 - **Advisory → blocking (opt-in)**: `strictContract` (+ `specCode`) on the consolidation agent turns the semantic-preservation receipt into a **0-token conformance gate** — if the artifact entirely loses a declared contract dimension (types/formulas/output keys) or scores below 0.5, it's a confirmed "error" that triggers the adaptive review + auto-fix. Default stays advisory ("rails, not walls"): measure drift, never block generation. (`findContractFindings`, `isRequiredContractLost`).
 - **Contextual oracle/prompt**: `deriveContractContext` collapses the spec's declared identity/types/formulas/output-keys into a compact object injected into the repair prompt — generator, repair and oracle now share the **same** contract object (not just the hand-written `verify.assert`). Added an `exists` comparator to `JsonAssert` (presence/absence) for spec-derived schema oracles.

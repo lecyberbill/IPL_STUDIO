@@ -46,6 +46,28 @@ export interface SmokeResult {
 
 export type SmokeLang = 'js' | 'python' | 'rust' | 'go' | 'cpp' | 'c';
 
+export type SmokeVerdict = 'pass' | 'warn' | 'fail';
+
+/**
+ * Pure, 0-token delivery-gate verdict derived from a runtime smoke result.
+ *
+ * - `fail`: the app actually failed to RUN (crash / non-zero exit / web not
+ *   served). This is exactly the runtime defect the shared-model reviewer
+ *   ratifies ("document is not defined") — a deterministic second eye.
+ * - `warn`: every applicable check did not pass (a syntax error, or a missing
+ *   toolchain) but the app was not shown to crash — fixable, not a proven
+ *   runtime blocker.
+ * - `pass`: every check and the bounded execution passed.
+ *
+ * Advisory by default (rails, not walls): a gate surfaces the verdict; a caller
+ * only hard-blocks by opting in (strictDelivery).
+ */
+export function smokeGateVerdict(r: SmokeResult): SmokeVerdict {
+  if (r.execution && r.execution.ok === false) return 'fail';
+  if (!r.passed) return 'warn';
+  return 'pass';
+}
+
 /** Maps files to the deterministic syntax check they need (empty for the rest). */
 export function classifySmokeFiles(
   files: Array<{ relativePath: string; content: string }>

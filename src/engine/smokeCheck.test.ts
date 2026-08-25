@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { classifySmokeFiles, smokeCheckArgs, SMOKE_TOOL } from './smokeCheck';
+import { classifySmokeFiles, smokeCheckArgs, SMOKE_TOOL, smokeGateVerdict } from './smokeCheck';
+import type { SmokeResult } from './smokeCheck';
 
 describe('classifySmokeFiles (runtime smoke classification)', () => {
   it('maps JS and Python files to their checks', () => {
@@ -54,5 +55,27 @@ describe('classifySmokeFiles (runtime smoke classification)', () => {
     expect(smokeCheckArgs('js', 'a.js')).toEqual(['--check', 'a.js']);
     expect(smokeCheckArgs('go', 'a.go')).toEqual(['fmt', '-e', 'a.go']);
     expect(smokeCheckArgs('cpp', 'a.cpp')).toEqual(['-fsyntax-only', 'a.cpp']);
+  });
+});
+
+describe('smokeGateVerdict (delivery-gate decision)', () => {
+  const base = (over: Partial<SmokeResult>): SmokeResult => ({
+    passed: true,
+    files: [{ file: 'a.js', ok: true }],
+    missingTools: [],
+    ...over
+  });
+
+  it('is fail when the app crashed at runtime (execution failed)', () => {
+    expect(smokeGateVerdict(base({ passed: true, execution: { ok: false, error: 'document is not defined' } }))).toBe('fail');
+  });
+
+  it('is warn when a check failed but nothing crashed (syntax/toolchain)', () => {
+    expect(smokeGateVerdict(base({ passed: false, files: [{ file: 'a.py', ok: false, error: 'SyntaxError' }], execution: null }))).toBe('warn');
+  });
+
+  it('is pass when everything parsed and the bounded execution ran', () => {
+    expect(smokeGateVerdict(base({ execution: { ok: true } }))).toBe('pass');
+    expect(smokeGateVerdict(base({ execution: null }))).toBe('pass');
   });
 });

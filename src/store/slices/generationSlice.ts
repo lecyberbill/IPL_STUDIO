@@ -8,7 +8,8 @@ import { consolidateArtifact } from '../../engine/consolidationAgent';
 import type { ConsolidationResult } from '../../engine/consolidationAgent';
 import { createRunTokenUsage } from '../../engine/llmGenerator';
 import type { RunTokenUsage, FormFactor } from '../../engine/llmGenerator';
-import type { SmokeResult } from '../../engine/smokeCheck';
+import { smokeGateVerdict } from '../../engine/smokeCheck';
+import type { SmokeResult, SmokeVerdict } from '../../engine/smokeCheck';
 import type { Toolchains } from '../../engine/toolchains';
 import { defaultOutputDir } from '../../engine/paths';
 import type { ClarificationRequest } from '../types';
@@ -24,6 +25,8 @@ export interface GenerationSlice {
   runUsage: RunTokenUsage | null;
   setRunUsage: (usage: RunTokenUsage | null) => void;
   smokeResult: SmokeResult | null;
+  /** Derived, 0-token delivery-gate verdict from the runtime smoke (same object as `smokeResult`). */
+  smokeVerdict: SmokeVerdict | null;
   setSmokeResult: (result: SmokeResult | null) => void;
   clearGenerationError: () => void;
   runGeneration: () => Promise<void>;
@@ -184,6 +187,7 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
   consolidationResult: null,
   runUsage: null,
   smokeResult: null,
+  smokeVerdict: null,
 
   setConsolidationResult: (consolidationResult) => set({ consolidationResult }),
   setRunUsage: (runUsage) => set({ runUsage }),
@@ -256,7 +260,15 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
       // Runtime smoke: deterministic syntax + bounded execution checks surface
       // in the Delivery panel before the user tests the app.
       const smoke = await runSmokeCheck(parseMultiFileXml(get().generatedCode), addLog, get().toolchains, formFactor, targetLang);
-      set({ smokeResult: smoke });
+      const verdict = smoke ? smokeGateVerdict(smoke) : null;
+      if (verdict === 'fail') {
+        addLog(`[Smoke] ⛔ Delivery gate: the generated app FAILED to run — don't ship this. ${smoke?.execution?.error ? `Runtime: ${smoke.execution.error}` : ''}`, 'error');
+      } else if (verdict === 'warn') {
+        addLog('[Smoke] ⚠️ Delivery gate: app parsed but a check/toolchain is missing — review before shipping.', 'warn');
+      } else {
+        addLog('[Smoke] ✅ Delivery gate: runtime smoke passed.', 'success');
+      }
+      set({ smokeResult: smoke, smokeVerdict: verdict });
     } catch (err: any) {
       const message = err?.message || 'Unknown generation error';
       addLog(`Generation error: ${message}`, 'error');
@@ -309,7 +321,7 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
         set({ generatedCode: consolidated.xml, isGenerating: false, runUsage: { ...runUsage } });
         await get().writeArtifactToDisk();
         const smoke = await runSmokeCheck(parseMultiFileXml(get().generatedCode), addLog, get().toolchains, formFactor, targetLang);
-        set({ smokeResult: smoke });
+        set({ smokeResult: smoke, smokeVerdict: smoke ? smokeGateVerdict(smoke) : null });
 
         // Clean the chat text reply by removing <file> and <patch> tags
         let textReply = rawResult

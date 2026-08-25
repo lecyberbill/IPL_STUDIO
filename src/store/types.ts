@@ -2,7 +2,7 @@ import type * as monaco from 'monaco-editor';
 import type { TargetLanguage, LLMConfig, RunTokenUsage, FormFactor } from '../engine/llmGenerator';
 import type { SyntaxErrorItem, IPLVerb } from '../engine/iplGrammar';
 import type { ConsolidationResult } from '../engine/consolidationAgent';
-import type { SmokeResult } from '../engine/smokeCheck';
+import type { SmokeResult, SmokeVerdict } from '../engine/smokeCheck';
 import type { Toolchains } from '../engine/toolchains';
 import type { StateCreator } from 'zustand';
 
@@ -106,6 +106,8 @@ export interface IDEState {
   setRunUsage: (usage: RunTokenUsage | null) => void;
   /** Runtime smoke test result (deterministic syntax checks, run after write to disk). */
   smokeResult: SmokeResult | null;
+  /** 0-token delivery-gate verdict derived from the runtime smoke (pass | warn | fail). */
+  smokeVerdict: SmokeVerdict | null;
   setSmokeResult: (result: SmokeResult | null) => void;
   /** File selected in the generated-files viewer (right sidebar). */
   selectedFilePath: string;

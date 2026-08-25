@@ -24,7 +24,7 @@ const EMPTY: ConsolidationResult = {
  * human judgment. Each remaining issue jumps to its file in the Files viewer.
  */
 export const DeliveryPanel: React.FC = () => {
-  const { consolidationResult, setActivePanelTab, setSelectedFilePath, addLog, consolidationEnabled, runUsage, targetLang, smokeResult } = useIdeStore();
+  const { consolidationResult, setActivePanelTab, setSelectedFilePath, addLog, consolidationEnabled, runUsage, targetLang, smokeResult, smokeVerdict } = useIdeStore();
   const [showReport, setShowReport] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
@@ -146,6 +146,24 @@ export const DeliveryPanel: React.FC = () => {
       </div>
 
       <DeliveryReportModal open={reportOpen} onClose={() => setReportOpen(false)} />
+
+      {/* Delivery gate: the runtime smoke verdict is a hard signal — a generated
+          app that crashes (execution failed) must NOT be handed off. */}
+      {smokeVerdict === 'fail' && (
+        <div className="px-3 py-2 border-b border-rose-500/40 bg-rose-500/15 font-mono text-[10px] select-text space-y-0.5">
+          <div className="flex items-center space-x-2 text-rose-300">
+            <AlertCircle size={12} />
+            <span className="font-semibold tracking-wide">DELIVERY GATE — app failed to run. Don't ship.</span>
+          </div>
+          {smokeResult?.execution?.error && <div className="text-rose-300/80 truncate">Runtime: {smokeResult.execution.error}</div>}
+          <div className="text-rose-200/60">Repair via the Chat (auto-debug) or fix manually; only deliver when the smoke check is green.</div>
+        </div>
+      )}
+      {smokeVerdict === 'warn' && (
+        <div className="px-3 py-1.5 border-b border-amber-500/30 bg-amber-500/10 font-mono text-[10px] select-text text-amber-300">
+          ⚠️ Delivery gate: app parsed but a check/toolchain is incomplete — review before shipping.
+        </div>
+      )}
 
       {/* Runtime smoke test (deterministic syntax + bounded execution) */}
       {smokeResult && (
