@@ -203,18 +203,23 @@ Runs the real 2-Pass pipeline per spec, parses artifacts with the real parser, w
 
 ### 🏭 Multi-domain stress test — IPL vs natural language
 
-`--spec` is repeatable, so a mixed set of **unrelated business domains** can be run in one command, each spec provided both as IPL and as an equal-information natural-language brief, with a `seed`-backed behavioral oracle. Real run (deepseek-chat, n=1, `--nl-witness`):
+`--spec` is repeatable, so a mixed set of **unrelated business domains** can be run in one command, each spec provided both as IPL and as an equal-information natural-language brief, with a `seed`-backed behavioral oracle. Real runs (deepseek-chat): the rich/structural specs at n=1, and the three trivial-formula specs re-run at **n=3** to check robustness. (First-try rates are without repair.)
 
-| Spec (domain) | Final | IPL 1st-try | NL 1st-try | Semantic | Parity |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| garage (multi-file) | ✅ PASS | 0% | 0% | 0.705 | ✅ |
-| banking (finance) | ✅ PASS | 100% | 100% | 0.800 | ✅ |
-| logistics (supply-chain) | ✅ PASS | 100% | 0% | 0.867 | ✅ |
-| inventory (retail) | ❌ FAIL | 0% | **100%** | 1.000 | ✅ |
-| payroll (HR) | ⚠️ WARN | 0% | **100%** | 0.900 | ✅ |
-| telecom (utilities) | ❌ FAIL | 0% | **100%** | 0.811 | ✅ |
+| Domain | Final | IPL 1st-try | NL 1st-try | Semantic | Verdict |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| garage (multi-file) | ✅ PASS (n=1) | 0% | 0% | 0.705 | Parity |
+| banking (finance) | ✅ PASS | 100% | 100% | 0.800 | Parity |
+| logistics (supply-chain) | ✅ PASS | 100% | 0% | 0.867 | IPL better |
+| inventory (retail) | ❌ 0/3 FAIL | 0% | **100%** | 0.967 | NL better |
+| payroll (HR) | ❌ 0/3 FAIL | 0% | **100%** | 0.967 | NL better |
+| telecom (utilities) | ⚠️ 2/3 PASS | 0% | **100%** | 0.768 | NL better |
 
-**Honest reading.** The measurement is domain-agnostic, and the result is *non-confirmatory*: on the rich/structured garage spec IPL converges while NL fails, but on the trivial formula specs (inventory/payroll/telecom) the NL prose brief — which spells out the exact expected values — wins first-try, while IPL requires the model to *implement* the formula and can fail even after repair (semantic still high, e.g. inventory 1.0, because the *contract* survives in the source while the *executable* drifts). So IPL's edge is **constraint, drift-detection and convergence on rich contracts**, not first-try numeric correctness. n=1 → illustrative. See [`docs/benchmark-scorecard.md`](docs/benchmark-scorecard.md) → **Multi-domain stress test**.
+**Honest (non-confirmatory) reading — robust at n=3.** The measurement is domain-agnostic, and the result is *not* "IPL always wins". Two regimes:
+- **Rich/structured contracts** (garage multi-file, logistics): IPL converges / edges out — constraint + drift-detection pays off.
+- **Trivial formula specs** (inventory/payroll/telecom): the NL brief spells the exact expected values → the model hardcodes them and passes first-try **100%**, whereas IPL makes the model *implement* the formula and fails (inventory/payroll 0/3 even after repair, telecom 2/3).
+- **Semantic sticks at 0.77–1.0 even on FAIL**: the *contract* survives in the source, the *executable* drifts (model variance on the arithmetic). This is the central finding — the intent language constrains and *measures* the model's freedom; it is not a way to eliminate it.
+
+So IPL's edge is **constraint, drift-detection and convergence on rich contracts**, not first-try numeric correctness. See [`docs/benchmark-scorecard.md`](docs/benchmark-scorecard.md) → **Multi-domain stress test** + **Robustness n=3**.
 
 ---
 
