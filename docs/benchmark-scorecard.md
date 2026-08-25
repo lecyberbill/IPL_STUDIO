@@ -301,3 +301,25 @@ Sur le scénario riche, le chemin contraint IPL préserve mieux le contrat et pa
 - La forme `batch` + gate `form-mismatch` a éliminé la classe « app interactive que le harness ne peut pas piloter » en génération (parking revient à la vie sans bricolage, généralisable à toute spec JSON/stdout).
 - Un échec runtime n'est plus synonyme de « la spec a échoué » : les receipts disent *quelle* couche a tenu le degré de liberté (ici le runtime/variance modèle, pas la sémantique).
 - Le comparateur `approx` corrige l'échec strict-float (`grandTotal 5.779...`) sans relâcher l'exigence d'intention.
+
+## 🏭 Multi-domain stress test — NLP vs IPL (2026-08-25, deepseek-chat, 6 domaines, n=1)
+
+Panel de problématiques **sans rapport entre elles**, chacune en IPL **et** en NL à information égale, avec oracle de sortie auto-cohérent (`seed` dans la spec → parité clean). `--spec` est répétable. Rapport complet : `output/benchmark/report-2026-08-25T14-49-45-239Z.md`.
+
+| Spec (domaine) | Final | IPL 1st-try | NL 1st-try | Sém. | Ctrl | Parité |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| parking-multi (garage, multi-fichiers) | PASS | 0% | 0% | 0.705 | 3/3 | ✅ |
+| banking (finance) | PASS | 100% | 100% | 0.800 | 1/1 | ✅ |
+| logistics (supply chain) | PASS | 100% | 0% | 0.867 | 1/1 | ✅ |
+| inventory (retail) | **FAIL** | 0% | **100%** | 1.000 | 1/1 | ✅ |
+| payroll (HR) | WARN | 0% | **100%** | 0.900 | 1/1 | ✅ |
+| telecom (utilities) | **FAIL** | 0% | **100%** | 0.811 | 1/1 | ✅ |
+
+**Lecture honnête (non confirmatoire)** :
+
+- **La mesure est agnostique au domaine** — finance, supply chain, retail, HR, utilities, garage : le harness + oracle dérivé + gate fonctionnent sans adaptation.
+- **Parité 100 %** : `seed` dans la spec ferme le trou oracle/spec (un `parking` mono-fichier sans seed serait signalé).
+- **NL a fait MIEUX en first-try sur inventory/payroll/telecom** : les briefs NL épellent les valeurs exactes ("balance = 1498.5", "total = 39.99"), le modèle hardcode et passe direct ; l'IPL exige d'*implémenter* la formule → erreurs d'implémentation que la réparation ne rattrape pas (-1). Sur banking/logistics, IPL passe direct (100 %).
+- **Sémantique haute partout (0.705–1.0), même sur les FAIL** : inventory sém. 1.0 mais FAIL runtime — le contrat survit dans le code, l'exécutable diverge (variance modèle sur le calcul).
+
+**Thèse affinée** : l'avantage d'IPL n'est **pas** la justesse numérique first-try (sur des calculs triviaux un bon prompt NL peut battre un IPL qui fait implémenter la formule). C'est la **contrainte + détection de dérive + convergence sur les contrats riches/structurés** (parking : IPL converge, NL échoue first-try). La mesure sépare 4 axes : **sémantique** (contrat dans le code), **runtime** (exécutable diverge), **first-try** (variance modèle), **parité** (seed ferme le trou). Limite : n=1, illustratif.
