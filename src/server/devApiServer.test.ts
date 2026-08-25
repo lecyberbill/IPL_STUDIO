@@ -5,6 +5,7 @@ import path from 'path';
 import { createDevApiServer, serveStaticDir, stopStaticServer, runSyntaxSmoke, type DevApiServerOptions } from './devApiServer';
 import { deriveBehaviorAssertFromSpec } from '../engine/semanticPreservation';
 import { smokeGateVerdict } from '../engine/smokeCheck';
+import { resolveIPLProject } from '../engine/iplGrammar';
 
 /** A spec that declares a structured (format:json) output. */
 const SPEC_WITH_JSON_OUTPUT = `
@@ -17,6 +18,34 @@ listen event on "vehicle:exit" {
     isVip: vehicle.isVip
   }
 }`;
+
+/** A complex multi-file IPL project: main imports models + seed data. */
+const MULTIFILE_MAIN = `
+import "models.ipl";
+import "data.ipl";
+listen event on "vehicle:exit" {
+  read vehicle from gate { where: vehicle.isVip == false }
+  compute cost from vehicle { formula: (vehicle.exitMinute - vehicle.entryMinute) / 60 }
+  send receipt to screen {
+    format: "json",
+    plate: vehicle.plate,
+    cost: cost,
+    isVip: vehicle.isVip
+  }
+}
+return success`;
+
+const MULTIFILE_MODELS = `
+add entity Vehicle {
+  plate: text,
+  isVip: boolean,
+  entryMinute: number,
+  exitMinute: number
+}`;
+
+const MULTIFILE_DATA = `
+add entity ParkingGarage { hourlyRate: number, vipDiscountRate: number, currency: options("EUR", "USD") }
+seed Vehicle car1 { plate: "AB-123", isVip: false, entryMinute: 0, exitMinute: 120 }`;
 
 const tempRoots: string[] = [];
 
@@ -273,6 +302,38 @@ describe('runtime smoke test (runSyntaxSmoke)', () => {
     );
     expect(result.execution?.ok).toBe(true);
     expect(result.passed).toBe(true);
+  });
+
+  it('e2e multi-file IPL: merge -> derived oracle -> smoke -> gate verdict', async () => {
+    // Resolve the multi-file project (main imports models + seed data).
+    const { code, unresolved } = resolveIPLProject(MULTIFILE_MAIN, {
+      'models.ipl': MULTIFILE_MODELS,
+      'data.ipl': MULTIFILE_DATA
+    });
+    expect(unresolved).toEqual([]);
+
+    // The merged contract surfaces output keys declared across the imported files.
+    const assert = deriveBehaviorAssertFromSpec(code);
+    expect(assert).not.toBeNull();
+    expect(assert!.stdoutContains).toContain('"plate"');
+    expect(assert!.stdoutContains).toContain('"cost"');
+    expect(assert!.stdoutContains).toContain('"isVip"');
+
+    // A conforming artifact (the run the generator should produce) passes ...
+    const ok = await runSyntaxSmoke(
+      [{ relativePath: 'main.js', content: 'console.log(JSON.stringify({ plate: "AB-123", cost: 2.0, isVip: false }));' }],
+      undefined, 'cli', 'javascript', assert!
+    );
+    expect(ok.behavior?.pass).toBe(true);
+    expect(smokeGateVerdict(ok)).toBe('pass');
+
+    // ... a non-conforming one (drops `cost`) is a gate FAIL.
+    const wrong = await runSyntaxSmoke(
+      [{ relativePath: 'main.js', content: 'console.log(JSON.stringify({ plate: "AB-123", isVip: false }));' }],
+      undefined, 'cli', 'javascript', assert!
+    );
+    expect(wrong.behavior?.pass).toBe(false);
+    expect(smokeGateVerdict(wrong)).toBe('fail');
   });
 
   it('e2e: spec -> derived oracle -> smoke -> gate verdict (app-flow chain)', async () => {
