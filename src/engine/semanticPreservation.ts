@@ -22,6 +22,7 @@
 import { parseIPL } from './iplParser.ts';
 import type { IPLExpr, IPLStatement } from './iplParser.ts';
 import { IPL_INTENT_TYPES } from './iplCore.ts';
+import type { BehaviorAssert } from './behaviorAssert.ts';
 
 const INTENT_TYPE_NAMES = new Set(IPL_INTENT_TYPES.map(t => t.name.replace(/\(.*\)$/, '')));
 
@@ -358,4 +359,49 @@ export function deriveContractContext(contract: SemanticContract): string {
   if (contract.formulaNumbers.length) parts.push(`formula constants: ${contract.formulaNumbers.join(', ')}`);
   if (contract.outputKeys.length) parts.push(`output keys: ${contract.outputKeys.join(', ')}`);
   return parts.join('\n');
+}
+
+/**
+ * Output keys declared by `send { format: "json", <key>: ..., ... }` clauses in
+ * the spec. These are the keys the generated app MUST surface in its JSON output.
+ * (A `format` prop other than "json", e.g. an email or log, is skipped.)
+ */
+export function deriveOutputJsonKeys(specCode: string): string[] {
+  const keys: string[] = [];
+  const { ast } = parseIPL(specCode);
+  const visit = (stmts: IPLStatement[]): void => {
+    for (const s of stmts) {
+      if (s.kind === 'send') {
+        const fmt = s.props.find(p => p.key === 'format');
+        const isJson = fmt?.value?.kind === 'literal' && String(fmt.value.value).toLowerCase() === 'json';
+        if (isJson) {
+          for (const p of s.props) {
+            if (p.key && p.key !== 'format' && !keys.includes(p.key)) keys.push(p.key);
+          }
+        }
+      }
+      visit(s.body);
+      visit(s.elseBody ?? []);
+      visit(s.catchBody ?? []);
+    }
+  };
+  visit(ast.statements);
+  return keys;
+}
+
+/**
+ * Derives a default behavioral oracle from the spec (advisory by default — it
+ * is a structural floor, not the exact-value oracle a hand-written `continue`
+ * would give). Returns null when the spec declares no JSON output, so a spec
+ * without a structured output falls back to the crash-only smoke.
+ *
+ * The assertion checks that each declared output key appears as a property name
+ * in the app's JSON output (the container/array index is unknown to the spec,
+ * so presence is what we can guarantee). Exact values stay hand-written (the
+ * benchmark) or float-approx where computed.
+ */
+export function deriveBehaviorAssertFromSpec(specCode: string): BehaviorAssert | null {
+  const keys = deriveOutputJsonKeys(specCode);
+  if (keys.length === 0) return null;
+  return { stdoutContains: keys.map(k => `"${k}"`) };
 }

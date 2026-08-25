@@ -10,6 +10,7 @@ import { createRunTokenUsage } from '../../engine/llmGenerator';
 import type { RunTokenUsage, FormFactor } from '../../engine/llmGenerator';
 import { smokeGateVerdict } from '../../engine/smokeCheck';
 import type { SmokeResult, SmokeVerdict } from '../../engine/smokeCheck';
+import { deriveBehaviorAssertFromSpec } from '../../engine/semanticPreservation';
 import type { Toolchains } from '../../engine/toolchains';
 import { defaultOutputDir } from '../../engine/paths';
 import type { ClarificationRequest } from '../types';
@@ -88,12 +89,17 @@ async function runSmokeCheck(
   toolchains: Toolchains,
   formFactor: FormFactor | undefined,
   targetLang: string,
-  behaviorAssert?: import('../../engine/behaviorAssert').BehaviorAssert
+  behaviorAssert?: import('../../engine/behaviorAssert').BehaviorAssert,
+  specCode?: string
 ): Promise<SmokeResult | null> {
   try {
+    // Default to a spec-derived structural oracle (the spec's `send format:json`
+    // output keys) so the app-flow gate is behavioral without a hand-written
+    // `verify`. None -> the spec has no JSON output -> crash-only smoke.
+    const effectiveAssert = behaviorAssert ?? (specCode ? deriveBehaviorAssertFromSpec(specCode) : undefined);
     const response = await apiFetch('/api/smoke-test', {
       method: 'POST',
-      body: JSON.stringify({ files, toolchains, formFactor, targetLang, behaviorAssert })
+      body: JSON.stringify({ files, toolchains, formFactor, targetLang, behaviorAssert: effectiveAssert })
     });
     const data: SmokeResult = await response.json();
     if (data && Array.isArray(data.files)) {
@@ -260,7 +266,7 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
       await get().writeArtifactToDisk();
       // Runtime smoke: deterministic syntax + bounded execution checks surface
       // in the Delivery panel before the user tests the app.
-      const smoke = await runSmokeCheck(parseMultiFileXml(get().generatedCode), addLog, get().toolchains, formFactor, targetLang);
+      const smoke = await runSmokeCheck(parseMultiFileXml(get().generatedCode), addLog, get().toolchains, formFactor, targetLang, undefined, get().code);
       const verdict = smoke ? smokeGateVerdict(smoke) : null;
       if (verdict === 'fail') {
         addLog(`[Smoke] ⛔ Delivery gate: the generated app FAILED to run — don't ship this. ${smoke?.execution?.error ? `Runtime: ${smoke.execution.error}` : ''}`, 'error');
@@ -321,7 +327,7 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
         const consolidated = await runConsolidation(get, newXmlCode, targetLang, llmConfig, runUsage, formFactor);
         set({ generatedCode: consolidated.xml, isGenerating: false, runUsage: { ...runUsage } });
         await get().writeArtifactToDisk();
-        const smoke = await runSmokeCheck(parseMultiFileXml(get().generatedCode), addLog, get().toolchains, formFactor, targetLang);
+        const smoke = await runSmokeCheck(parseMultiFileXml(get().generatedCode), addLog, get().toolchains, formFactor, targetLang, undefined, get().code);
         set({ smokeResult: smoke, smokeVerdict: smoke ? smokeGateVerdict(smoke) : null });
 
         // Clean the chat text reply by removing <file> and <patch> tags

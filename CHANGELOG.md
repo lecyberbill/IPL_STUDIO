@@ -6,6 +6,10 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## [Unreleased]
 
+### 🎯 Spec-derived behavioral oracle (default gate, no hand-written verify)
+- `deriveOutputJsonKeys` + `deriveBehaviorAssertFromSpec` (`semanticPreservation.ts`): parses the spec's `send { format: "json", key: ... }` clauses and derives a default `BehaviorAssert` that each declared output key appears in the emitted JSON. Returns `null` when the spec has no JSON output (falls back to crash-only smoke).
+- `generationSlice.runSmokeCheck` now derives this oracle from the spec by default, so the app-flow gate is **behavioral without anyone writing a `verify`**. Structural floor (presence), not exact-value — exact values stay the benchmark's hand oracle or float-approx.
+
 ### ☑️ Behavioral gate on the app-flow smoke (crash **and** correctness)
 - `runSyntaxSmoke` now accepts an optional `BehaviorAssert`; after the CLI runs it captures stdout+exit code and calls `evaluateBehavior` (exit code, stdout, JSON-path / float-approx / presence). `SmokeResult` gains `behavior?: { pass, failures }`.
 - `smokeGateVerdict` is now `fail` on a behavioral oracle failure too — the app can **exit 0 yet output the wrong value**, which neither a crash-only smoke nor the shared-model reviewer catches. This closes the "exits 0 but wrong output" hole.

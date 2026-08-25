@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractIPLSemanticContract, measureSemanticPreservation, findContractFindings, deriveContractContext, isRequiredContractLost } from './semanticPreservation';
+import { extractIPLSemanticContract, measureSemanticPreservation, findContractFindings, deriveContractContext, isRequiredContractLost, deriveOutputJsonKeys, deriveBehaviorAssertFromSpec } from './semanticPreservation';
 
 const SPEC = `
 add entity Vehicle {
@@ -192,5 +192,29 @@ describe('deriveContractContext (contextual oracle/prompt contract)', () => {
 
   it('is empty for a spec with no declared contract', () => {
     expect(deriveContractContext(extractIPLSemanticContract('// nothing' ))).toBe('');
+  });
+});
+
+describe('deriveBehaviorAssertFromSpec (spec-derived default oracle)', () => {
+  it('extracts output keys only from format:json send clauses', () => {
+    const spec = `
+listen event on "x" {
+  send receipt to screen { format: "json", plate: v.plate, cost: c, isVip: v.isVip }
+  send confirmationEmail to user { subject: "hi", orderId: id, format: "email" }
+}`;
+    expect(deriveOutputJsonKeys(spec)).toEqual(['plate', 'cost', 'isVip']);
+  });
+
+  it('derives a stdoutContains oracle for the declared keys', () => {
+    const spec = `
+listen event on "x" {
+  send receipt to screen { format: "json", plate: v.plate, cost: c }
+}`;
+    const assert = deriveBehaviorAssertFromSpec(spec);
+    expect(assert).toEqual({ stdoutContains: ['"plate"', '"cost"'] });
+  });
+
+  it('returns null when the spec declares no JSON output (falls back to crash-only smoke)', () => {
+    expect(deriveBehaviorAssertFromSpec('add message { text: "hi" }\nreturn success')).toBeNull();
   });
 });
