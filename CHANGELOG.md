@@ -6,6 +6,11 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## [Unreleased]
 
+### 🧩 Multi-file IPL benchmark spec (`parking-multi`)
+- `BenchSpec` gains optional `sourceFiles` + `rootFile`; `specInputCode` merges the project via `resolveIPLProject` before generation, contract extraction and token accounting. So the harness can **generate from a multi-module IPL project** (main imports models + seed).
+- New `parking-multi` spec (main imports `models.ipl` + `data.ipl` with 2 `seed Vehicle`) sharing the parking oracle.
+- Real run (deepseek-chat, n=3, `--nl-witness`): Final PASS 2/3 (67%), first-try 0%, semantic mean 0.818 (0.782–0.891), NL-vs-IPL parity (both 0% first-try). The contract survives in source; runtime divergence is the model-variance limit.
+
 ### 🎯 Spec-derived behavioral oracle (default gate, no hand-written verify)
 - `deriveOutputJsonKeys` + `deriveBehaviorAssertFromSpec` (`semanticPreservation.ts`): parses the spec's `send { format: "json", key: ... }` clauses and derives a default `BehaviorAssert` that each declared output key appears in the emitted JSON. Returns `null` when the spec has no JSON output (falls back to crash-only smoke).
 - `generationSlice.runSmokeCheck` now derives this oracle from the spec by default, so the app-flow gate is **behavioral without anyone writing a `verify`**. Structural floor (presence), not exact-value — exact values stay the benchmark's hand oracle or float-approx.

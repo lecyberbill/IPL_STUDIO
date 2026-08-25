@@ -40,6 +40,7 @@ import type { BehaviorAssert } from '../src/engine/behaviorAssert.ts';
 import { analyzeIPLSemantics } from '../src/engine/iplSemantics.ts';
 import { extractIPLSemanticContract, measureSemanticPreservation, deriveContractContext } from '../src/engine/semanticPreservation.ts';
 import type { SemanticReceipt } from '../src/engine/semanticPreservation.ts';
+import { resolveIPLProject } from '../src/engine/iplGrammar.ts';
 
 // ---------------------------------------------------------------------------
 // CLI options
@@ -149,6 +150,9 @@ interface BenchSpec {
   naturalLanguage?: string;
   /** Execution form pinned for this spec (default derived: html→web, else cli). Headless print-JSON specs pin `batch`. */
   formFactor?: FormFactor;
+  /** Optional multi-file IPL project: main + imported modules. When set, the harness generates from the merged union. */
+  sourceFiles?: Record<string, string>;
+  rootFile?: string;
   verify: {
     command?: string;
     marker?: string;
@@ -156,6 +160,14 @@ interface BenchSpec {
     forbid?: string[];
     assert?: BehaviorAssert;
   };
+}
+
+/** The merged IPL source the generator should consume (multi-file union, else the single spec). */
+function specInputCode(spec: BenchSpec): string {
+  if (spec.sourceFiles && spec.rootFile && spec.sourceFiles[spec.rootFile] !== undefined) {
+    return resolveIPLProject(spec.sourceFiles[spec.rootFile], spec.sourceFiles, spec.rootFile).code;
+  }
+  return spec.code;
 }
 
 const SPECS: BenchSpec[] = [
@@ -368,6 +380,104 @@ Use these exact numbers so the output matches the oracle: the first vehicle ente
           { path: 'vehicles.1.isVip', equals: true },
           { path: 'vehicles.1.cost', equals: 6.4 },
           { path: 'grandTotal', equals: 14.4 },
+          { path: 'grandTotal', gt: 0 },
+          { path: 'grandTotal', lt: 50 }
+        ]
+      }
+    }
+  },
+  {
+    id: 'parking-multi',
+    name: 'Smart Parking Garage (multi-file IPL: models + seed imported)',
+    formFactor: 'batch',
+    targetLang: 'python',
+    rootFile: 'main.ipl',
+    // The main module imports the entity shapes and the seed data, exercising
+    // cross-file merge before the generator sees the spec.
+    sourceFiles: {
+      'main.ipl': `import "models.ipl";
+import "data.ipl";
+
+listen event on "vehicle:exit" {
+  read vehicle from gate {
+    where: exitMinute > entryMinute
+  }
+
+  compute durationHours from vehicle {
+    formula: (exitMinute - entryMinute) / 60
+  }
+
+  if vehicle.isVip == true {
+    compute cost from vehicle {
+      formula: round((durationHours * hourlyRate) * (1 - vipDiscountRate) * 100) / 100
+    }
+  } else {
+    compute cost from vehicle {
+      formula: round((durationHours * hourlyRate) * 100) / 100
+    }
+  }
+
+  send receipt to screen {
+    format: "json",
+    plate: vehicle.plate,
+    cost: cost,
+    durationHours: durationHours,
+    isVip: vehicle.isVip
+  }
+
+  return success
+}`,
+      'models.ipl': `add entity Vehicle {
+  plate: text,
+  isVip: boolean,
+  entryMinute: number,
+  exitMinute: number
+}`,
+      'data.ipl': `add entity ParkingGarage {
+  hourlyRate: number,
+  vipDiscountRate: number,
+  currency: options("EUR", "USD")
+}
+
+seed Vehicle car1 { plate: "AB-123", isVip: false, entryMinute: 0, exitMinute: 120 }
+seed Vehicle car2 { plate: "VIP-7", isVip: true, entryMinute: 0, exitMinute: 120 }`
+    },
+    code: `import "models.ipl";
+import "data.ipl";
+
+listen event on "vehicle:exit" {
+  read vehicle from gate { where: exitMinute > entryMinute }
+  compute durationHours from vehicle { formula: (exitMinute - entryMinute) / 60 }
+  if vehicle.isVip == true {
+    compute cost from vehicle { formula: round((durationHours * hourlyRate) * (1 - vipDiscountRate) * 100) / 100 }
+  } else {
+    compute cost from vehicle { formula: round((durationHours * hourlyRate) * 100) / 100 }
+  }
+  send receipt to screen {
+    format: "json", plate: vehicle.plate, cost: cost, durationHours: durationHours, isVip: vehicle.isVip
+  }
+  return success
+}`,
+    naturalLanguage: `You are implementing a parking-garage billing program in Python that prints a JSON document. The program processes two vehicles:
+- currency must be the string "EUR".
+- vehicles must be an array of 2 objects: { plate: "AB-123", isVip: false, durationHours: 2.0, cost: 8.0 } and { plate: "VIP-7", isVip: true, durationHours: 2.0, cost: 6.4 }.
+- grandTotal must be 14.4.
+
+Rule: durationHours = (exitMinute - entryMinute) / 60; the base cost is round(durationHours * hourlyRate * 100) / 100; a VIP (isVip true) gets a 10% discount: cost = round(baseCost * (1 - vipDiscountRate) * 100) / 100 with vipDiscountRate = 0.1. Use hourlyRate 4.0 so the first vehicle costs 8.0 (not VIP) and the second 6.4 (VIP). Print the JSON with keys currency, vehicles (plate, cost, durationHours, isVip) and grandTotal.`,
+    verify: {
+      command: 'python main.py',
+      assert: {
+        stdoutRegex: '"currency": "EUR"',
+        jsonInOutput: [
+          { path: 'currency', equals: 'EUR' },
+          { path: 'vehicles.length', equals: 2 },
+          { path: 'vehicles.0.plate', equals: 'AB-123' },
+          { path: 'vehicles.0.cost', equals: 8.0 },
+          { path: 'vehicles.0.isVip', equals: false },
+          { path: 'vehicles.1.plate', equals: 'VIP-7' },
+          { path: 'vehicles.1.isVip', equals: true },
+          { path: 'vehicles.1.cost', equals: 6.4 },
+          { path: 'grandTotal', approx: 14.4, tolerance: 1e-6 },
           { path: 'grandTotal', gt: 0 },
           { path: 'grandTotal', lt: 50 }
         ]
@@ -648,7 +758,7 @@ interface GenerationOutput {
 }
 
 async function generateReal(spec: BenchSpec, config: LLMConfig, args: CliArgs, usage: RunTokenUsage, formFactor?: FormFactor): Promise<GenerationOutput> {
-  const pass1Prompt = buildPass1Prompt(spec.code, spec.targetLang, undefined, formFactor);
+  const pass1Prompt = buildPass1Prompt(specInputCode(spec), spec.targetLang, undefined, formFactor);
 
   const t1 = Date.now();
   const p1Text = await withTimeout(
@@ -662,7 +772,7 @@ async function generateReal(spec: BenchSpec, config: LLMConfig, args: CliArgs, u
 
   const t2 = Date.now();
   const xml = await withTimeout(
-    callLLM(buildPass2Prompt(spec.code, spec.targetLang, topology, undefined, formFactor), config, () => {}, undefined, { temperature: 0.15, seed: 42, usage: { usage, bucket: 'generation' } }),
+    callLLM(buildPass2Prompt(specInputCode(spec), spec.targetLang, topology, undefined, formFactor), config, () => {}, undefined, { temperature: 0.15, seed: 42, usage: { usage, bucket: 'generation' } }),
     args.timeoutPerPassMs,
     'Pass 2'
   );
@@ -1213,7 +1323,7 @@ async function repairAndVerify(
       // The spec's declared contract (identity/types/formulas/output-keys),
       // injected as context so the repair targets the same object the oracle
       // asserts against — not just the hand-written assert values.
-      const specContext = deriveContractContext(extractIPLSemanticContract(spec.code));
+      const specContext = deriveContractContext(extractIPLSemanticContract(specInputCode(spec)));
       const staticHint = missingRefs && missingRefs.length > 0
         ? `\n\nSTATIC IMPORT CHECK FAILURES (imports that reference files never generated — GENERATE THE MISSING FILES):\n${missingRefs.map(m => `- ${m.specifier} imported in ${m.importer} resolves to missing ${m.resolved}`).join('\n')}`
         : '';
@@ -1371,7 +1481,7 @@ function buildLayerReceipts(
   deterministicRepairs: number,
   llmRepairPasses: number
 ): LayerReceipt[] {
-  const ipDiag = analyzeIPLSemantics(spec.code);
+  const ipDiag = analyzeIPLSemantics(specInputCode(spec));
   const iplProblems = ipDiag.filter(d => d.severity === 'warning' || d.severity === 'info').length;
 
   const topologyOk = !!gen.topology && extractTopologyJson(gen.topology) !== null;
@@ -1713,7 +1823,7 @@ async function main(): Promise<number> {
       mkdirSync(runDir, { recursive: true });
 
       const start = Date.now();
-      const usage = createRunTokenUsage(spec.code.length);
+      const usage = createRunTokenUsage(specInputCode(spec).length);
       const formFactor = args.formFactor ?? spec.formFactor ?? (spec.targetLang === 'html' ? 'web' : 'cli');
       let gen: GenerationOutput;
       let genError = '';
@@ -1808,7 +1918,7 @@ async function main(): Promise<number> {
       // files (post-repair), independent of the runtime verdict.
       let semantic: SemanticReceipt | undefined;
       if (args.mode !== 'mock') {
-        const contract = extractIPLSemanticContract(spec.code);
+        const contract = extractIPLSemanticContract(specInputCode(spec));
         const finalFiles = readRunFiles(runDir);
         const res = measureSemanticPreservation(contract, finalFiles);
         semantic = { identity: res.identity, types: res.types, formulas: res.formulas, outputKeys: res.outputKeys, score: res.score };
@@ -1853,7 +1963,7 @@ async function main(): Promise<number> {
           mkdirSync(nlDir, { recursive: true });
           const nlWritten = writeArtifact(nlDir, nlg.xml);
           const nlFirstTry = await verify(spec, nlDir, args);
-          const nlContract = extractIPLSemanticContract(spec.code);
+          const nlContract = extractIPLSemanticContract(specInputCode(spec));
           const nlRes = measureSemanticPreservation(nlContract, nlWritten.parsed);
           result.nl = {
             status: nlFirstTry.status,
@@ -1909,3 +2019,4 @@ async function main(): Promise<number> {
 }
 
 main().then(code => process.exit(code));
+
