@@ -38,7 +38,7 @@ import type { DeterministicRepair } from '../src/engine/deterministicRepair.ts';
 import { evaluateBehavior } from '../src/engine/behaviorAssert.ts';
 import type { BehaviorAssert } from '../src/engine/behaviorAssert.ts';
 import { analyzeIPLSemantics } from '../src/engine/iplSemantics.ts';
-import { extractIPLSemanticContract, measureSemanticPreservation, deriveContractContext, checkOracleParity } from '../src/engine/semanticPreservation.ts';
+import { extractIPLSemanticContract, measureSemanticPreservation, deriveContractContext, checkOracleParity, renderNLBrief } from '../src/engine/semanticPreservation.ts';
 import type { SemanticReceipt, OracleParity } from '../src/engine/semanticPreservation.ts';
 import { resolveIPLProject } from '../src/engine/iplGrammar.ts';
 
@@ -66,10 +66,12 @@ interface CliArgs {
   sandboxDir?: string;
   /** Phase 5 — run the natural-language control witness (same requirements as prose) and compare. */
   nlWitness: boolean;
+  /** De-bias: derive the NL baseline deterministically from the spec instead of the hand-written brief. */
+  nlRender: boolean;
 }
 
 function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = { mode: 'external', iterations: 1, timeoutPerPassMs: 120_000, timeoutRunMs: 30_000, quiet: false, repairPasses: 3, reviewPass: false, consolidate: false, nlWitness: false };
+  const args: CliArgs = { mode: 'external', iterations: 1, timeoutPerPassMs: 120_000, timeoutRunMs: 30_000, quiet: false, repairPasses: 3, reviewPass: false, consolidate: false, nlWitness: false, nlRender: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => argv[++i];
@@ -87,6 +89,7 @@ function parseArgs(argv: string[]): CliArgs {
     else if (a === '--form-factor') args.formFactor = next() as FormFactor;
     else if (a === '--sandbox') args.sandboxDir = next();
     else if (a === '--nl-witness') args.nlWitness = true;
+    else if (a === '--nl-render') args.nlRender = true;
     else if (a === '--quiet') args.quiet = true;
     else if (a === '--help') {
       console.log(`IPL Studio Benchmark Harness
@@ -1025,7 +1028,9 @@ async function generateReal(spec: BenchSpec, config: LLMConfig, args: CliArgs, u
 
 /** Same two-pass flow as generateReal, fed the natural-language brief instead of IPL. */
 async function generateNL(spec: BenchSpec, config: LLMConfig, args: CliArgs, usage: RunTokenUsage, formFactor?: FormFactor): Promise<GenerationOutput> {
-  const brief = spec.naturalLanguage ?? '';
+  // De-bias: with --nl-render (or no hand-written brief) derive the NL baseline
+  // deterministically from the spec — same contract, flat prose, no authoring skill.
+  const brief = args.nlRender || !spec.naturalLanguage ? renderNLBrief(specInputCode(spec)) : spec.naturalLanguage;
   const pass1Prompt = buildNLPass1Prompt(brief, formFactor);
 
   const t1 = Date.now();
@@ -2258,7 +2263,7 @@ async function main(): Promise<number> {
       };
       // Phase 5 — natural-language control witness: the SAME requirements as
       // prose, generated first-try (no repair). Compared against IPL in the report.
-      if (args.nlWitness && spec.naturalLanguage && args.mode !== 'mock') {
+      if (args.nlWitness && (spec.naturalLanguage || args.nlRender) && args.mode !== 'mock') {
         try {
           const nlUsage = createRunTokenUsage(spec.naturalLanguage.length);
           const nlg = await generateNL(spec, config, args, nlUsage, formFactor);

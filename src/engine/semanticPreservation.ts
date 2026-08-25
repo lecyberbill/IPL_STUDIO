@@ -473,3 +473,75 @@ export function deriveBehaviorAssertFromSpec(specCode: string): BehaviorAssert |
   if (keys.length === 0) return null;
   return { stdoutContains: keys.map(k => `"${k}"`) };
 }
+
+/** The intent type (or `options(...)`) of an `add` field value, from the AST. */
+function intentTypeOf(value: IPLExpr | null): string | null {
+  if (!value) return null;
+  if (value.kind === 'identifier' && INTENT_TYPE_NAMES.has(value.name)) return value.name;
+  if (value.kind === 'call' && INTENT_TYPE_NAMES.has(value.callee)) return value.callee;
+  return null;
+}
+
+/** The option literals of an `options(...)` value, as a comma list. */
+function optionLiterals(value: IPLExpr | null): string {
+  if (value?.kind !== 'call' || value.callee !== 'options') return '';
+  return value.args.map(a => (a.kind === 'literal' ? String(a.value) : '')).filter(Boolean).join(', ');
+}
+
+/**
+ * Deterministic natural-language baseline — the de-bias control.
+ *
+ * It renders the SAME data contract as a flat prose brief, derived directly from
+ * the spec (entity shapes, seed fixture values, compute formulas, output keys),
+ * so the NL arm differs from the IPL arm only in *representation*, not in
+ * authoring skill or information. This removes the confound where an AI-written
+ * prose brief (spelling out every exact value) flatters the NL path.
+ */
+export function renderNLBrief(specCode: string): string {
+  const { ast } = parseIPL(specCode);
+  const entities: string[] = [];
+  const seeds: string[] = [];
+  const formulas: string[] = [];
+  const outputKeys: string[] = [];
+
+  const visit = (stmts: IPLStatement[]): void => {
+    for (const s of stmts) {
+      if (s.kind === 'add' && s.name) {
+        const fields = s.props.map(p => {
+          const t = intentTypeOf(p.value);
+          if (p.key && t === 'options') {
+            const opts = optionLiterals(p.value);
+            return `${p.key} is one of ${opts.split(', ').map(o => `"${o}"`).join(', ')}`;
+          }
+          return p.key ? `${p.key} (${t ?? 'value'})` : '';
+        }).filter(Boolean);
+        entities.push(`${s.name} has fields: ${fields.join(', ')}.`);
+      } else if (s.kind === 'seed' && s.seedEntity) {
+        const vals = s.props.map(p => {
+          const raw = p.value?.kind === 'literal' ? String(p.value.value) : (p.value?.raw ?? '?');
+          return p.key ? `${p.key} = ${raw}` : '';
+        }).filter(Boolean).join(', ');
+        seeds.push(`${s.seedEntity} ${s.name ?? 'instance'}: ${vals}.`);
+      } else if (s.kind === 'compute') {
+        const label = s.target?.kind === 'identifier' ? s.target.name : (s.name ?? 'result');
+        const formulaProp = s.props.find(p => p.key === 'formula');
+        formulas.push(`${label} = ${formulaProp?.value?.raw ?? '?'}.`);
+      } else if (s.kind === 'send') {
+        const fmt = s.props.find(p => p.key === 'format');
+        const isJson = fmt?.value?.kind === 'literal' && String(fmt.value.value).toLowerCase() === 'json';
+        if (isJson) for (const p of s.props) if (p.key && p.key !== 'format' && !outputKeys.includes(p.key)) outputKeys.push(p.key);
+      }
+      visit(s.body);
+      visit(s.elseBody ?? []);
+      visit(s.catchBody ?? []);
+    }
+  };
+  visit(ast.statements);
+
+  const parts = ['You are implementing a program that prints a JSON document with the keys: ' + (outputKeys.join(', ') || '(none)') + '.', ''];
+  if (entities.length) parts.push('DATA MODEL:', ...entities.map(e => `- ${e}`), '');
+  if (seeds.length) parts.push('USE THESE FIXTURE VALUES:', ...seeds.map(s => `- ${s}`), '');
+  if (formulas.length) parts.push('APPLY THESE RULES EXACTLY:', ...formulas.map(f => `- ${f}`), '');
+  parts.push('Compute each value from the fixture data using the rules, then print the JSON with exactly those keys.');
+  return parts.join('\n');
+}

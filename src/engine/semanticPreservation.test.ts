@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractIPLSemanticContract, measureSemanticPreservation, findContractFindings, deriveContractContext, isRequiredContractLost, deriveOutputJsonKeys, deriveBehaviorAssertFromSpec, checkOracleParity } from './semanticPreservation';
+import { extractIPLSemanticContract, measureSemanticPreservation, findContractFindings, deriveContractContext, isRequiredContractLost, deriveOutputJsonKeys, deriveBehaviorAssertFromSpec, checkOracleParity, renderNLBrief } from './semanticPreservation';
 
 const SPEC = `
 add entity Vehicle {
@@ -276,5 +276,29 @@ listen event on "x" {
     expect(good.controlFlow.preserved).toBe(good.controlFlow.total);
     const flat = measureSemanticPreservation(c, [{ relativePath: 'a.js', content: 'console.log(1);' }]);
     expect(flat.controlFlow.preserved).toBeLessThan(flat.controlFlow.total);
+  });
+});
+
+describe('renderNLBrief (deterministic de-biased NL baseline)', () => {
+  it('summarizes the spec as flat prose: entities, fixtures, formulas, output keys', () => {
+    const spec = `
+add entity Product { sku: id, name: text, stock: number, maxStock: number, category: options("auto", "food") }
+seed Product p1 { sku: "SKU-42", name: "Coffee Beans", stock: 5, maxStock: 20, category: "food" }
+listen event on "inventory:restock" {
+  read product from warehouse { where: stock < maxStock }
+  compute reorderQty from product { formula: maxStock - stock }
+  send receipt to screen { format: "json", sku: product.sku, name: product.name, stock: product.stock, reorderQty: reorderQty }
+}`;
+    const brief = renderNLBrief(spec);
+    expect(brief).toContain('Product has fields: sku (id), name (text)');
+    expect(brief).toContain('category is one of "auto", "food"');
+    expect(brief).toContain('Product p1: sku = SKU-42, name = Coffee Beans, stock = 5, maxStock = 20');
+    expect(brief).toContain('reorderQty = maxStock - stock');
+    expect(brief).toContain('JSON document with the keys: sku, name, stock, reorderQty');
+  });
+
+  it('is deterministic: same spec -> identical output', () => {
+    const spec = 'add entity A { x: number }';
+    expect(renderNLBrief(spec)).toBe(renderNLBrief(spec));
   });
 });
