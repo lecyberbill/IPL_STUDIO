@@ -335,3 +335,15 @@ Relaunch à `--iterations 3` pour vérifier que le « NL > IPL first-try » n'es
 | telecom (utilities) | 2/3 PASS | 0% | 100% | 0.768 (0.593–0.861) | 1/1 | NL better |
 
 **Conclusion robuste** : le « NL mieux que IPL en first-try sur calculs triviaux » est **confirmé en n=3** (100 % NL vs 0 % IPL, constant). Cause : le brief NL épelle les valeurs exactes → le modèle hardcode ; l'IPL fait implémenter la formule → erreur d'implémentation, réparation non convergente (inventory/payroll 0/3, `-1`). La sémantique reste haute même en FAIL (0.95–1.0) — contrat préservé dans le code, exécutable divergent. C'est le constat central, et il circonscrit précisément le régime où l'approche vaut le coup (contrats riches, besoin de convergence) vs où elle n'apporte rien de plus qu'un bon prompt (calculs triviaux).
+
+### Dé-biais — baseline NL déterministe (`--nl-render`, 2026-08-25, n=3)
+
+Les briefs NL écrits par une IA (épelant chaque valeur exacte) flattaient le chemin NL. `renderNLBrief(specCode)` dérive le brief en prose déterministe depuis la spec (mêmes entités/fixtures/formules/clés — même information, autre représentation), et `--nl-render` force cette baseline. Rapport : `output/benchmark/report-2026-08-25T15-33-35-768Z.md`.
+
+| Spec | IPL final (n=3) | IPL 1st-try | NL 1st-try | Sém. | Verdict |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| inventory (retail) | 0/3 FAIL | 0% | 100% | 0.983 | NL better |
+| payroll (HR) | 1/3 PASS (2 WARN) | 0% | 0% | 0.950 | **Parity** |
+| telecom (utilities) | 1/3 PASS | 0% | 100% | 0.724 | NL better |
+
+**Ce que révèle le dé-biais** : le « NL mieux » était en partie un **artefact du brief authored** — sur payroll (rounding + `(1-taxRate)`), le NL déterministe tombe à **0 %** → **Parity**. Sur inventory/telecom (calcul à une étape), NL reste 100 % : même avec une prose complète qui exige de calculer, le modèle calcule juste du premier coup. Sémantique haute partout même en FAIL (0.72–0.98). Conclusion : l'IPL n'a **pas** d'avantage de justesse first-try ; son avantage est la **convergence sur contrats riches** + la **détection de dérive**. Le biais de rédaction est maîtrisé par la baseline déterministe.
