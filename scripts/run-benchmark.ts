@@ -204,6 +204,7 @@ listen event on "checkout:completed" {
     set orderData.status = "pending"
   }
 }`,
+    naturalLanguage: `You are implementing an order-processing program in Python. It must model an Order entity with fields: id (an identifier), customerName (text), totalAmount (number), isPaid (boolean), createdAt (a date), and status (one of pending, processing, shipped, delivered). The program processes a checkout event: it reads an order where totalAmount is greater than 0. If the order isPaid is true, it sets the status to "processing" and sends a confirmation email to the customerName (with subject "Order Confirmation" and the orderId); otherwise it sets the status to "pending". The program must print output that contains the order id "A-1001" and the string "processing".`,
     verify: {
       command: 'python main.py',
       // Behavioral proof: the generated app must actually process the order
@@ -284,6 +285,7 @@ add message {
 compute timestamp from system
 send message to screen
 return success`,
+    naturalLanguage: 'Write a Node.js command-line program that prints the exact string "Hello World IPL Studio v1.4.0" to the console and exits. It should also demonstrate reading the system timestamp, but the required observable output is the greeting "Hello World".',
     verify: {
       command: 'node index.js',
       marker: 'Hello World',
@@ -434,6 +436,11 @@ listen event on "order:created" {
 
   return success
 }`,
+    naturalLanguage: `You are implementing a coffee-shop order program in Node.js that prints a JSON document. Data model: Drink (name text, basePrice number, size one of "small"/"medium"/"large"); LoyaltyCard (ownerName text, points number); Order (drinkName text, size one of small/medium/large, hasLoyaltyCard boolean, basePrice number).
+
+Pricing contract: sizeMultiplier = 1.0 for "small", 1.2 for "medium", 1.5 for "large". price = round(basePrice * sizeMultiplier * 100) / 100. If hasLoyaltyCard is true, finalPrice = round(price * 0.9 * 100) / 100 and loyaltyDiscount is "10%"; otherwise finalPrice = price and loyaltyDiscount "none".
+
+The program processes two orders and prints JSON with a "orders" array and a "grandTotal": order 0 = Latte (medium, hasLoyaltyCard true, basePrice 3.5): price 4.2, finalPrice 3.78, loyaltyDiscount true. order 1 = Espresso (small, hasLoyaltyCard false, basePrice 2.0): price 2.0, finalPrice 2.0, loyaltyDiscount false. grandTotal = 5.78. Print the JSON with keys orders (each with drinkName, size, price, finalPrice, loyaltyDiscount) and grandTotal.`,
     verify: {
       command: 'node src/index.js',
       // Behavioral proof: the generated app must reproduce the coffee shop
