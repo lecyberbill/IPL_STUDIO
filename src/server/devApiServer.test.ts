@@ -3,6 +3,20 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { createDevApiServer, serveStaticDir, stopStaticServer, runSyntaxSmoke, type DevApiServerOptions } from './devApiServer';
+import { deriveBehaviorAssertFromSpec } from '../engine/semanticPreservation';
+import { smokeGateVerdict } from '../engine/smokeCheck';
+
+/** A spec that declares a structured (format:json) output. */
+const SPEC_WITH_JSON_OUTPUT = `
+add entity Vehicle { plate: text, isVip: boolean, cost: number }
+listen event on "vehicle:exit" {
+  send receipt to screen {
+    format: "json",
+    plate: vehicle.plate,
+    cost: vehicle.cost,
+    isVip: vehicle.isVip
+  }
+}`;
 
 const tempRoots: string[] = [];
 
@@ -261,6 +275,26 @@ describe('runtime smoke test (runSyntaxSmoke)', () => {
     expect(result.passed).toBe(true);
   });
 
+  it('e2e: spec -> derived oracle -> smoke -> gate verdict (app-flow chain)', async () => {
+    const assert = deriveBehaviorAssertFromSpec(SPEC_WITH_JSON_OUTPUT);
+    expect(assert).not.toBeNull();
+    expect(assert!.stdoutContains).toEqual(['"plate"', '"cost"', '"isVip"']);
+
+    // The generated app emits the declared keys (pass) ...
+    const ok = await runSyntaxSmoke(
+      [{ relativePath: 'index.js', content: 'console.log(JSON.stringify({ plate: "AB-123", cost: 8.0, isVip: false }));' }],
+      undefined, 'cli', 'javascript', assert!    );
+    expect(ok.behavior?.pass).toBe(true);
+    expect(smokeGateVerdict(ok)).toBe('pass');
+
+    // ... or it drops/misnames a key (fail — the shared reviewer misses this).
+    const wrong = await runSyntaxSmoke(
+      [{ relativePath: 'index.js', content: 'console.log(JSON.stringify({ vehicle: "AB-123", price: 8.0 }));' }],
+      undefined, 'cli', 'javascript', assert!    );
+    expect(wrong.behavior?.pass).toBe(false);
+    expect(smokeGateVerdict(wrong)).toBe('fail');
+  });
+
   it('runs the behavioral oracle on the CLI output (fails on wrong JSON)', async () => {
     // Exit 0 but the wrong value: only the behavioral gate catches this.
     const ok = await runSyntaxSmoke(
@@ -352,3 +386,4 @@ describe('static serving (Serve button)', () => {
     expect(stopStaticServer(dir)).toBe(true);
   });
 });
+

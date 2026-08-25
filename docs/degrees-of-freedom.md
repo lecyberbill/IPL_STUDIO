@@ -26,7 +26,11 @@
 | **Reproducibility** across inferences | model / backend / seed / runtime | 🟡 measured | `seed=42`, low temp; topology stability reported (P4) |
 | **Entry point / form conformance** | topology + form factor | 🟢 gate | `buildFormDirective` (P4) + `findFormMismatches`; runtime retry of discovered entry |
 | **Inter-file dependency closure** | lowering + integration | 🟢 gate | `staticChecker.findMissingModuleRefs` (imports resolve) |
+| **Runtime crash / syntax / toolchain** (app flow) | execution smoke | 🟢 gate | `runSyntaxSmoke` + `smokeGateVerdict` (`fail` on crash, `warn` on syntax/missing toolchain) |
+| **Behavioral correctness — output structure** | spec-derived oracle | 🟢 gate | `deriveBehaviorAssertFromSpec` (spec's `send format:json` keys) → `evaluateBehavior` `exists`/presence |
+| **Behavioral correctness — output values** | hand oracle / float-approx | 🟡 measured | benchmark `verify.assert` (`equals`/`approx`); app flow derives structure, exact values stay explicit |
 | **Runtime behavior** at first pass | generated app + run harness | 🟢 gate | benchmark `verify` (run command, JSON-path asserts) |
+| **Independent reviewer (2nd model)** | reviewer config | 🔵 optional | `LLMConfig.reviewer` (Settings "Independent Reviewer"): different mode/model/endpoint/key. **Coverage + attribution, not reliability** — reliability comes from the deterministic gates above, never from a reviewer. |
 | **Deterministic pre-repair** | 0-token fixes | 🟢 gate | `deterministicRepair.ts` (ES-module, Tailwind CDN, SEARCH/REPLACE, python relative imports) |
 | **LLM repair after diagnosis** | repair loop | 🟡 measured | `refineIPLArtifact`, `repairPasses`, `llmRepairPasses` (P2) |
 
@@ -44,6 +48,22 @@ attributable, not just observable:
    the "the app works but the contract leaked" detector.
 3. **Topology stability** — number of distinct Pass 1 topologies across
    iterations (`1` = deterministic architecture, `>1` = LLM freedom).
+
+## Order of confidence, without a 2nd model
+
+The reliability ceiling is **not** a reviewer — it is **execution + deterministic
+gates**. From weakest to strongest, all reachable with no second model:
+
+1. `smokeGateVerdict` — crash / syntax / toolchain (0 token, always on).
+2. Spec-derived behavioral oracle (`deriveBehaviorAssertFromSpec`) — the spec's
+   declared `send format:json` output keys must appear in the emitted JSON.
+3. Exact-value oracle (`approx`/`equals`) — strongest; needs a per-project
+   `verify` (the benchmark specs have it).
+
+A **second model** (optional `LLMConfig.reviewer`) only lifts *coverage/
+attribution* (catching a stack-choice drift a static reviewer ratifies); it does
+**not** raise reliability above the execution gates above. So "nothing under
+hand" for a 2nd model is fine: you keep the reliability path measured.
 
 ## Deliberately deferred (do not build until the receipts prove them critical)
 
