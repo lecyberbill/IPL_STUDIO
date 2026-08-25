@@ -51,7 +51,8 @@ interface CliArgs {
   model?: string;
   endpoint?: string;
   iterations: number;
-  spec?: string;
+  /** Accumulated `--spec <id>` filters (repeatable; empty = all specs). */
+  spec?: string[];
   timeoutPerPassMs: number;
   timeoutRunMs: number;
   quiet: boolean;
@@ -76,7 +77,7 @@ function parseArgs(argv: string[]): CliArgs {
     else if (a === '--model') args.model = next();
     else if (a === '--endpoint') args.endpoint = next();
     else if (a === '--iterations') args.iterations = Math.max(1, parseInt(next() || '1', 10));
-    else if (a === '--spec') args.spec = next();
+    else if (a === '--spec') { args.spec = args.spec ?? []; args.spec.push(next()); }
     else if (a === '--timeout-pass') args.timeoutPerPassMs = parseInt(next() || '120000', 10);
     else if (a === '--timeout-run') args.timeoutRunMs = parseInt(next() || '30000', 10);
     else if (a === '--python') args.pythonPath = next();
@@ -485,6 +486,232 @@ Rule: durationHours = (exitMinute - entryMinute) / 60; the base cost is round(du
     }
   },
   {
+    id: 'banking',
+    name: 'Banking — deposit/withdraw with fee (finance)',
+    formFactor: 'batch',
+    targetLang: 'python',
+    code: `add entity Account {
+  accountId: id,
+  owner: text,
+  balance: number,
+  currency: options("EUR", "USD")
+}
+add entity Transaction {
+  type: options("deposit", "withdraw"),
+  amount: number,
+  fee: number
+}
+seed Account acc1 { accountId: "ACC-101", owner: "Alice", balance: 1000, currency: "EUR" }
+seed Transaction tx1 { type: "deposit", amount: 500, fee: 1.5 }
+
+listen event on "account:update" {
+  read tx from stream { where: amount > 0 }
+  compute newBalance from tx { formula: (balance + amount) - fee }
+  send receipt to screen {
+    format: "json",
+    accountId: account.accountId,
+    balance: newBalance,
+    fee: tx.fee,
+    currency: account.currency
+  }
+  return success
+}`,
+    naturalLanguage: `Write a Python banking program that prints a JSON document. An Account has accountId (id), owner (text), balance (number), currency (one of EUR/USD). A Transaction has type (deposit/withdraw), amount (number), fee (number). Use seed data: Account ACC-101 (Alice, balance 1000, currency EUR) and a deposit Transaction of amount 500 with fee 1.5. Rule: newBalance = (balance + amount) - fee. The program must print JSON with keys accountId ("ACC-101"), balance (newBalance = 1498.5), fee (1.5) and currency ("EUR").`,
+    verify: {
+      command: 'python main.py',
+      assert: {
+        stdoutRegex: '"accountId"',
+        jsonInOutput: [
+          { path: 'accountId', equals: 'ACC-101' },
+          { path: 'balance', approx: 1498.5, tolerance: 1e-6 },
+          { path: 'fee', approx: 1.5, tolerance: 1e-6 },
+          { path: 'currency', equals: 'EUR' }
+        ]
+      }
+    }
+  },
+  {
+    id: 'logistics',
+    name: 'Logistics — shipping quote by weight/zone (supply chain)',
+    formFactor: 'batch',
+    targetLang: 'javascript',
+    code: `add entity Parcel {
+  trackingId: id,
+  weight: number,
+  zone: options("local", "national", "international"),
+  baseFee: number
+}
+add entity Rate {
+  perKg: number,
+  zoneMultiplier: number
+}
+seed Parcel p1 { trackingId: "TRK-001", weight: 2.5, zone: "national", baseFee: 5 }
+seed Rate r1 { perKg: 2, zoneMultiplier: 1.2 }
+
+listen event on "shipment:quote" {
+  read parcel from queue { where: weight > 0 }
+  compute cost from parcel { formula: round((baseFee + weight * perKg) * zoneMultiplier * 100) / 100 }
+  send receipt to screen {
+    format: "json",
+    trackingId: parcel.trackingId,
+    cost: cost,
+    weight: parcel.weight,
+    zone: parcel.zone
+  }
+  return success
+}`,
+    naturalLanguage: `Write a Node.js program that prints a JSON shipping quote. A Parcel has trackingId (id), weight (number), zone (local/national/international), baseFee (number). A Rate has perKg (number) and zoneMultiplier (number). Seed: Parcel TRK-001, weight 2.5, zone national, baseFee 5; Rate perKg 2, zoneMultiplier 1.2. Rule: cost = round((baseFee + weight * perKg) * zoneMultiplier * 100) / 100. Print JSON with trackingId ("TRK-001"), cost (12), weight (2.5) and zone ("national").`,
+    verify: {
+      command: 'node src/index.js',
+      assert: {
+        stdoutRegex: '"trackingId"',
+        jsonInOutput: [
+          { path: 'trackingId', equals: 'TRK-001' },
+          { path: 'cost', approx: 12, tolerance: 1e-6 },
+          { path: 'weight', approx: 2.5, tolerance: 1e-6 },
+          { path: 'zone', equals: 'national' }
+        ]
+      }
+    }
+  },
+  {
+    id: 'inventory',
+    name: 'Inventory — reorder quantity below max (retail ops)',
+    formFactor: 'batch',
+    targetLang: 'python',
+    code: `add entity Product {
+  sku: id,
+  name: text,
+  stock: number,
+  maxStock: number,
+  category: options("auto", "food", "tech")
+}
+seed Product p1 { sku: "SKU-42", name: "Coffee Beans", stock: 5, maxStock: 20, category: "food" }
+
+listen event on "inventory:restock" {
+  read product from warehouse { where: stock < maxStock }
+  compute reorderQty from product { formula: maxStock - stock }
+  send receipt to screen {
+    format: "json",
+    sku: product.sku,
+    name: product.name,
+    stock: product.stock,
+    reorderQty: reorderQty
+  }
+  return success
+}`,
+    naturalLanguage: `Write a Python program that prints a JSON inventory restock note. A Product has sku (id), name (text), stock (number), maxStock (number), category (auto/food/tech). Seed: Product SKU-42 "Coffee Beans", stock 5, maxStock 20, category food. Rule: reorderQty = maxStock - stock. Print JSON with sku ("SKU-42"), name ("Coffee Beans"), stock (5) and reorderQty (15).`,
+    verify: {
+      command: 'python main.py',
+      assert: {
+        stdoutRegex: '"sku"',
+        jsonInOutput: [
+          { path: 'sku', equals: 'SKU-42' },
+          { path: 'name', equals: 'Coffee Beans' },
+          { path: 'stock', approx: 5, tolerance: 1e-6 },
+          { path: 'reorderQty', approx: 15, tolerance: 1e-6 }
+        ]
+      }
+    }
+  },
+  {
+    id: 'payroll',
+    name: 'Payroll — gross/net with tax (HR)',
+    formFactor: 'batch',
+    targetLang: 'javascript',
+    code: `add entity Employee {
+  employeeId: id,
+  name: text,
+  hourlyRate: number,
+  hoursWorked: number,
+  taxRate: number,
+  currency: options("EUR", "USD")
+}
+seed Employee e1 { employeeId: "EMP-7", name: "Bob", hourlyRate: 25, hoursWorked: 40, taxRate: 0.2, currency: "USD" }
+
+listen event on "payroll:run" {
+  read employee from roster { where: hoursWorked > 0 }
+  compute gross from employee { formula: round(hourlyRate * hoursWorked * 100) / 100 }
+  compute net from employee { formula: round(gross * (1 - taxRate) * 100) / 100 }
+  send receipt to screen {
+    format: "json",
+    employeeId: employee.employeeId,
+    name: employee.name,
+    gross: gross,
+    net: net,
+    taxRate: employee.taxRate,
+    currency: employee.currency
+  }
+  return success
+}`,
+    naturalLanguage: `Write a Node.js program that prints a JSON payroll slip. An Employee has employeeId (id), name (text), hourlyRate (number), hoursWorked (number), taxRate (number), currency (EUR/USD). Seed: Employee EMP-7 Bob, hourlyRate 25, hoursWorked 40, taxRate 0.2, currency USD. Rules: gross = round(hourlyRate * hoursWorked * 100) / 100; net = round(gross * (1 - taxRate) * 100) / 100. Print JSON with employeeId ("EMP-7"), name ("Bob"), gross (1000), net (800), taxRate (0.2), currency ("USD").`,
+    verify: {
+      command: 'node src/index.js',
+      assert: {
+        stdoutRegex: '"gross"',
+        jsonInOutput: [
+          { path: 'employeeId', equals: 'EMP-7' },
+          { path: 'name', equals: 'Bob' },
+          { path: 'gross', approx: 1000, tolerance: 1e-6 },
+          { path: 'net', approx: 800, tolerance: 1e-6 },
+          { path: 'currency', equals: 'USD' }
+        ]
+      }
+    }
+  },
+  {
+    id: 'telecom',
+    name: 'Telecom — data overage billing (utilities)',
+    formFactor: 'batch',
+    targetLang: 'python',
+    code: `add entity Plan {
+  planId: id,
+  name: text,
+  basePrice: number,
+  dataLimit: number,
+  overagePerGb: number,
+  currency: options("EUR", "USD")
+}
+add entity Usage {
+  subscriberId: id,
+  gbUsed: number
+}
+seed Plan p1 { planId: "PLAN-C", name: "Classic", basePrice: 19.99, dataLimit: 10, overagePerGb: 5, currency: "EUR" }
+seed Usage u1 { subscriberId: "SUB-55", gbUsed: 14 }
+
+listen event on "billing:monthly" {
+  read usage from meter { where: gbUsed > 0 }
+  compute extraGb from usage { formula: max(0, gbUsed - dataLimit) }
+  compute overage from usage { formula: round(extraGb * overagePerGb * 100) / 100 }
+  compute total from usage { formula: round((basePrice + overage) * 100) / 100 }
+  send receipt to screen {
+    format: "json",
+    subscriberId: usage.subscriberId,
+    gbUsed: usage.gbUsed,
+    dataLimit: plan.dataLimit,
+    overage: overage,
+    total: total,
+    currency: plan.currency
+  }
+  return success
+}`,
+    naturalLanguage: `Write a Python program that prints a JSON telecom bill. A Plan has planId (id), name (text), basePrice (number), dataLimit (number), overagePerGb (number), currency (EUR/USD). A Usage has subscriberId (id) and gbUsed (number). Seed: Plan PLAN-C Classic, basePrice 19.99, dataLimit 10, overagePerGb 5, currency EUR; Usage SUB-55 with gbUsed 14. Rules: extraGb = max(0, gbUsed - dataLimit); overage = round(extraGb * overagePerGb * 100) / 100; total = round((basePrice + overage) * 100) / 100. Print JSON with subscriberId ("SUB-55"), gbUsed (14), dataLimit (10), overage (20), total (39.99), currency ("EUR").`,
+    verify: {
+      command: 'python main.py',
+      assert: {
+        stdoutRegex: '"subscriberId"',
+        jsonInOutput: [
+          { path: 'subscriberId', equals: 'SUB-55' },
+          { path: 'gbUsed', approx: 14, tolerance: 1e-6 },
+          { path: 'dataLimit', approx: 10, tolerance: 1e-6 },
+          { path: 'overage', approx: 20, tolerance: 1e-6 },
+          { path: 'total', approx: 39.99, tolerance: 1e-6 },
+          { path: 'currency', equals: 'EUR' }
+        ]
+      }
+    }
+  },
+  {
     id: 'coffee',
     name: 'Coffee Shop Order Management (loyalty pricing)',
     formFactor: 'batch',
@@ -698,6 +925,11 @@ const MOCK_JSON_ORACLES: Record<string, unknown> = {
       { plate: 'VIP-7', cost: 6.4, durationHours: 2.0, isVip: true }
     ]
   },
+  banking: { accountId: 'ACC-101', balance: 1498.5, fee: 1.5, currency: 'EUR' },
+  logistics: { trackingId: 'TRK-001', cost: 12, weight: 2.5, zone: 'national' },
+  inventory: { sku: 'SKU-42', name: 'Coffee Beans', stock: 5, reorderQty: 15 },
+  payroll: { employeeId: 'EMP-7', name: 'Bob', gross: 1000, net: 800, taxRate: 0.2, currency: 'USD' },
+  telecom: { subscriberId: 'SUB-55', gbUsed: 14, dataLimit: 10, overage: 20, total: 39.99, currency: 'EUR' },
   coffee: {
     grandTotal: 5.78,
     orders: [
@@ -1814,7 +2046,7 @@ async function main(): Promise<number> {
   loadDotEnv();
   const args = parseArgs(process.argv.slice(2));
 
-  const specs = args.spec ? SPECS.filter(s => s.id === args.spec) : SPECS;
+  const specs = args.spec?.length ? SPECS.filter(s => args.spec!.includes(s.id)) : SPECS;
   if (specs.length === 0) {
     console.error(`Unknown spec "${args.spec}". Available: ${SPECS.map(s => s.id).join(', ')}`);
     return 2;

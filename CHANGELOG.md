@@ -6,6 +6,11 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## [Unreleased]
 
+### 🏭 Multi-domain stress test (unrelated business problems)
+- `--spec` is now repeatable (accumulates ids), so a mixed-domain run is one command.
+- 5 new specs across unrelated domains, each with a self-consistent `seed`-backed behavioral oracle + equal-information NL brief: `banking` (finance), `logistics` (supply chain), `inventory` (retail), `payroll` (HR), `telecom` (utilities). Mock oracles added so the CI mock bench stays green.
+- Real run (deepseek-chat n=1, `--nl-witness`): the measurement is **domain-agnostic** and **non-confirmatory** — see the refined reading in the recap: IPL's edge is constraint/convergence on rich contracts, NOT first-try numeric correctness (on inventory/payroll/telecom the NL prose brief scored 100% first-try while IPL failed). All oracles are parity-clean because seed lives in the spec.
+
 ### 📐 Docs aligned with the honest measure/contain positioning
 - README intro gains an explicit "honest positioning": an intent language does not make the model reliable — it makes the model's freedom *measurable* and a failure *attributable*; IPL pins the *what* (typed data contract), the LLM owns the *how*; the measurable ceiling is **model variance**; reliability comes from execution + deterministic gates + receipts, not the DSL.
 - ROADMAP Vision strengthened to the same framing (value measured, not promised; contain the drift, prove the remainder layer-by-layer; first-try honesty as the yardstick).
