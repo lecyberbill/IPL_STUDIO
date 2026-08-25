@@ -268,7 +268,11 @@ describe('runtime smoke test (runSyntaxSmoke)', () => {
     );
     expect(result.missingTools.length).toBeGreaterThan(0);
     expect(result.missingTools[0].tool).toBe('node');
-    expect(result.missingTools[0].installCommand).toContain('winget');
+    // installCommandFor picks a package manager per OS (toolchains.ts): winget on
+    // Windows, brew on macOS, apt-get on Linux (the CI runner). Assert the right
+    // one for the current platform so the test is cross-platform.
+    const installKey = process.platform === 'win32' ? 'winget' : process.platform === 'darwin' ? 'brew' : 'apt-get';
+    expect(result.missingTools[0].installCommand).toContain(installKey);
     expect(result.passed).toBe(false);
   });
 
