@@ -22,12 +22,21 @@
 - **Delivery panel** (P1) — the consolidation agent's report is visible in the product: found / fixed / remaining, clickable issues, token budget, copy-paste repair prompt, popup + maximize.
 - **Token telemetry** (P2) — per-run estimated input/output across generation / consolidation / repair, exported in the benchmark report.
 - **Independent reviewer** (P3) — opt-in separate reviewer model/endpoint (default = same model), honest `(partagé)`/`(indépendant)` indicator.
-- **Execution form factor** (P4) — CLI / Web / GUI / Server / Library pinned in the prompt + a deterministic 0-token form gate.
+- **Execution form factor** (P4) — CLI / Web / GUI / Server / Library / Batch pinned in the prompt + a deterministic 0-token form gate.
 - **Measurable benchmark** (P5) — harness runnable in plain Node, `--form-factor`, 7-spec `--consolidate` runs, CI bench smoke job.
 - **`seed` verb** (P7) — entity instances (catalog/fixture data) in the spec, cross-file validated; the data gap is closed.
 - **0-token deterministic gates** — imports, invalid JSON, form drift, IPL-spec leakage, SEARCH/REPLACE marker leakage (with deterministic repair).
+- **`batch` execution form + form-mismatch gate** — headless print-JSON targets forbid interactive argparse/click/input(), so the run harness can always drive the app (the interactive-CLI failure class).
 - **Serve button** — loopback static server to preview the generated web app straight from the IDE.
 - **Systematic README** — every delivery carries a tracking README pointing to `source/main.ipl`.
+
+### 📊 Layer-aware evaluation (receipts, not a PASS/FAIL)
+- **Layer grid** — each run is attributed to the first gate that bound it (`topology → integration → runtime-first-try`), so a failure names the culprit layer instead of a generic verdict.
+- **Semantic-preservation receipt** (`src/engine/semanticPreservation.ts`) — how much of the spec's identity/types/formulas/output-keys survives into the shipped source, measured **independently** of the runtime verdict (an app can "work" while leaking the contract).
+- **Deterministic-vs-LLM repair split** — `statusAfterDeterministic`, `deterministicRepairs`, `llmRepairPasses`: did the 0-token repair resolve it, or did the LLM burn tokens?
+- **Natural-language control witness** (`--nl-witness`) — the same requirements as prose, generated first-try, compared head-to-head. On a rich spec this shows *IPL did better — NL lacked the constraint*.
+- **Cache-stable system prompts** — Pass 1 / Pass 2 / repair system prompts are byte-stable constants (`src/engine/llmPrompts.ts`) so the Cloud API gets a DeepSeek Cache Hit on every request.
+- **Degrees-of-freedom ledger** — [`docs/degrees-of-freedom.md`](docs/degrees-of-freedom.md) explicitates promise → owner layer → measured today.
 
 ---
 
@@ -60,7 +69,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the complete list of release notes, version
 ## 🌟 Core Architecture & Capabilities
 
 ### 🧠 1. Intent Programming Language Specification
-- **12 Action Verbs**: Declarative domain operations (`add`, `read`, `set`, `remove`, `search`, `send`, `listen`, `compute`, `if`, `for`, `try`, `return`).
+- **13 Action Verbs**: Declarative domain operations (`add`, `read`, `set`, `remove`, `search`, `send`, `listen`, `compute`, `if`, `for`, `try`, `return`, `seed`).
 - **7 Human Intent Types**: Constrained type declarations (`text`, `number`, `boolean`, `id`, `date`, `options(...)`, `list`).
 - Monarch syntax highlighting powered by **Monaco Editor** and visual AST block representation.
 - **Typed AST Parser**: `parseIPLToTree` / `validateIPLCode` produce line-indexed, advisory-only diagnostics ("rails, not walls") — generation is never blocked, and the LLM remains the final interpreter of ambiguity.
@@ -175,18 +184,20 @@ Never expose this server to an untrusted network.
 npm test        # one-shot
 npm run test:watch
 ```
-**148 tests across 12 suites** cover the IPL parser, the semantic analyzer, the reference index (go-to-def), the grammar signature, the behavioral assertions (exit code / stdout / structured-JSON checks), the store slices, the reusable dev-server middleware, and golden execution fixtures.
+**320 tests across 20 suites** cover the IPL parser, the semantic analyzer, the reference index (go-to-def), the grammar signature, the semantic-preservation receipt, the behavioral assertions (exit code / stdout / structured-JSON / float-approx checks), the store slices, the reusable dev-server middleware, and golden execution fixtures.
 
 ### 5. Run the Automated Benchmark Harness
 ```bash
 npm run bench -- --mode mock       # offline pipeline smoke test (no API key needed)
 npm run bench -- --mode external   # real end-to-end against DeepSeek (needs VITE_DP_API_KEY)
 npm run bench -- --mode lmstudio   # against a local LM Studio server
+npm run bench -- --nl-witness      # compare the same spec given as natural language vs IPL (control witness)
+npm run bench -- --form-factor batch  # force the batch execution form (headless print-JSON)
 npm run bench -- --iterations 3    # more runs per spec for stable latency averages
 npm run bench -- --python D:\path\.venv\Scripts   # resolve `python` via a venv (typed specs)
 npm run bench -- --repair-passes 0 # disable the self-healing repair loop (default: 3)
 ```
-Runs the real 2-Pass pipeline per spec, parses artifacts with the real parser, writes to `output/benchmark/`, and emits a Markdown report (PASS/WARN/FAIL, per-pass latency, token estimates, **repairs-to-success**, and a **trend/regression** section backed by `output/benchmark/history.json`). On a first-try FAIL the harness applies deterministic pre-repair (ES-module strip, Tailwind CDN) before spending LLM repair calls. See [ROADMAP.md](ROADMAP.md) → **Phases 4-5**.
+Runs the real 2-Pass pipeline per spec, parses artifacts with the real parser, writes to `output/benchmark/`, and emits a Markdown report (PASS/WARN/FAIL, per-pass latency, token estimates, **repairs-to-success**, a **trend/regression** section backed by `output/benchmark/history.json`, and the layer-aware / semantic-preservation / NL-vs-IPL sections). On a first-try FAIL the harness applies deterministic pre-repair (ES-module strip, Tailwind CDN) before spending LLM repair calls. See [ROADMAP.md](ROADMAP.md) → **Phases 4-5, P6b**.
 
 ---
 

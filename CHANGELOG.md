@@ -6,6 +6,10 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## [Unreleased]
 
+### 📄 Docs (Phase 10 doc pass)
+- README refreshed to the current feature set: 13 canonical verbs (incl. `seed`), `batch` execution form, and a new **Layer-aware evaluation** section (layer grid, semantic-preservation receipt, deterministic-vs-LLM split, `--nl-witness`, cache-stable system prompts, degrees-of-freedom ledger). Test count updated (320 / 20 suites); benchmark examples cover `--nl-witness` and `--form-factor batch`.
+- `IPL_AGENT_GUIDE.md` regenerated from the single source of truth (in sync: 13 verbs, 7 types).
+
 ### 🧹 Kill-list — zero lint warnings + float-safe oracle
 - **oxlint 0 warnings / 0 errors**: de-escaped redundant regex chars in `iplGrammar.ts` (verified behavior-identical), optional catch bindings (`catch {}`) in `TerminalPanel` + `devApiServer`, dropped an unused `node` prop in `MarkdownViewer`, fixed the `GitDiffModal` exhaustive-deps via `useCallback`, and co-located fast-refresh disable in `BlockViewEditor` (component + util exports). The 6 `[Exemple]` starter templates are kept — they are the onboarding gallery, not dead code.
 - **JSON paths**: `JsonAssert` gained `approx`/`tolerance` (float-safe). _See previous commit._
