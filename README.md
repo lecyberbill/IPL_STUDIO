@@ -201,6 +201,21 @@ npm run bench -- --repair-passes 0 # disable the self-healing repair loop (defau
 ```
 Runs the real 2-Pass pipeline per spec, parses artifacts with the real parser, writes to `output/benchmark/`, and emits a Markdown report (PASS/WARN/FAIL, per-pass latency, token estimates, **repairs-to-success**, a **trend/regression** section backed by `output/benchmark/history.json`, and the layer-aware / semantic-preservation / NL-vs-IPL sections). On a first-try FAIL the harness applies deterministic pre-repair (ES-module strip, Tailwind CDN) before spending LLM repair calls. See [ROADMAP.md](ROADMAP.md) → **Phases 4-5, P6b**.
 
+### 🏭 Multi-domain stress test — IPL vs natural language
+
+`--spec` is repeatable, so a mixed set of **unrelated business domains** can be run in one command, each spec provided both as IPL and as an equal-information natural-language brief, with a `seed`-backed behavioral oracle. Real run (deepseek-chat, n=1, `--nl-witness`):
+
+| Spec (domain) | Final | IPL 1st-try | NL 1st-try | Semantic | Parity |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| garage (multi-file) | ✅ PASS | 0% | 0% | 0.705 | ✅ |
+| banking (finance) | ✅ PASS | 100% | 100% | 0.800 | ✅ |
+| logistics (supply-chain) | ✅ PASS | 100% | 0% | 0.867 | ✅ |
+| inventory (retail) | ❌ FAIL | 0% | **100%** | 1.000 | ✅ |
+| payroll (HR) | ⚠️ WARN | 0% | **100%** | 0.900 | ✅ |
+| telecom (utilities) | ❌ FAIL | 0% | **100%** | 0.811 | ✅ |
+
+**Honest reading.** The measurement is domain-agnostic, and the result is *non-confirmatory*: on the rich/structured garage spec IPL converges while NL fails, but on the trivial formula specs (inventory/payroll/telecom) the NL prose brief — which spells out the exact expected values — wins first-try, while IPL requires the model to *implement* the formula and can fail even after repair (semantic still high, e.g. inventory 1.0, because the *contract* survives in the source while the *executable* drifts). So IPL's edge is **constraint, drift-detection and convergence on rich contracts**, not first-try numeric correctness. n=1 → illustrative. See [`docs/benchmark-scorecard.md`](docs/benchmark-scorecard.md) → **Multi-domain stress test**.
+
 ---
 
 ## ⚙️ LLM Engine Connection Modes
