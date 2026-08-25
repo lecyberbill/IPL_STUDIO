@@ -1,0 +1,149 @@
+import { describe, it, expect } from 'vitest';
+import { extractIPLSemanticContract, measureSemanticPreservation } from './semanticPreservation';
+
+const SPEC = `
+add entity Vehicle {
+  plate: text,
+  isVip: boolean,
+  entryMinute: number,
+  exitMinute: number
+}
+
+add entity ParkingGarage {
+  hourlyRate: number,
+  vipDiscountRate: number,
+  currency: options("EUR", "USD")
+}
+
+listen event on "vehicle:exit" {
+  read vehicle from gate {
+    where: exitMinute > entryMinute
+  }
+  compute durationHours from vehicle {
+    formula: (exitMinute - entryMinute) / 60
+  }
+  if vehicle.isVip == true {
+    compute cost from vehicle {
+      formula: round((durationHours * hourlyRate) * (1 - vipDiscountRate) * 100) / 100
+    }
+  } else {
+    compute cost from vehicle {
+      formula: round((durationHours * hourlyRate) * 100) / 100
+    }
+  }
+  send receipt to screen {
+    format: "json",
+    plate: vehicle.plate,
+    cost: cost,
+    durationHours: durationHours,
+    isVip: vehicle.isVip
+  }
+  return success
+}
+`;
+
+describe('extractIPLSemanticContract', () => {
+  it('extracts entities, fields, types, option values, formulas and output keys', () => {
+    const c = extractIPLSemanticContract(SPEC);
+    expect(c.entityNames).toContain('Vehicle');
+    expect(c.entityNames).toContain('ParkingGarage');
+    expect(c.fieldNames).toContain('plate');
+    expect(c.fieldNames).toContain('hourlyRate');
+    expect(c.types).toContain('text');
+    expect(c.types).toContain('boolean');
+    expect(c.types).toContain('number');
+    expect(c.optionValues).toEqual(['EUR', 'USD']);
+    expect(c.outputKeys).toContain('plate');
+    expect(c.outputKeys).toContain('cost');
+    expect(c.outputKeys).toContain('durationHours');
+    expect(c.outputKeys).toContain('isVip');
+    // grandTotal is a benchmark verification convenience, not an explicit
+    // `send { ... }` key in this spec — it must NOT be reported as a contract key.
+    expect(c.outputKeys).not.toContain('grandTotal');
+  });
+
+  it('deduplicates repeated field names and option values', () => {
+    const c = extractIPLSemanticContract(SPEC);
+    expect(new Set(c.optionValues).size).toBe(c.optionValues.length);
+  });
+});
+
+describe('measureSemanticPreservation', () => {
+  const contract = extractIPLSemanticContract(SPEC);
+
+  it('reports full preservation when the source reproduces the contract', () => {
+    const files = [
+      { relativePath: 'src/main.py', content: `
+class Vehicle:
+    plate: str
+    isVip: bool
+    entryMinute: int
+    exitMinute: int
+
+class ParkingGarage:
+    hourlyRate: float
+    vipDiscountRate: float
+    currency: str  # EUR / USD
+
+vehicle = Vehicle()
+vehicle.plate = "AB-123"
+vehicle.isVip = False
+
+entryMinute = 0
+exitMinute = 120
+hourlyRate = 4.0
+vipDiscountRate = 0.1
+
+durationHours = (exitMinute - entryMinute) / 60
+cost = round((durationHours * hourlyRate) * (1 - vipDiscountRate) * 100) / 100
+
+currency = "EUR"
+grandTotal = 14.4
+print({ "plate": vehicle.plate, "cost": cost, "durationHours": durationHours, "isVip": vehicle.isVip })
+` }
+    ];
+    const r = measureSemanticPreservation(contract, files);
+    expect(r.identity.preserved).toBe(r.identity.total);
+    expect(r.types.preserved).toBeGreaterThan(0);
+    expect(r.missing.filter(m => m.type === 'outputKey').length).toBe(0);
+    expect(r.formulas.preserved).toBe(r.formulas.total);
+    expect(r.score).toBeGreaterThan(0.9);
+  });
+
+  it('reports partial preservation and the specific drift when a name is renamed', () => {
+    const files = [
+      // `vehicles` (plural lowercase) instead of `Vehicle`, no `ParkingGarage`,
+      // and no `entryMinute`/`exitMinute`/`hourlyRate` — the LLM renamed them.
+      { relativePath: 'src/main.py', content: `
+vehicles = [
+  { "plate": "AB-123", "cost": 8.0, "isVip": False }
+]
+currency = "EUR"
+` }
+    ];
+    const r = measureSemanticPreservation(contract, files);
+    expect(r.identity.preserved).toBeLessThan(r.identity.total);
+    expect(r.score).toBeLessThan(1);
+    const missingIds = r.missing.filter(m => m.type === 'identity').map(m => m.id);
+    expect(missingIds).toContain('ParkingGarage');
+    expect(missingIds).toContain('entryMinute');
+  });
+
+  it('reports missing identifiers when the source is empty', () => {
+    const files = [{ relativePath: 'src/main.py', content: 'print("hello")' }];
+    const r = measureSemanticPreservation(contract, files);
+    expect(r.identity.preserved).toBe(0);
+    expect(r.score).toBeLessThan(1);
+    expect(r.missing.length).toBeGreaterThan(0);
+  });
+
+  it('ignores the spec file and README when scanning', () => {
+    const r = measureSemanticPreservation(contract, [
+      { relativePath: 'source/main.ipl', content: SPEC },
+      { relativePath: 'README.md', content: 'Vehicle ParkingGarage durationHours plate' },
+      { relativePath: 'src/other.js', content: '' }
+    ]);
+    // Nothing real generated → nothing preserved, even though main.ipl has it all.
+    expect(r.identity.preserved).toBe(0);
+  });
+});

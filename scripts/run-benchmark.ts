@@ -31,12 +31,15 @@ import type { MissingModuleRef } from '../src/engine/staticChecker.ts';
 import { buildReviewPrompt, parseReviewOutput } from '../src/engine/reviewAgent.ts';
 import type { ReviewIssue } from '../src/engine/reviewAgent.ts';
 import { consolidateArtifact, filesToXml } from '../src/engine/consolidationAgent.ts';
-import { callLLM, buildPass1Prompt, buildPass2Prompt, refineIPLArtifact, extractClarificationRequest, createRunTokenUsage, DEFAULT_LLM_CONFIG } from '../src/engine/llmGenerator.ts';
+import { callLLM, buildPass1Prompt, buildPass2Prompt, buildNLPass1Prompt, buildNLPass2Prompt, refineIPLArtifact, extractClarificationRequest, createRunTokenUsage, DEFAULT_LLM_CONFIG } from '../src/engine/llmGenerator.ts';
 import type { LLMConfig, TargetLanguage, RunTokenUsage, TokenBucket, FormFactor } from '../src/engine/llmGenerator.ts';
 import { applyDeterministicRepairs } from '../src/engine/deterministicRepair.ts';
 import type { DeterministicRepair } from '../src/engine/deterministicRepair.ts';
 import { evaluateBehavior } from '../src/engine/behaviorAssert.ts';
 import type { BehaviorAssert } from '../src/engine/behaviorAssert.ts';
+import { analyzeIPLSemantics } from '../src/engine/iplSemantics.ts';
+import { extractIPLSemanticContract, measureSemanticPreservation } from '../src/engine/semanticPreservation.ts';
+import type { SemanticReceipt } from '../src/engine/semanticPreservation.ts';
 
 // ---------------------------------------------------------------------------
 // CLI options
@@ -59,10 +62,12 @@ interface CliArgs {
   formFactor?: FormFactor;
   /** Directory where generated runs are executed (isolated from the repo). Default: os.tmpdir()/ipl-benchmark. */
   sandboxDir?: string;
+  /** Phase 5 — run the natural-language control witness (same requirements as prose) and compare. */
+  nlWitness: boolean;
 }
 
 function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = { mode: 'external', iterations: 1, timeoutPerPassMs: 120_000, timeoutRunMs: 30_000, quiet: false, repairPasses: 3, reviewPass: false, consolidate: false };
+  const args: CliArgs = { mode: 'external', iterations: 1, timeoutPerPassMs: 120_000, timeoutRunMs: 30_000, quiet: false, repairPasses: 3, reviewPass: false, consolidate: false, nlWitness: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => argv[++i];
@@ -79,6 +84,7 @@ function parseArgs(argv: string[]): CliArgs {
     else if (a === '--consolidate') args.consolidate = true;
     else if (a === '--form-factor') args.formFactor = next() as FormFactor;
     else if (a === '--sandbox') args.sandboxDir = next();
+    else if (a === '--nl-witness') args.nlWitness = true;
     else if (a === '--quiet') args.quiet = true;
     else if (a === '--help') {
       console.log(`IPL Studio Benchmark Harness
@@ -99,6 +105,7 @@ Options:
   --consolidate                           run the consolidation agent (delivery gate) before writing/verifying
   --form-factor <cli|web|gui|server|library>  pin the execution form (P5; default: html→web, else cli)
   --sandbox <dir>                         execute generated runs in <dir> (default: os.tmpdir()/ipl-benchmark)
+  --nl-witness                            run the natural-language control witness (same requirements as prose) and compare
   --quiet                                 suppress streaming logs
   --help                                  this help`);
       process.exit(0);
@@ -136,7 +143,10 @@ interface BenchSpec {
   id: string;
   name: string;
   targetLang: TargetLanguage;
+  /** The IPL spec — the constraint-first path. */
   code: string;
+  /** Phase 5 — the SAME requirements as plain prose (natural-language control witness, at equal information). */
+  naturalLanguage?: string;
   verify: {
     command?: string;
     marker?: string;
@@ -160,6 +170,7 @@ add message {
 compute timestamp from system
 send message to screen
 return success`,
+    naturalLanguage: 'Build a single-page web application that displays the exact text greeting "Hello World IPL Studio v1.4.0" on the screen. The main visible element is a card/banner showing that greeting. Do not use <script type="module"> modules.',
     verify: { marker: 'Hello World', forbid: ['<script type="module"', 'type="module"'] }
   },
   {
@@ -322,6 +333,18 @@ listen event on "vehicle:exit" {
 
   return success
 }`,
+    naturalLanguage: `You are implementing a parking-garage billing program in Python. The program must process two vehicles exiting a garage and print a JSON document with exactly these outputs:
+- "currency" must be the string "EUR".
+- "vehicles" must be a JSON array of 2 objects:
+  - index 0: { "plate": "AB-123", "isVip": false, "durationHours": 2.0, "cost": 8.0 }
+  - index 1: { "plate": "VIP-7", "isVip": true, "durationHours": 2.0, "cost": 6.4 }
+- "grandTotal" must be 14.4.
+
+Data model: each Vehicle has fields plate (text), isVip (boolean), entryMinute (number), exitMinute (number). The garage configuration has fields hourlyRate (number), vipDiscountRate (number), currency (enum EUR/USD, set to EUR).
+
+Billing rule: durationHours = (exitMinute - entryMinute) / 60. The base cost is round(durationHours * hourlyRate * 100) / 100. A VIP vehicle (isVip true) gets a 10% discount: cost = round(baseCost * (1 - vipDiscountRate) * 100) / 100, where vipDiscountRate = 0.1.
+
+Use these exact numbers so the output matches the oracle: the first vehicle entered at minute 0 and exited at minute 120 (durationHours 2.0) with hourlyRate 4.0, so baseCost = 8.0 and it is NOT a VIP. The second vehicle is VIP with a 10% discount from 8.0, giving cost 6.4. grandTotal = 8.0 + 6.4 = 14.4. Print the JSON with the keys currency, vehicles (each with plate, cost, durationHours, isVip) and grandTotal.`,
     verify: {
       command: 'python main.py',
       // Behavioral proof: the generated app must reproduce the parking garage
@@ -439,6 +462,16 @@ listen event on "order:created" {
 
 type RunStatus = 'PASS' | 'WARN' | 'FAIL';
 
+/** One dimension of the layer-aware evaluation grid (Phase 1 receipt). */
+type LayerId = 'ipl-contract' | 'topology' | 'semantics' | 'integration' | 'runtime-first-try' | 'repair-deterministic' | 'repair-llm';
+
+interface LayerReceipt {
+  layer: LayerId;
+  /** Whether this layer was the binding constraint (the first thing that failed). */
+  bound: boolean;
+  detail: string;
+}
+
 interface PassTiming {
   ms: number;
   chars: number;
@@ -479,6 +512,19 @@ interface RunResult {
     repairPasses: number;
     clarificationRoundtrips: number;
   };
+  /** Phase 3 — semantic-preservation receipt (independent of runtime PASS). */
+  semantic?: SemanticReceipt;
+  /** Phase 1 — per-layer evaluation grid (which layer still held a degree of freedom). */
+  receipts?: LayerReceipt[];
+  /** Phase 2 — status after deterministic repair, before any LLM repair. */
+  statusAfterDeterministic?: RunStatus;
+  /** Phase 2 — determinist-ic + LLM repair pass usage. */
+  deterministicRepairs?: number;
+  llmRepairPasses?: number;
+  /** Phase 4 — raw Pass 1 topology JSON (for cross-iteration stability). */
+  topology?: string;
+  /** Phase 5 — natural-language control witness for this same spec (when --nl-witness). */
+  nl?: { status: RunStatus; firstTryStatus: RunStatus; semantic?: SemanticReceipt };
 }
 
 // ---------------------------------------------------------------------------
@@ -582,6 +628,8 @@ interface GenerationOutput {
   xml: string;
   pass1: PassTiming;
   pass2: PassTiming;
+  /** Raw topology JSON returned by Pass 1 (empty when Pass 1 failed). */
+  topology: string;
 }
 
 async function generateReal(spec: BenchSpec, config: LLMConfig, args: CliArgs, usage: RunTokenUsage, formFactor?: FormFactor): Promise<GenerationOutput> {
@@ -605,7 +653,33 @@ async function generateReal(spec: BenchSpec, config: LLMConfig, args: CliArgs, u
   );
   const pass2: PassTiming = { ms: Date.now() - t2, chars: xml.length, approxTokens: approxTokens(xml.length) };
 
-  return { xml, pass1, pass2 };
+  return { xml, pass1, pass2, topology };
+}
+
+/** Same two-pass flow as generateReal, fed the natural-language brief instead of IPL. */
+async function generateNL(spec: BenchSpec, config: LLMConfig, args: CliArgs, usage: RunTokenUsage, formFactor?: FormFactor): Promise<GenerationOutput> {
+  const brief = spec.naturalLanguage ?? '';
+  const pass1Prompt = buildNLPass1Prompt(brief, formFactor);
+
+  const t1 = Date.now();
+  const p1Text = await withTimeout(
+    callLLM(pass1Prompt, config, () => {}, undefined, { temperature: 0.4, usage: { usage, bucket: 'generation' } }),
+    args.timeoutPerPassMs,
+    'NL Pass 1'
+  );
+  const pass1: PassTiming = { ms: Date.now() - t1, chars: p1Text.length, approxTokens: approxTokens(p1Text.length) };
+
+  const topology = extractTopologyJson(p1Text) ?? '';
+
+  const t2 = Date.now();
+  const xml = await withTimeout(
+    callLLM(buildNLPass2Prompt(brief, topology, formFactor), config, () => {}, undefined, { temperature: 0.15, seed: 42, usage: { usage, bucket: 'generation' } }),
+    args.timeoutPerPassMs,
+    'NL Pass 2'
+  );
+  const pass2: PassTiming = { ms: Date.now() - t2, chars: xml.length, approxTokens: approxTokens(xml.length) };
+
+  return { xml, pass1, pass2, topology };
 }
 
 /** Extracts a JSON object from Pass 1 output (resilient to code fences / noise). */
@@ -627,7 +701,8 @@ async function generateMock(spec: BenchSpec): Promise<GenerationOutput> {
   return {
     xml: buildMockArtifact(spec),
     pass1: { ms: 0, chars: 0, approxTokens: 0 },
-    pass2: { ms: 0, chars: 0, approxTokens: 0 }
+    pass2: { ms: 0, chars: 0, approxTokens: 0 },
+    topology: ''
   };
 }
 
@@ -1050,9 +1125,20 @@ async function repairAndVerify(
   missingRefs?: MissingModuleRef[],
   reviewIssues?: ReviewIssue[],
   usage?: RunTokenUsage
-): Promise<{ v: { status: RunStatus; detail: string; output?: string }; repairsToSuccess: number; repairDetails: string[]; firstTryStatus: RunStatus }> {
+): Promise<{
+  v: { status: RunStatus; detail: string; output?: string };
+  repairsToSuccess: number;
+  repairDetails: string[];
+  firstTryStatus: RunStatus;
+  statusAfterDeterministic: RunStatus;
+  deterministicRepairs: number;
+  llmRepairPasses: number;
+}> {
   const repairDetails: string[] = [];
   let v = firstTry;
+  let statusAfterDeterministic: RunStatus = firstTry.status;
+  let deterministicRepairs = 0;
+  let llmRepairPasses = 0;
 
   if (missingRefs && missingRefs.length > 0) {
     repairDetails.push(`static check: ${missingRefs.length} import(s) reference files that are not generated — ${missingRefs.map(m => m.resolved).join(', ')}`);
@@ -1068,8 +1154,12 @@ async function repairAndVerify(
         writeFileSync(pathResolve(runDir, f.relativePath), f.content, 'utf8');
       }
       repairDetails.push(...det.applied.map(a => `pass ${pass} [deterministic]: ${a}`));
+      deterministicRepairs += det.applied.length;
       v = await verify(spec, runDir, args);
-      if (v.status === 'PASS') return { v, repairsToSuccess: pass, repairDetails, firstTryStatus: firstTry.status };
+      statusAfterDeterministic = v.status;
+      if (v.status === 'PASS') {
+        return { v, repairsToSuccess: pass, repairDetails, firstTryStatus: firstTry.status, statusAfterDeterministic, deterministicRepairs, llmRepairPasses };
+      }
     }
 
     // LLM repair pass.
@@ -1120,7 +1210,9 @@ async function repairAndVerify(
           }
           repairDetails.push(`pass ${pass} [llm]: refineIPLArtifact applied (${updated.length} files)`);
           v = await verify(spec, runDir, args);
-          if (v.status === 'PASS') return { v, repairsToSuccess: pass, repairDetails, firstTryStatus: firstTry.status };
+          if (v.status === 'PASS') {
+            return { v, repairsToSuccess: pass, repairDetails, firstTryStatus: firstTry.status, statusAfterDeterministic, deterministicRepairs, llmRepairPasses };
+          }
         }
       } catch (err: any) {
         repairDetails.push(`pass ${pass} [llm]: failed (${err.message})`);
@@ -1128,7 +1220,8 @@ async function repairAndVerify(
     }
   }
 
-  return { v, repairsToSuccess: -1, repairDetails, firstTryStatus: firstTry.status };
+  llmRepairPasses = usage?.repairPasses ?? 0;
+  return { v, repairsToSuccess: -1, repairDetails, firstTryStatus: firstTry.status, statusAfterDeterministic, deterministicRepairs, llmRepairPasses };
 }
 
 /**
@@ -1223,10 +1316,171 @@ function buildTrendSection(historyPath: string, runId: string, results: RunResul
 // Report
 // ---------------------------------------------------------------------------
 
+/**
+ * Phase 1 — assembles the layer-aware evaluation grid for one run. The single
+ * "binding constraint" is the first gating layer (topology / integration /
+ * runtime-first-try) that failed, in causal order. The semantics and repair
+ * layers are informational receipts, never the binding constraint (semantics is
+ * "the spec's contract drifted" — reported even when the run PASSes).
+ */
+function buildLayerReceipts(
+  spec: BenchSpec,
+  gen: GenerationOutput,
+  missingRefs: MissingModuleRef[],
+  firstTry: { status: RunStatus; detail: string },
+  semantic: SemanticReceipt | undefined,
+  statusAfterDeterministic: RunStatus,
+  deterministicRepairs: number,
+  llmRepairPasses: number
+): LayerReceipt[] {
+  const ipDiag = analyzeIPLSemantics(spec.code);
+  const iplProblems = ipDiag.filter(d => d.severity === 'warning' || d.severity === 'info').length;
+
+  const topologyOk = !!gen.topology && extractTopologyJson(gen.topology) !== null;
+  const integrationOk = missingRefs.length === 0;
+  const runtimeOk = firstTry.status !== 'FAIL';
+
+  // Causal order: which gating layer is the first to have failed.
+  const gates: Array<{ layer: LayerId; ok: boolean }> = [
+    { layer: 'topology', ok: topologyOk },
+    { layer: 'integration', ok: integrationOk },
+    { layer: 'runtime-first-try', ok: runtimeOk }
+  ];
+  let bound: LayerId | null = null;
+  for (const g of gates) {
+    if (!g.ok) { bound = g.layer; break; }
+  }
+
+  const noGateBound = bound === null;
+  const semanticBound = noGateBound && semantic !== undefined && semantic.score < 0.7;
+
+  return [
+    {
+      layer: 'ipl-contract',
+      bound: false,
+      detail: iplProblems > 0 ? `${iplProblems} advisory diagnostic(s)` : 'clean'
+    },
+    {
+      layer: 'topology',
+      bound: bound === 'topology',
+      detail: topologyOk ? 'Pass 1 returned a parseable topology' : 'Pass 1 returned no parseable topology'
+    },
+    {
+      layer: 'integration',
+      bound: bound === 'integration',
+      detail: integrationOk ? 'all imports resolve' : `${missingRefs.length} import(s) reference missing files`
+    },
+    {
+      layer: 'semantics',
+      // The "lie" case: the app is runtime-clean but the spec's contract leaked.
+      bound: !!semanticBound,
+      detail: semantic ? `score ${semantic.score} (identity ${semantic.identity.preserved}/${semantic.identity.total}, types ${semantic.types.preserved}/${semantic.types.total}, formulas ${semantic.formulas.preserved}/${semantic.formulas.total}, keys ${semantic.outputKeys.preserved}/${semantic.outputKeys.total})` : 'not measured'
+    },
+    {
+      layer: 'runtime-first-try',
+      bound: bound === 'runtime-first-try',
+      detail: firstTry.status !== 'FAIL' ? `first-try ${firstTry.status}` : `first-try FAIL: ${firstTry.detail}`
+    },
+    {
+      layer: 'repair-deterministic',
+      bound: false,
+      detail: deterministicRepairs > 0 ? `${deterministicRepairs} deterministic fix(es) → ${statusAfterDeterministic}` : 'no deterministic repair needed'
+    },
+    {
+      layer: 'repair-llm',
+      bound: false,
+      detail: llmRepairPasses > 0 ? `${llmRepairPasses} LLM repair pass(es)` : 'no LLM repair'
+    }
+  ];
+}
+
 function endpointForMode(config: LLMConfig, mode: LLMConfig['mode']): string {
   if (mode === 'external') return config.externalEndpoint;
   if (mode === 'lmstudio') return config.lmStudioEndpoint || config.localEndpoint;
   return config.localEndpoint;
+}
+
+/** Phase 1+4 — which layer was the binding constraint, plus topology stability. */
+function buildLayerSection(results: RunResult[]): string[] {
+  const lines: string[] = ['## Layer-awareness (which layer still held the freedom)', ''];
+  lines.push('Each run is attributed to the FIRST gate that bound it (topology → integration → runtime-first-try). Semantics and the two repair layers are receipts, not gates.');
+  lines.push('');
+  const bySpec = new Map<string, RunResult[]>();
+  for (const r of results) {
+    const arr = bySpec.get(r.specId) ?? [];
+    arr.push(r);
+    bySpec.set(r.specId, arr);
+  }
+  lines.push('| Spec | Bound: topology | Bound: integration | Bound: runtime | Semantic drift | Det repair | LLM repair | Stable topo (n=iter) |');
+  lines.push('| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |');
+  for (const [id, runs] of bySpec) {
+    const runCount = runs.length;
+    const bound = (l: LayerId) => runs.filter(r => r.receipts?.find(x => x.layer === l)?.bound).length;
+    const semanticDrift = runs.filter(r => (r.receipts?.find(x => x.layer === 'semantics')?.bound) && r.status === 'PASS').length;
+    const detUsed = runs.filter(r => (r.deterministicRepairs ?? 0) > 0).length;
+    const llmUsed = runs.filter(r => (r.llmRepairPasses ?? 0) > 0).length;
+    const distinctTopo = new Set(runs.map(r => r.topology ?? '')).size;
+    lines.push(`| ${id} | ${bound('topology')} | ${bound('integration')} | ${bound('runtime-first-try')} | ${semanticDrift} | ${detUsed} | ${llmUsed} | ${distinctTopo > 1 ? `${distinctTopo}/${runCount} (VARIES)` : `${distinctTopo}/${runCount}`} |`);
+  }
+  lines.push('');
+  lines.push('Semantic drift = a run that was runtime-PASS but had a semantic-preservation score below 0.7 (the app "works" but the spec contract leaked).');
+  lines.push('Stable topo = number of distinct Pass 1 topology JSONs across iterations (1 = deterministic architecture, >1 = LLM freedom).');
+  lines.push('');
+  return lines;
+}
+
+/** Phase 3 — the semantic-preservation receipt, per run, independent of the runtime verdict. */
+function buildSemanticSection(results: RunResult[]): string[] {
+  const lines: string[] = ['## Semantic preservation (IPL → code)', ''];
+  lines.push('Measured on the final shipped files. Independent of the runtime verdict: a PASS can still leak the contract, a FAIL can still reproduce it.');
+  lines.push('');
+  lines.push('| Spec | Status | Identity | Types | Formulas | Keys | Score |');
+  lines.push('| :--- | :---: | :---: | :---: | :---: | :---: | :---: |');
+  for (const r of results) {
+    const s = r.semantic;
+    if (!s) continue;
+    const pct = (c: { preserved: number; total: number }) => (c.total === 0 ? 'n/a' : `${c.preserved}/${c.total}`);
+    lines.push(`| ${r.specId} | ${r.status} | ${pct(s.identity)} | ${pct(s.types)} | ${pct(s.formulas)} | ${pct(s.outputKeys)} | ${s.score} |`);
+  }
+  lines.push('');
+  return lines;
+}
+
+/** Phase 5 — natural-language control witness vs the IPL path (same requirements, first try, no repair). */
+function buildNlSection(results: RunResult[]): string[] {
+  const lines: string[] = ['## Natural language vs IPL (control witness)', ''];
+  lines.push('Same requirements given as prose instead of IPL, generated first-try (no repair). This attributes a failure to "IPL removed a needed constraint" vs "the LLM fails regardless".');
+  lines.push('');
+  const withNl = results.filter(r => r.nl);
+  if (withNl.length === 0) {
+    lines.push('_No --nl-witness runs (enable with --nl-witness)._\n');
+    return lines;
+  }
+  lines.push('| Spec | IPL 1st-try | NL 1st-try | IPL sem. | NL sem. | Verdict |');
+  lines.push('| :--- | :---: | :---: | :---: | :---: | :--- |');
+  for (const [id, runs] of groupBySpec(withNl)) {
+    for (const r of runs) {
+      const score = (s?: SemanticReceipt): string => (s ? `${s.score}` : 'n/a');
+      const verdict = r.nl?.status === 'PASS' && r.status !== 'PASS'
+        ? 'NL did better — IPL may have over-constrained'
+        : r.status === 'PASS' && r.nl?.status !== 'PASS'
+          ? 'IPL did better — NL lacked the constraint'
+          : 'Parity';
+      lines.push(`| ${id} | ${r.status} | ${r.nl?.status} | ${score(r.semantic)} | ${score(r.nl?.semantic)} | ${verdict} |`);
+    }
+  }
+  lines.push('');
+  return lines;
+}
+
+function groupBySpec<T extends { specId: string }>(items: T[]): Map<string, T[]> {
+  const m = new Map<string, T[]>();
+  for (const it of items) {
+    const arr = m.get(it.specId) ?? [];
+    arr.push(it);
+    m.set(it.specId, arr);
+  }
+  return m;
 }
 
 function buildReport(args: CliArgs, config: LLMConfig, results: RunResult[]): string {
@@ -1346,6 +1600,13 @@ function buildReport(args: CliArgs, config: LLMConfig, results: RunResult[]): st
     lines.push(`- **Files**: ${r.files.join(', ') || '(none)'}`);
     lines.push('');
   }
+
+  // Phase 1 / 4 — layer-awareness + topology stability.
+  lines.push(...buildLayerSection(results));
+  // Phase 3 — semantic-preservation receipt.
+  lines.push(...buildSemanticSection(results));
+  // Phase 5 — natural-language control witness.
+  lines.push(...buildNlSection(results));
 
   return lines.join('\n');
 }
@@ -1480,14 +1741,33 @@ async function main(): Promise<number> {
       let v = firstTry;
       let repairsToSuccess = 0;
       let repairDetails: string[] = [];
+      let statusAfterDeterministic = firstTry.status;
+      let deterministicRepairs = 0;
+      let llmRepairPasses = 0;
       if (firstTry.status === 'FAIL' && args.repairPasses > 0 && args.mode !== 'mock') {
         const repaired = await repairAndVerify(spec, runDir, args, config, firstTry, missingRefs, reviewIssues, usage);
         v = repaired.v;
         repairsToSuccess = repaired.repairsToSuccess;
         repairDetails = repaired.repairDetails;
+        statusAfterDeterministic = repaired.statusAfterDeterministic;
+        deterministicRepairs = repaired.deterministicRepairs;
+        llmRepairPasses = repaired.llmRepairPasses;
       } else if (firstTry.status === 'FAIL') {
         repairsToSuccess = -1;
       }
+
+      // Phase 3 — semantic-preservation receipt, measured on the FINAL shipped
+      // files (post-repair), independent of the runtime verdict.
+      let semantic: SemanticReceipt | undefined;
+      if (args.mode !== 'mock') {
+        const contract = extractIPLSemanticContract(spec.code);
+        const finalFiles = readRunFiles(runDir);
+        const res = measureSemanticPreservation(contract, finalFiles);
+        semantic = { identity: res.identity, types: res.types, formulas: res.formulas, outputKeys: res.outputKeys, score: res.score };
+      }
+
+      // Phase 1 — layer-aware evaluation grid (which layer still held the freedom).
+      const receipts = buildLayerReceipts(spec, gen, missingRefs, firstTry, semantic, statusAfterDeterministic, deterministicRepairs, llmRepairPasses);
 
       const result: RunResult = {
         specId: spec.id, specName: spec.name, iteration: i, status: v.status, statusDetail: v.detail,
@@ -1506,8 +1786,38 @@ async function main(): Promise<number> {
           repair: { ...usage.repair },
           repairPasses: usage.repairPasses,
           clarificationRoundtrips: usage.clarificationRoundtrips
-        }
+        },
+        semantic,
+        receipts,
+        statusAfterDeterministic,
+        deterministicRepairs,
+        llmRepairPasses,
+        topology: gen.topology
       };
+      // Phase 5 — natural-language control witness: the SAME requirements as
+      // prose, generated first-try (no repair). Compared against IPL in the report.
+      if (args.nlWitness && spec.naturalLanguage && args.mode !== 'mock') {
+        try {
+          const nlUsage = createRunTokenUsage(spec.naturalLanguage.length);
+          const nlg = await generateNL(spec, config, args, nlUsage, formFactor);
+          const nlDir = pathResolve(root, spec.id, `run-${runId}-${i}-nl`);
+          rmSync(nlDir, { recursive: true, force: true });
+          mkdirSync(nlDir, { recursive: true });
+          const nlWritten = writeArtifact(nlDir, nlg.xml);
+          const nlFirstTry = await verify(spec, nlDir, args);
+          const nlContract = extractIPLSemanticContract(spec.code);
+          const nlRes = measureSemanticPreservation(nlContract, nlWritten.parsed);
+          result.nl = {
+            status: nlFirstTry.status,
+            firstTryStatus: nlFirstTry.status,
+            semantic: { identity: nlRes.identity, types: nlRes.types, formulas: nlRes.formulas, outputKeys: nlRes.outputKeys, score: nlRes.score }
+          };
+          log(args, `nl-witness: ${nlFirstTry.status} (${nlFirstTry.detail})`, nlFirstTry.status === 'PASS' ? 'success' : 'warn');
+        } catch (err: any) {
+          result.nl = { status: 'FAIL', firstTryStatus: 'FAIL' };
+          log(args, `nl-witness failed: ${err.message}`, 'error');
+        }
+      }
       results.push(result);
       const repairNote = repairDetails.length > 0 ? ` · repaired (${repairsToSuccess} pass${repairsToSuccess === 1 ? '' : 'es'})` : '';
       const consNote = consolidation ? ` · consolidated (${consolidation.confirmed} confirmed/${consolidation.passesUsed} pass${consolidation.passesUsed === 1 ? '' : 'es'})` : '';

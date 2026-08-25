@@ -4,6 +4,20 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ---
 
+## [Unreleased]
+
+### 🧪 Layer-aware evaluation receipts ("which layer still held the freedom")
+- **Phase 1 — layer grid**: every run is attributed to the first binding gate (topology → integration → runtime-first-try), exposing the causal layer instead of a single PASS/FAIL. Semantics and the two repair layers are receipts, never flags.
+- **Phase 2 — deterministic-vs-LLM split**: `statusAfterDeterministic`, `deterministicRepairs`, `llmRepairPasses` — answers "did the 0-token repair resolve it, or did the LLM burn tokens?".
+- **Phase 3 — semantic-preservation receipt** (`src/engine/semanticPreservation.ts`, pure): measures identifiants / types / formules / clés-de-sortie of the IPL spec that actually survive into the shipped source, **independent of the runtime verdict** — a PASS can still leak the contract. New offline test suite.
+- **Phase 4 — topology stability**: number of distinct Pass 1 topology JSONs across iterations (1 = deterministic architecture, >1 = LLM freedom).
+- **Phase 5 — natural-language witness (`--nl-witness`)**: the SAME requirements as prose instead of IPL, generated first-try, compared head-to-head in the report (`naturalLanguage vs IPL`). Attribution: "IPL over-constrained" vs "the LLM fails regardless".
+
+### 🧰 Benchmark report
+- New sections: `Layer-awareness`, `Semantic preservation`, `Natural language vs IPL`. `--nl-witness` flag added (external mode only). Semantic + layer data exported per run alongside the existing token-economy table.
+
+---
+
 ## [1.4.0] - 2026-08-12
 
 ### 🚚 P1 — Delivery panel (the consolidation is now visible in the product)

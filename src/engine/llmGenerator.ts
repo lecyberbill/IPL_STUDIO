@@ -3,7 +3,7 @@
  * Transforms IPL intent declarations into complete multi-file applications.
  */
 
-import { PASS1_SYSTEM_PROMPT, PASS2_SYSTEM_PROMPT, REPAIR_SYSTEM_PROMPT } from './llmPrompts.ts';
+import { PASS1_SYSTEM_PROMPT, PASS2_SYSTEM_PROMPT, REPAIR_SYSTEM_PROMPT, NL_PASS1_SYSTEM_PROMPT, NL_PASS2_SYSTEM_PROMPT } from './llmPrompts.ts';
 
 export interface LLMConfig {
   mode: 'local' | 'lmstudio' | 'external';
@@ -514,6 +514,35 @@ ${iplCode}
 
 3. PROJECT TOPOLOGY:
 ${topologyJsonStr || 'Standard Multi-File Layout'}`
+  };
+}
+
+/**
+ * Pass 1 (NL control witness): the requirements as plain prose, topology JSON.
+ */
+export function buildNLPass1Prompt(nlBrief: string, formFactor?: FormFactor): LLMMessagePair {
+  const form = buildFormDirective(formFactor);
+  return {
+    system: NL_PASS1_SYSTEM_PROMPT,
+    user: `REQUIREMENTS (natural language, at equal information to the IPL spec):
+${nlBrief}
+${form ? `\n\nEXECUTION FORM:\n${form}` : ''}`
+  };
+}
+
+/**
+ * Pass 2 (NL control witness): requirements as prose + the discovered topology.
+ */
+export function buildNLPass2Prompt(nlBrief: string, topologyJsonStr: string, formFactor?: FormFactor): LLMMessagePair {
+  const form = buildFormDirective(formFactor);
+  return {
+    system: NL_PASS2_SYSTEM_PROMPT,
+    user: `REQUIREMENTS (natural language, at equal information to the IPL spec):
+${nlBrief}
+
+PROJECT TOPOLOGY:
+${topologyJsonStr || 'Standard Multi-File Layout'}
+${form ? `\n\nEXECUTION FORM:\n${form}` : ''}`
   };
 }
 

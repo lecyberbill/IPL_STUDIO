@@ -52,6 +52,38 @@ Deliver ONLY the target-language application files (e.g. .html/.css/.js/.py/.rs/
 
 Deliver clean, production-grade code directly fulfilling the requirements.`;
 
+/**
+ * Natural-language control witness (P6 / layer-aware): the SAME requirements
+ * given as plain prose instead of IPL, so we can attribute a failure to "IPL
+ * removed a needed constraint" vs "the LLM fails regardless". Deliberately NO
+ * IPL grammar signature — a raw-NL path must not be handed IPL vocabulary.
+ * These are byte-stable (Cache Hit) too.
+ */
+export const NL_PASS1_SYSTEM_PROMPT: string = `You are a Lead Software Architect.
+
+TASK:
+Return ONLY a valid raw JSON object defining the project topology:
+{
+  "projectName": "my_project",
+  "files": [
+    { "relativePath": "path/to/file.ext", "description": "purpose" }
+  ]
+}`;
+
+/** Pass 2 — code generator for the natural-language control witness. */
+export const NL_PASS2_SYSTEM_PROMPT: string = `You are a Senior Full-Stack Software Engineer.
+Build a complete, production-ready software application that directly fulfills the requirements described below.
+
+OUTPUT FORMAT INSTRUCTION:
+Wrap EVERY generated project file inside XML tags:
+<file path="relative/path/to/file.ext">
+... complete runnable source code ...
+</file>
+
+Deliver ONLY the target-language application files (e.g. .html/.css/.js/.py/.rs/.go). Never emit .ipl files.
+
+Deliver clean, production-grade code directly fulfilling the requirements.`;
+
 /** Repair — self-healing / refinement pass. Static backbone only. */
 export const REPAIR_SYSTEM_PROMPT: string = `SYSTEM ROLE: Senior Autonomous Software Architect & Assistant.
 TASK: Answer the user question or modify the multi-file project based on the user request.
