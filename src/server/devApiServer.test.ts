@@ -261,6 +261,28 @@ describe('runtime smoke test (runSyntaxSmoke)', () => {
     expect(result.passed).toBe(true);
   });
 
+  it('runs the behavioral oracle on the CLI output (fails on wrong JSON)', async () => {
+    // Exit 0 but the wrong value: only the behavioral gate catches this.
+    const ok = await runSyntaxSmoke(
+      [{ relativePath: 'index.js', content: 'console.log(JSON.stringify({ grandTotal: 5.78 }));' }],
+      undefined,
+      'cli',
+      'javascript',
+      { jsonInOutput: [{ path: 'grandTotal', approx: 5.78, tolerance: 1e-6 }] }
+    );
+    expect(ok.behavior?.pass).toBe(true);
+
+    const wrong = await runSyntaxSmoke(
+      [{ relativePath: 'index.js', content: 'console.log(JSON.stringify({ grandTotal: 5.77 }));' }],
+      undefined,
+      'cli',
+      'javascript',
+      { jsonInOutput: [{ path: 'grandTotal', approx: 5.78, tolerance: 1e-6 }] }
+    );
+    expect(wrong.behavior?.pass).toBe(false);
+    expect(wrong.passed).toBe(false);
+  });
+
   it('flags a missing toolchain with an install suggestion', async () => {
     const result = await runSyntaxSmoke(
       [{ relativePath: 'src/app.js', content: 'console.log(1);' }],

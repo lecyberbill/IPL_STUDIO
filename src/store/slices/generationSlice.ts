@@ -87,12 +87,13 @@ async function runSmokeCheck(
   addLog: (msg: string, type: 'info' | 'success' | 'warn' | 'error') => void,
   toolchains: Toolchains,
   formFactor: FormFactor | undefined,
-  targetLang: string
+  targetLang: string,
+  behaviorAssert?: import('../../engine/behaviorAssert').BehaviorAssert
 ): Promise<SmokeResult | null> {
   try {
     const response = await apiFetch('/api/smoke-test', {
       method: 'POST',
-      body: JSON.stringify({ files, toolchains, formFactor, targetLang })
+      body: JSON.stringify({ files, toolchains, formFactor, targetLang, behaviorAssert })
     });
     const data: SmokeResult = await response.json();
     if (data && Array.isArray(data.files)) {

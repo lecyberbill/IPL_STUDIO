@@ -42,6 +42,14 @@ export interface SmokeResult {
   missingTools: MissingTool[];
   /** Bounded execution result (CLI run / web HTTP GET), when the form allows it. */
   execution?: { ok: boolean; error?: string } | null;
+  /**
+   * Behavioral gate result (when a `BehaviorAssert` was supplied): the app ran
+   * and its actual output was checked against the expected contract (exit code,
+   * stdout, JSON paths, float-approx, presence). This is the *correctness*
+   * check that a bare smoke (crash/syntax) cannot do — an app can exit 0 yet
+   * output the wrong values.
+   */
+  behavior?: { pass: boolean; failures: string[] };
 }
 
 export type SmokeLang = 'js' | 'python' | 'rust' | 'go' | 'cpp' | 'c';
@@ -64,6 +72,7 @@ export type SmokeVerdict = 'pass' | 'warn' | 'fail';
  */
 export function smokeGateVerdict(r: SmokeResult): SmokeVerdict {
   if (r.execution && r.execution.ok === false) return 'fail';
+  if (r.behavior && !r.behavior.pass) return 'fail';
   if (!r.passed) return 'warn';
   return 'pass';
 }

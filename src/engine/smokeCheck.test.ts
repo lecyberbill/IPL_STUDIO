@@ -78,4 +78,12 @@ describe('smokeGateVerdict (delivery-gate decision)', () => {
     expect(smokeGateVerdict(base({ execution: { ok: true } }))).toBe('pass');
     expect(smokeGateVerdict(base({ execution: null }))).toBe('pass');
   });
+
+  it('is fail when the behavioral oracle fails (exits 0 but wrong output)', () => {
+    expect(smokeGateVerdict(base({ execution: { ok: true }, behavior: { pass: false, failures: ['json path "grandTotal" expected approx 5.78, got 5.77'] } }))).toBe('fail');
+  });
+
+  it('is pass when the behavioral oracle passes', () => {
+    expect(smokeGateVerdict(base({ execution: { ok: true }, behavior: { pass: true, failures: [] } }))).toBe('pass');
+  });
 });

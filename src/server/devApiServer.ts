@@ -7,6 +7,8 @@ import { promisify } from 'util';
 import { isCommandAllowed, commandPrefix } from '../engine/security.js';
 import { classifySmokeFiles, SMOKE_TOOL, smokeCheckArgs, toolLabel } from '../engine/smokeCheck.js';
 import type { SmokeFileResult, SmokeResult, SmokeLang } from '../engine/smokeCheck.js';
+import { evaluateBehavior } from '../engine/behaviorAssert.js';
+import type { BehaviorAssert } from '../engine/behaviorAssert.js';
 import { resolveTool, installCommandFor, resolveToolchainCommand } from '../engine/toolchains.js';
 import type { Toolchains } from '../engine/toolchains.js';
 
@@ -145,7 +147,8 @@ export async function runSyntaxSmoke(
   files: Array<{ relativePath: string; content: string }>,
   toolchains?: Toolchains,
   formFactor?: string,
-  targetLang?: string
+  targetLang?: string,
+  behaviorAssert?: BehaviorAssert
 ): Promise<SmokeResult> {
   const checks = classifySmokeFiles(files);
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'ipl-smoke-'));
@@ -165,7 +168,7 @@ export async function runSyntaxSmoke(
       fileResults.push(r);
     }
 
-    let execution: { ok: boolean; error?: string } | null = null;
+    let execution: { ok: boolean; error?: string; stdout?: string } | null = null;
     if (formFactor === 'cli' && targetLang) {
       const baseCmd = buildCliCommand(targetLang, files);
       if (baseCmd) {
@@ -183,7 +186,8 @@ export async function runSyntaxSmoke(
             } else resolve({ ok: false, error: err.message.slice(0, 200) });
           });
           proc.on('close', (code) => {
-            resolve(code === 0 ? { ok: true } : { ok: false, error: (out || 'non-zero exit').slice(0, 300) });
+            const ok = code === 0;
+            resolve(ok ? { ok: true, stdout: out } : { ok: false, error: (out || 'non-zero exit').slice(0, 300), stdout: out });
           });
         });
       }
@@ -201,11 +205,24 @@ export async function runSyntaxSmoke(
     }
 
     const missingTools = [...missing.entries()].map(([tool, installCommand]) => ({ tool, installCommand }));
+
+    // Behavioral gate: when a BehaviorAssert is supplied and the CLI actually
+    // ran, evaluate the app's real output against the expected contract (exit
+    // code, stdout, JSON-path / float-approx / presence). This catches the
+    // "exits 0 but outputs the wrong values" drift that a crash-only smoke and
+    // the shared-model reviewer both miss.
+    let behavior: SmokeResult['behavior'];
+    if (behaviorAssert && execution?.stdout !== undefined) {
+      const { pass, failures } = evaluateBehavior(execution.stdout, '', execution.ok ? 0 : 1, behaviorAssert);
+      behavior = { pass, failures };
+    }
+
     return {
-      passed: fileResults.every(r => r.ok) && missingTools.length === 0 && (execution ? execution.ok : true),
+      passed: fileResults.every(r => r.ok) && missingTools.length === 0 && (execution ? execution.ok : true) && (behavior ? behavior.pass : true),
       files: fileResults,
       missingTools,
-      execution
+      execution,
+      behavior
     };
   } finally {
     fs.rmSync(sandbox, { recursive: true, force: true });
@@ -501,7 +518,7 @@ export function createDevApiServer(options: DevApiServerOptions): DevApiServer {
             res.end(JSON.stringify({ error: 'files parameter (array) is required' }));
             return;
           }
-          const result = await runSyntaxSmoke(files, data.toolchains, data.formFactor, data.targetLang);
+          const result = await runSyntaxSmoke(files, data.toolchains, data.formFactor, data.targetLang, data.behaviorAssert);
           res.statusCode = 200;
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify(result));

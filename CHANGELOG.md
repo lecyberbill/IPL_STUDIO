@@ -6,6 +6,12 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## [Unreleased]
 
+### ☑️ Behavioral gate on the app-flow smoke (crash **and** correctness)
+- `runSyntaxSmoke` now accepts an optional `BehaviorAssert`; after the CLI runs it captures stdout+exit code and calls `evaluateBehavior` (exit code, stdout, JSON-path / float-approx / presence). `SmokeResult` gains `behavior?: { pass, failures }`.
+- `smokeGateVerdict` is now `fail` on a behavioral oracle failure too — the app can **exit 0 yet output the wrong value**, which neither a crash-only smoke nor the shared-model reviewer catches. This closes the "exits 0 but wrong output" hole.
+- `/api/smoke-test` forwards `behaviorAssert`; `generationSlice.runSmokeCheck` plumbed to pass one (default none → advisory).
+- Verdict unit-tested; an end-to-end dev-server test proves a JSON contract (`grandTotal` approx 5.78) catches an exit-0 wrong value.
+
 ### ⛔ Runtime smoke as a pre-delivery gate (the "second eye")
 - `smokeGateVerdict` (pure, `smokeCheck.ts`): derives a 0-token delivery verdict from the runtime smoke — `fail` when the app actually crashed (execution error, e.g. `document is not defined`), `warn` when it parsed but a check/toolchain is incomplete, `pass` otherwise.
 - Wired into the app flow: `generationSlice` computes `smokeVerdict` after the smoke and logs a clear gate line; the **Delivery panel** shows a red `DELIVERY GATE — app failed to run. Don't ship.` banner on `fail` (and an amber `warn` banner). Honest scope: this catches **crash / syntax / toolchain**, not wrong-output-with-exit-0 — that needs a fixture-driven behavioral oracle.
