@@ -6,6 +6,11 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## [Unreleased]
 
+### 🧭 Contract: advisory vs blocking + contextual oracle + sampling
+- **Advisory → blocking (opt-in)**: `strictContract` (+ `specCode`) on the consolidation agent turns the semantic-preservation receipt into a **0-token conformance gate** — if the artifact entirely loses a declared contract dimension (types/formulas/output keys) or scores below 0.5, it's a confirmed "error" that triggers the adaptive review + auto-fix. Default stays advisory ("rails, not walls"): measure drift, never block generation. (`findContractFindings`, `isRequiredContractLost`).
+- **Contextual oracle/prompt**: `deriveContractContext` collapses the spec's declared identity/types/formulas/output-keys into a compact object injected into the repair prompt — generator, repair and oracle now share the **same** contract object (not just the hand-written `verify.assert`). Added an `exists` comparator to `JsonAssert` (presence/absence) for spec-derived schema oracles.
+- **Sampling**: the semantic report aggregates per-spec `pass/n` + score `mean / min–max` across iterations; the NL-vs-IPL section reports **first-try PASS rate** per spec (IPL vs NL). Demonstrated real: `parking` n=3 → Final PASS 1/3, semantic mean 0.91 (0.83–0.95) — the contract survives in source but the executable output diverges (model variance).
+
 ### 📄 Docs (Phase 10 doc pass)
 - README refreshed to the current feature set: 13 canonical verbs (incl. `seed`), `batch` execution form, and a new **Layer-aware evaluation** section (layer grid, semantic-preservation receipt, deterministic-vs-LLM split, `--nl-witness`, cache-stable system prompts, degrees-of-freedom ledger). Test count updated (320 / 20 suites); benchmark examples cover `--nl-witness` and `--form-factor batch`.
 - `IPL_AGENT_GUIDE.md` regenerated from the single source of truth (in sync: 13 verbs, 7 types).

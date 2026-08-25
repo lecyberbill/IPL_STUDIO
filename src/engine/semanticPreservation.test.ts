@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractIPLSemanticContract, measureSemanticPreservation } from './semanticPreservation';
+import { extractIPLSemanticContract, measureSemanticPreservation, findContractFindings, deriveContractContext, isRequiredContractLost } from './semanticPreservation';
 
 const SPEC = `
 add entity Vehicle {
@@ -145,5 +145,52 @@ currency = "EUR"
     ]);
     // Nothing real generated → nothing preserved, even though main.ipl has it all.
     expect(r.identity.preserved).toBe(0);
+  });
+});
+
+describe('strict-contract conformance gate (advisory vs blocking)', () => {
+  it('returns no findings when the source preserves the contract', () => {
+    const files = [{ relativePath: 'src/main.py', content: `
+class Vehicle: plate: str; isVip: bool; entryMinute: int; exitMinute: int
+class ParkingGarage: hourlyRate: float; vipDiscountRate: float; currency: str
+entryMinute=0; exitMinute=120; hourlyRate=4.0; vipDiscountRate=0.1
+durationHours=(exitMinute-entryMinute)/60
+cost=round((durationHours*hourlyRate)*(1-vipDiscountRate)*100)/100
+currency="EUR"; grandTotal=14.4
+print({"plate":"AB-123","cost":cost,"durationHours":durationHours,"isVip":False})
+` }];
+    expect(findContractFindings(files, SPEC)).toEqual([]);
+  });
+
+  it('flags a contract that lost a required dimension (formulas/output keys)', () => {
+    const files = [{ relativePath: 'src/main.py', content: 'print("hello")' }];
+    const findings = findContractFindings(files, SPEC);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].reason).toContain('semantic contract drift');
+  });
+
+  it('returns nothing without a specCode (advisory default)', () => {
+    expect(findContractFindings([{ relativePath: 'a.py', content: '' }], undefined)).toEqual([]);
+  });
+
+  it('isRequiredContractLost is true only when a full dimension is gone', () => {
+    const ok = { identity: { preserved: 5, total: 5 }, types: { preserved: 3, total: 3 }, formulas: { preserved: 2, total: 2 }, outputKeys: { preserved: 2, total: 2 } };
+    const lost = { identity: { preserved: 5, total: 5 }, types: { preserved: 0, total: 3 }, formulas: { preserved: 2, total: 2 }, outputKeys: { preserved: 2, total: 2 } };
+    expect(isRequiredContractLost(ok)).toBe(false);
+    expect(isRequiredContractLost(lost)).toBe(true);
+  });
+});
+
+describe('deriveContractContext (contextual oracle/prompt contract)', () => {
+  it('summarizes the declared identity/types/formulas/output keys', () => {
+    const c = extractIPLSemanticContract(SPEC);
+    const ctx = deriveContractContext(c);
+    expect(ctx).toContain('entities: Vehicle, ParkingGarage');
+    expect(ctx).toContain('output keys: plate, cost, durationHours, isVip');
+    expect(ctx).toContain('formula constants:');
+  });
+
+  it('is empty for a spec with no declared contract', () => {
+    expect(deriveContractContext(extractIPLSemanticContract('// nothing' ))).toBe('');
   });
 });

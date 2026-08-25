@@ -300,3 +300,62 @@ export function measureSemanticPreservation(
 
   return { identity, types, formulas, outputKeys, score: Math.round(wScore * 1000) / 1000, missing };
 }
+
+// ---------------------------------------------------------------------------
+// Conformance gate (advisory → blocking, opt-in) + contextual contract
+// ---------------------------------------------------------------------------
+
+export interface ContractFinding {
+  file: string;
+  reason: string;
+  suggestion: string;
+}
+
+/** True when a declared contract dimension is ENTIRELY lost (stricter than score). */
+export function isRequiredContractLost(r: Pick<SemanticReceipt, 'identity' | 'types' | 'formulas' | 'outputKeys'>): boolean {
+  const lost = (c: Coverage) => c.total > 0 && c.preserved === 0;
+  return lost(r.formulas) || lost(r.outputKeys) || lost(r.types);
+}
+
+/**
+ * 0-token contract-conformance gate. When a spec is marked `strictContract`,
+ * this turns *measured* drift into an actionable finding (an entire declared
+ * dimension lost, or the composite score below `threshold`) — WITHOUT ever
+ * blocking generation (the default remains advisory: "rails, not walls").
+ */
+export function findContractFindings(
+  files: ReadonlyArray<{ relativePath: string; content: string }>,
+  specCode: string | undefined,
+  threshold = 0.5
+): ContractFinding[] {
+  if (!specCode) return [];
+  const contract = extractIPLSemanticContract(specCode);
+  const r = measureSemanticPreservation(contract, files);
+  if (isRequiredContractLost(r) || r.score < threshold) {
+    const top = r.missing.slice(0, 6).map(m => m.id).join(', ');
+    return [{
+      file: '(project)',
+      reason: `semantic contract drift (score ${r.score}): ${r.missing.length} symbol(s) not preserved in the shipped source`,
+      suggestion: `preserve the spec's contract — missing: ${top || '(all declared symbols)'}. Regenerate or patch the files, or drop strictContract if this intent is intentionally loose.`
+    }];
+  }
+  return [];
+}
+
+/**
+ * Contextual contract for prompts (the "oracle" tooling and the repair path use
+ * the SAME object as the spec): a compact human/machine-readable summary of the
+ * identity/types/formulas/output-keys the app must surface. Injected into the
+ * repair + generation context so generator / repair / oracle agree.
+ */
+export function deriveContractContext(contract: SemanticContract): string {
+  const parts: string[] = [];
+  if (contract.entityNames.length) parts.push(`entities: ${contract.entityNames.join(', ')}`);
+  if (contract.fieldNames.length) parts.push(`fields: ${contract.fieldNames.join(', ')}`);
+  if (contract.types.length) parts.push(`types: ${contract.types.join(', ')}`);
+  if (contract.optionValues.length) parts.push(`enum values: ${contract.optionValues.join(', ')}`);
+  if (contract.formulaIdentifiers.length) parts.push(`formula symbols: ${contract.formulaIdentifiers.join(', ')}`);
+  if (contract.formulaNumbers.length) parts.push(`formula constants: ${contract.formulaNumbers.join(', ')}`);
+  if (contract.outputKeys.length) parts.push(`output keys: ${contract.outputKeys.join(', ')}`);
+  return parts.join('\n');
+}

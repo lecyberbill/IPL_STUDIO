@@ -148,4 +148,22 @@ describe('behaviorAssert — evaluateBehavior', () => {
     });
     expect(notNum.failures.join('')).toContain('is not a number');
   });
+
+  it('exists asserts presence/absence (spec-derived schema oracle)', () => {
+    const present = evaluateBehavior('{"orders":[{"x":1}],"grandTotal":5.78}', '', 0, {
+      jsonInOutput: [
+        { path: 'orders', exists: true },
+        { path: 'orders.0.x', exists: true },
+        { path: 'grandTotal', exists: true },
+        { path: 'vehicles', exists: false }
+      ]
+    });
+    expect(present.pass).toBe(true);
+
+    const missing = evaluateBehavior('{"grandTotal":5.78}', '', 0, {
+      jsonInOutput: [{ path: 'orders', exists: true }]
+    });
+    expect(missing.pass).toBe(false);
+    expect(missing.failures.join('')).toContain('json path "orders" expected to exist');
+  });
 });

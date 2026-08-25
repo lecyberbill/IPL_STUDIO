@@ -33,6 +33,8 @@ import { findMissingModuleRefs, findInvalidJson, findFormMismatches, findIplLeak
 import type { MissingModuleRef, InvalidJson, FormMismatch, IplLeakage, PatchLeakage, TruncatedFile, EsmScriptMismatch } from './staticChecker.ts';
 import { buildReviewPrompt, parseReviewOutput } from './reviewAgent.ts';
 import type { ReviewIssue } from './reviewAgent.ts';
+import { findContractFindings } from './semanticPreservation.ts';
+import type { ContractFinding } from './semanticPreservation.ts';
 
 export interface ConsolidationOptions {
   /** Max review→fix loops (each costs LLM tokens). Default 2. */
@@ -51,6 +53,17 @@ export interface ConsolidationOptions {
   usage?: TokenUsageHook;
   /** Chosen execution form (P4): enables the deterministic form-factor gate. */
   formFactor?: FormFactor;
+  /**
+   * Strict contract (advisory→blocking, opt-in): when true and `specCode` is
+   * provided, the semantic-preservation receipt becomes a 0-token gate — if the
+   * generated artifact entirely loses a declared contract dimension (types /
+   * formulas / output keys) or scores below the threshold, it is a confirmed
+   * "error" finding that triggers the (adaptive) review + auto-fix. Default is
+   * advisory (measure drift, never block generation) — "rails, not walls".
+   */
+  strictContract?: boolean;
+  /** The IPL spec, used to derive the semantic-preservation conformance contract. */
+  specCode?: string;
 }
 
 export interface ConsolidationResult {
@@ -70,6 +83,8 @@ export interface ConsolidationResult {
   truncatedFiles?: TruncatedFile[];
   /** `<script>` tags loading ESM files without `type="module"` (browser runtime crash). */
   esmIssues?: EsmScriptMismatch[];
+  /** Strict-contract conformance findings (0-token; only when `strictContract` + `specCode`). */
+  contractIssues?: ContractFinding[];
   /** Findings reported by the LLM reviewer. */
   reviewIssues: ReviewIssue[];
   /** Findings that were confirmed (deterministic) or error-severity (LLM). */
@@ -197,12 +212,21 @@ export async function consolidateArtifact(
     ti.map(f => ({ kind: 'static' as const, file: f.file, message: f.suggestion, severity: 'error' as const }));
   const esmToFindings = (ei: EsmScriptMismatch[]) =>
     ei.map(f => ({ kind: 'static' as const, file: f.file, message: f.suggestion, severity: 'error' as const }));
+  // Strict-contract gate (opt-in): the semantic-preservation receipt becomes a
+  // 0-token conformance finding when the artifact loses a declared contract
+  // dimension. Default remains advisory (measure only).
+  const contractFindings: ContractFinding[] = options.strictContract && options.specCode
+    ? findContractFindings(files, options.specCode)
+    : [];
+  const contractToFindings = (ci: ContractFinding[]) =>
+    ci.map(f => ({ kind: 'static' as const, file: f.file, message: f.suggestion, severity: 'error' as const }));
   const deterministicFindings = [
     ...formToFindings(formIssues),
     ...iplToFindings(iplIssues),
     ...patchToFindings(patchIssues),
     ...truncatedToFindings(truncatedFiles),
     ...esmToFindings(esmIssues),
+    ...contractToFindings(contractFindings),
     ...mergeFindings(staticIssues, jsonIssues, [])
   ];
   const shouldReview = mode === true || (mode === 'adaptive' && deterministicFindings.some(f => f.severity === 'error'));
@@ -316,7 +340,7 @@ export async function consolidateArtifact(
     truncatedFiles,
     esmIssues
   );
-  return { files, staticIssues, jsonIssues, formIssues, iplIssues, patchIssues, truncatedFiles, esmIssues, reviewIssues, confirmedIssues, passesUsed, changed, report };
+  return { files, staticIssues, jsonIssues, formIssues, iplIssues, patchIssues, truncatedFiles, esmIssues, contractIssues: contractFindings, reviewIssues, confirmedIssues, passesUsed, changed, report };
 }
 
 export interface ConsolidationSummary {

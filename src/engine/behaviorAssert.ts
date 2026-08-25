@@ -22,6 +22,13 @@ export interface JsonAssert {
   lt?: number;
   arrayLength?: number;
   /**
+   * Presence check (spec-derived schema oracle): the JSON path must EXIST
+   * (be defined). `exists: false` asserts it is absent/undefined. This lets an
+   * oracle be generated from the spec's declared output keys (identity + type)
+   * without hard-coding exact values.
+   */
+  exists?: boolean;
+  /**
    * Approximate numeric equality (float-safe): |actual - approx| must be
    * <= tolerance (default 1e-9). Use for arithmetic sums/products that carry
    * FP error (e.g. 3.78 + 2.0 -> 5.779999999999999), so the oracle stays
@@ -149,6 +156,15 @@ export function evaluateBehavior(
     } else {
       for (const j of assert.jsonInOutput) {
         const actual = getJsonPath(json, j.path);
+        // Presence (spec-derived schema oracle) is decided before the generic
+        // "not found" guard so `exists: false` (assert absent) does not collide.
+        if (j.exists !== undefined) {
+          const present = actual !== undefined;
+          if (present !== j.exists) {
+            failures.push(`json path "${j.path}" expected to ${j.exists ? 'exist' : 'be absent'}, got ${present ? 'a value' : 'undefined'}`);
+          }
+          continue;
+        }
         if (actual === undefined) {
           failures.push(`json path "${j.path}" not found`);
           continue;
@@ -189,6 +205,7 @@ export function evaluateBehavior(
           j.gt === undefined &&
           j.lt === undefined &&
           j.arrayLength === undefined &&
+          j.exists === undefined &&
           j.approx === undefined
         ) {
           failures.push(`json path "${j.path}" has no assertion comparator`);

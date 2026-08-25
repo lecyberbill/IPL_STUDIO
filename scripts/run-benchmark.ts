@@ -38,7 +38,7 @@ import type { DeterministicRepair } from '../src/engine/deterministicRepair.ts';
 import { evaluateBehavior } from '../src/engine/behaviorAssert.ts';
 import type { BehaviorAssert } from '../src/engine/behaviorAssert.ts';
 import { analyzeIPLSemantics } from '../src/engine/iplSemantics.ts';
-import { extractIPLSemanticContract, measureSemanticPreservation } from '../src/engine/semanticPreservation.ts';
+import { extractIPLSemanticContract, measureSemanticPreservation, deriveContractContext } from '../src/engine/semanticPreservation.ts';
 import type { SemanticReceipt } from '../src/engine/semanticPreservation.ts';
 
 // ---------------------------------------------------------------------------
@@ -1210,13 +1210,17 @@ async function repairAndVerify(
       const contract = spec.verify.assert
         ? `\n\nEXPECTED RUNTIME BEHAVIOR (verify against actual program output):\n${JSON.stringify(spec.verify.assert, null, 2)}`
         : '';
+      // The spec's declared contract (identity/types/formulas/output-keys),
+      // injected as context so the repair targets the same object the oracle
+      // asserts against — not just the hand-written assert values.
+      const specContext = deriveContractContext(extractIPLSemanticContract(spec.code));
       const staticHint = missingRefs && missingRefs.length > 0
         ? `\n\nSTATIC IMPORT CHECK FAILURES (imports that reference files never generated — GENERATE THE MISSING FILES):\n${missingRefs.map(m => `- ${m.specifier} imported in ${m.importer} resolves to missing ${m.resolved}`).join('\n')}`
         : '';
       const reviewHint = reviewHints.length > 0
         ? `\n\nCODE REVIEW FINDINGS (independent reviewer — fix these too):\n${reviewHints.map(r => `- [${r.severity}] ${r.file}: ${r.message}${r.suggestion ? ` (suggested: ${r.suggestion})` : ''}`).join('\n')}`
         : '';
-      const prompt = `THE CODE FAILED THE VERIFICATION. ANALYZE THE FAILURE, FIX THE FILES, AND MAKE THE PROGRAM PRODUCE THE EXPECTED RUNTIME BEHAVIOR.\n\nFailure detail:\n${v.detail}\n\nActual program output:\n${(v.output ?? '').slice(0, 3000)}${contract}${staticHint}${reviewHint}`;
+      const prompt = `THE CODE FAILED THE VERIFICATION. ANALYZE THE FAILURE, FIX THE FILES, AND MAKE THE PROGRAM PRODUCE THE EXPECTED RUNTIME BEHAVIOR.\n\nFailure detail:\n${v.detail}\n\nActual program output:\n${(v.output ?? '').slice(0, 3000)}${contract}\n\nSPEC-DECLARED CONTRACT (the shape the output must preserve):\n${specContext}${staticHint}${reviewHint}`;
       try {
         const fixed = await withTimeout(
           refineIPLArtifact(existingXml, prompt, spec.targetLang, config, () => {}, () => {}, usage ? { usage, bucket: 'repair' } : undefined),
@@ -1467,14 +1471,20 @@ function buildLayerSection(results: RunResult[]): string[] {
 function buildSemanticSection(results: RunResult[]): string[] {
   const lines: string[] = ['## Semantic preservation (IPL → code)', ''];
   lines.push('Measured on the final shipped files. Independent of the runtime verdict: a PASS can still leak the contract, a FAIL can still reproduce it.');
+  lines.push('Aggregated across iterations: pass count, and the semantic score mean / min–max spread (a wide spread = model variance, not a stable contract).');
   lines.push('');
-  lines.push('| Spec | Status | Identity | Types | Formulas | Keys | Score |');
-  lines.push('| :--- | :---: | :---: | :---: | :---: | :---: | :---: |');
-  for (const r of results) {
-    const s = r.semantic;
-    if (!s) continue;
-    const pct = (c: { preserved: number; total: number }) => (c.total === 0 ? 'n/a' : `${c.preserved}/${c.total}`);
-    lines.push(`| ${r.specId} | ${r.status} | ${pct(s.identity)} | ${pct(s.types)} | ${pct(s.formulas)} | ${pct(s.outputKeys)} | ${s.score} |`);
+  lines.push('| Spec | n | PASS/n | Score mean | Score min–max |');
+  lines.push('| :--- | :---: | :---: | :---: | :--- |');
+  for (const [id, runs] of groupBySpec(results)) {
+    const withSem = runs.filter(r => r.semantic);
+    if (withSem.length === 0) continue;
+    const scores = withSem.map(r => r.semantic!.score);
+    const mean = Math.round((scores.reduce((s, v) => s + v, 0) / scores.length) * 1000) / 1000;
+    const min = Math.min(...scores);
+    const max = Math.max(...scores);
+    const pass = runs.filter(r => r.status === 'PASS').length;
+    const spread = min === max ? `${min}` : `${min}–${max}`;
+    lines.push(`| ${id} | ${withSem.length} | ${pass}/${runs.length} | ${mean} | ${spread} |`);
   }
   lines.push('');
   return lines;
@@ -1490,18 +1500,22 @@ function buildNlSection(results: RunResult[]): string[] {
     lines.push('_No --nl-witness runs (enable with --nl-witness)._\n');
     return lines;
   }
-  lines.push('| Spec | IPL 1st-try | NL 1st-try | IPL sem. | NL sem. | Verdict |');
-  lines.push('| :--- | :---: | :---: | :---: | :---: | :--- |');
+  lines.push('Aggregated across iterations: first-try PASS rate (no repair) for the IPL path vs the NL witness.');
+  lines.push('');
+  lines.push('| Spec | n | IPL 1st-try % | NL 1st-try % | Verdict |');
+  lines.push('| :--- | :---: | :---: | :---: | :--- |');
   for (const [id, runs] of groupBySpec(withNl)) {
-    for (const r of runs) {
-      const score = (s?: SemanticReceipt): string => (s ? `${s.score}` : 'n/a');
-      const verdict = r.nl?.status === 'PASS' && r.status !== 'PASS'
+    const iplPass = runs.filter(r => r.firstTryStatus === 'PASS').length;
+    const nlPass = runs.filter(r => r.nl?.firstTryStatus === 'PASS').length;
+    const n = runs.length;
+    const iplPct = Math.round((iplPass / n) * 100);
+    const nlPct = Math.round((nlPass / n) * 100);
+    const verdict = iplPct > nlPct
+      ? 'IPL did better — NL lacked the constraint'
+      : nlPct > iplPct
         ? 'NL did better — IPL may have over-constrained'
-        : r.status === 'PASS' && r.nl?.status !== 'PASS'
-          ? 'IPL did better — NL lacked the constraint'
-          : 'Parity';
-      lines.push(`| ${id} | ${r.status} | ${r.nl?.status} | ${score(r.semantic)} | ${score(r.nl?.semantic)} | ${verdict} |`);
-    }
+        : 'Parity';
+    lines.push(`| ${id} | ${n} | ${iplPct}% | ${nlPct}% | ${verdict} |`);
   }
   lines.push('');
   return lines;
