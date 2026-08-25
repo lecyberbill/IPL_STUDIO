@@ -974,7 +974,7 @@ interface RunResult {
   /** Phase 4 — raw Pass 1 topology JSON (for cross-iteration stability). */
   topology?: string;
   /** Phase 5 — natural-language control witness for this same spec (when --nl-witness). */
-  nl?: { status: RunStatus; firstTryStatus: RunStatus; semantic?: SemanticReceipt };
+  nl?: { status: RunStatus; firstTryStatus: RunStatus; semantic?: SemanticReceipt; inputTokens?: number; genTokens?: number };
 }
 
 // ---------------------------------------------------------------------------
@@ -2025,10 +2025,10 @@ function buildNlSection(results: RunResult[]): string[] {
     lines.push('_No --nl-witness runs (enable with --nl-witness)._\n');
     return lines;
   }
-  lines.push('Aggregated across iterations: first-try PASS rate (no repair) for the IPL path vs the NL witness.');
+  lines.push('Aggregated across iterations: first-try PASS rate (no repair) for the IPL path vs the NL witness. Tokens = estimated (chars/4), input+output on the first-try generation.');
   lines.push('');
-  lines.push('| Spec | n | IPL 1st-try % | NL 1st-try % | Verdict |');
-  lines.push('| :--- | :---: | :---: | :---: | :--- |');
+  lines.push('| Spec | n | IPL 1st-try % | NL 1st-try % | IPLin | NL in | IPL gen | NL gen | Verdict |');
+  lines.push('| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |');
   for (const [id, runs] of groupBySpec(withNl)) {
     const iplPass = runs.filter(r => r.firstTryStatus === 'PASS').length;
     const nlPass = runs.filter(r => r.nl?.firstTryStatus === 'PASS').length;
@@ -2040,7 +2040,12 @@ function buildNlSection(results: RunResult[]): string[] {
       : nlPct > iplPct
         ? 'NL did better — IPL may have over-constrained'
         : 'Parity';
-    lines.push(`| ${id} | ${n} | ${iplPct}% | ${nlPct}% | ${verdict} |`);
+    const avg = (arr: number[]) => (arr.length ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length) : 0);
+    const iplIn = approxTokens(specInputCode(SPECS.find(s => s.id === id) ?? ({ code: '' } as BenchSpec)).length);
+    const nlIn = avg(runs.map(r => r.nl?.inputTokens ?? 0));
+    const iplGen = avg(runs.map(r => (r.usage ? r.usage.generation.inputTokens + r.usage.generation.outputTokens : 0)));
+    const nlGen = avg(runs.map(r => r.nl?.genTokens ?? 0));
+    lines.push(`| ${id} | ${n} | ${iplPct}% | ${nlPct}% | ${iplIn} | ${nlIn} | ${iplGen} | ${nlGen} | ${verdict} |`);
   }
   lines.push('');
   return lines;
@@ -2378,8 +2383,9 @@ async function main(): Promise<number> {
       // Phase 5 — natural-language control witness: the SAME requirements as
       // prose, generated first-try (no repair). Compared against IPL in the report.
       if (args.nlWitness && (spec.naturalLanguage || args.nlRender) && args.mode !== 'mock') {
+        let nlUsage: RunTokenUsage | undefined;
         try {
-          const nlUsage = createRunTokenUsage(spec.naturalLanguage.length);
+          nlUsage = createRunTokenUsage(spec.naturalLanguage.length);
           const nlg = await generateNL(spec, config, args, nlUsage, formFactor);
           const nlDir = pathResolve(root, spec.id, `run-${runId}-${i}-nl`);
           rmSync(nlDir, { recursive: true, force: true });
@@ -2388,14 +2394,26 @@ async function main(): Promise<number> {
           const nlFirstTry = await verify(spec, nlDir, args);
           const nlContract = extractIPLSemanticContract(specInputCode(spec));
           const nlRes = measureSemanticPreservation(nlContract, nlWritten.parsed);
+          // Token metric for the comparison arm (P6): the brief's input cost and
+          // the NL generation cost (input+output), vs the IPL spec + generation.
+          const nlInputTokens = estimateTokens((args.nlRender ? renderNLBrief(specInputCode(spec)) : spec.naturalLanguage ?? '').length);
+          const nlGenTokens = nlUsage.generation.inputTokens + nlUsage.generation.outputTokens;
           result.nl = {
             status: nlFirstTry.status,
             firstTryStatus: nlFirstTry.status,
-            semantic: { identity: nlRes.identity, types: nlRes.types, formulas: nlRes.formulas, outputKeys: nlRes.outputKeys, controlFlow: nlRes.controlFlow, score: nlRes.score }
+            semantic: { identity: nlRes.identity, types: nlRes.types, formulas: nlRes.formulas, outputKeys: nlRes.outputKeys, controlFlow: nlRes.controlFlow, score: nlRes.score },
+            inputTokens: nlInputTokens,
+            genTokens: nlGenTokens
           };
           log(args, `nl-witness: ${nlFirstTry.status} (${nlFirstTry.detail})`, nlFirstTry.status === 'PASS' ? 'success' : 'warn');
         } catch (err: any) {
-          result.nl = { status: 'FAIL', firstTryStatus: 'FAIL' };
+          // Preserve whatever generation tokens were recorded even on a failed run.
+          result.nl = {
+            status: 'FAIL',
+            firstTryStatus: 'FAIL',
+            inputTokens: estimateTokens((args.nlRender ? renderNLBrief(specInputCode(spec)) : spec.naturalLanguage ?? '').length),
+            genTokens: nlUsage ? nlUsage.generation.inputTokens + nlUsage.generation.outputTokens : 0
+          };
           log(args, `nl-witness failed: ${err.message}`, 'error');
         }
       }
