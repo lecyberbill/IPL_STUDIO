@@ -13,6 +13,7 @@ export interface ProjectsSlice {
   renameProject: (id: string, newName: string) => void;
   setProjectOutputDir: (id: string, outputDir: string) => void;
   appendChatMessage: (msg: ChatMessage) => void;
+  clearChat: () => void;
   exportProject: (id?: string) => void;
   importProject: (fileName: string, fileContent: string) => void;
   createSourceFile: (filename: string) => void;
@@ -148,6 +149,14 @@ export const projectsSlice: StoreSlice<ProjectsSlice> = (set, get) => ({
         p.id === state.activeProjectId
           ? { ...p, chatMessages: [...(p.chatMessages ?? []), msg], updatedAt: new Date().toLocaleTimeString() }
           : p
+      )
+    }));
+  },
+
+  clearChat: () => {
+    set((state) => ({
+      projects: state.projects.map(p =>
+        p.id === state.activeProjectId ? { ...p, chatMessages: [] } : p
       )
     }));
   },

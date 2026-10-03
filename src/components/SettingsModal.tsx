@@ -80,6 +80,9 @@ export const SettingsModal: React.FC = () => {
     customTargets,
     addCustomTarget,
     deleteCustomTarget,
+    customCommands,
+    addCustomCommand,
+    deleteCustomCommand,
     consolidationEnabled,
     toggleConsolidation,
     toolchains,
@@ -90,6 +93,11 @@ export const SettingsModal: React.FC = () => {
   const [newTargetExt, setNewTargetExt] = useState('');
   const [newTargetPrompt, setNewTargetPrompt] = useState('');
   const [isAddingTarget, setIsAddingTarget] = useState(false);
+
+  const [newCommandId, setNewCommandId] = useState('');
+  const [newCommandInstruction, setNewCommandInstruction] = useState('');
+  const [newCommandDesc, setNewCommandDesc] = useState('');
+  const [isAddingCommand, setIsAddingCommand] = useState(false);
 
   const [selectedProviderId, setSelectedProviderId] = useState<string>(() => {
     const matched = CLOUD_PROVIDERS.find(p => p.endpoint && llmConfig.externalEndpoint?.includes(p.endpoint.replace('https://', '')));
@@ -164,6 +172,20 @@ export const SettingsModal: React.FC = () => {
     setNewTargetExt('');
     setNewTargetPrompt('');
     setIsAddingTarget(false);
+  };
+
+  const handleAddCommand = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCommandId.trim() || !newCommandInstruction.trim()) return;
+    addCustomCommand({
+      id: newCommandId.trim(),
+      instruction: newCommandInstruction.trim(),
+      description: newCommandDesc.trim() || undefined
+    });
+    setNewCommandId('');
+    setNewCommandInstruction('');
+    setNewCommandDesc('');
+    setIsAddingCommand(false);
   };
 
   return (
@@ -513,6 +535,87 @@ export const SettingsModal: React.FC = () => {
                     onClick={() => deleteCustomTarget(target.id)}
                     className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
                     title="Delete custom target"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Section: Custom Chat Commands (micro-commands) */}
+          <div className="pt-2 border-t border-[#2a2f42]">
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-cyan-400 font-semibold uppercase text-[10px] tracking-wider">
+                Chat Commands ({customCommands.length})
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsAddingCommand(!isAddingCommand)}
+                className="flex items-center space-x-1 px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded text-xs transition-colors"
+              >
+                <Plus size={13} />
+                <span>New Command</span>
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-500 mb-2 leading-tight">
+              Custom <code className="text-cyan-400">/commands</code> in the chat expand to an instruction (a prompt macro). Built-ins: <code className="text-cyan-400">/help /verify /generate /save /export /new /clear</code>.
+            </p>
+
+            {isAddingCommand && (
+              <form onSubmit={handleAddCommand} className="bg-[#0f1117] p-3.5 rounded-lg border border-cyan-500/40 space-y-3 mb-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-gray-400 mb-0.5">Command (without the slash)</label>
+                    <input
+                      type="text"
+                      placeholder="test"
+                      value={newCommandId}
+                      onChange={(e) => setNewCommandId(e.target.value)}
+                      className="w-full bg-[#161922] border border-[#2a2f42] rounded px-2.5 py-1 font-mono text-cyan-300 text-xs focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-gray-400 mb-0.5">Short description</label>
+                    <input
+                      type="text"
+                      placeholder="Write unit tests"
+                      value={newCommandDesc}
+                      onChange={(e) => setNewCommandDesc(e.target.value)}
+                      className="w-full bg-[#161922] border border-[#2a2f42] rounded px-2.5 py-1 text-xs text-gray-200 focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400 mb-0.5">Instruction sent to the LLM when the command runs (use @file to focus a file):</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Write minimal, runnable unit tests for @src/app.js ..."
+                    value={newCommandInstruction}
+                    onChange={(e) => setNewCommandInstruction(e.target.value)}
+                    className="w-full bg-[#161922] border border-[#2a2f42] rounded p-2 font-mono text-xs text-gray-200 focus:outline-none focus:border-cyan-500 resize-none"
+                  />
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <button type="button" onClick={() => setIsAddingCommand(false)} className="px-3 py-1 bg-[#2a2f42] text-gray-300 rounded text-xs">Cancel</button>
+                  <button type="submit" className="px-3 py-1 bg-cyan-500 hover:bg-cyan-400 text-black font-bold rounded text-xs">Add Command</button>
+                </div>
+              </form>
+            )}
+
+            <div className="space-y-2">
+              {customCommands.map((cmd) => (
+                <div key={cmd.id} className="bg-[#0f1117] p-2.5 rounded-lg border border-[#2a2f42] flex items-start justify-between text-xs">
+                  <div className="min-w-0 pr-2">
+                    <span className="font-bold text-cyan-300 font-mono">/{cmd.id}</span>
+                    {cmd.description && <span className="text-[10px] text-gray-500 ml-2">{cmd.description}</span>}
+                    <p className="text-[10px] text-gray-500 truncate mt-0.5">{cmd.instruction}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => deleteCustomCommand(cmd.id)}
+                    className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors shrink-0"
+                    title="Delete command"
                   >
                     <Trash2 size={14} />
                   </button>

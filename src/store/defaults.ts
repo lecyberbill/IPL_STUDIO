@@ -1,4 +1,11 @@
 import type { CustomTarget, IPLProject, PolyglotConfig, ChatMessage } from './types';
+import type { CustomCommand } from '../engine/chatCommands';
+
+/** Example chat micro-commands seeded so the feature is discoverable. */
+export const DEFAULT_CUSTOM_COMMANDS: CustomCommand[] = [
+  { id: 'test', instruction: 'Write minimal, runnable unit tests for the focused artifact file(s).', description: 'Write unit tests for a file (@mention it).' },
+  { id: 'doc', instruction: 'Add concise documentation comments to the focused artifact file(s).', description: 'Document a file.' }
+];
 
 /** The assistant greeting seeded into every new project's (persisted) chat history. */
 export const welcomeChatMessage = (): ChatMessage => ({

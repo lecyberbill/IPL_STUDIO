@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
 import { welcomeChatMessage } from '../store/defaults';
-import { parseMultiFileXml } from '../engine/artifactGenerator';
+import { parseMultiFileXml, downloadProjectZip } from '../engine/artifactGenerator';
 import { extractArtifactMentions, filterMentionCandidates } from '../engine/artifactMentions';
+import { parseChatCommand, filterCommands, allCommandMetas, expandCustomCommand } from '../engine/chatCommands';
 import type { ChatMessage } from '../store/types';
 import { Send, Bot, User, RefreshCw, FolderCheck, FileCode } from 'lucide-react';
 import { MarkdownViewer } from './MarkdownViewer';
@@ -10,14 +11,23 @@ import { MarkdownViewer } from './MarkdownViewer';
 export type { ChatMessage };
 
 export const ChatPanel: React.FC = () => {
-  const { requestLLMCorrection, isGenerating, addLog, projects, activeProjectId, appendChatMessage, generatedCode } = useIdeStore();
+  const { requestLLMCorrection, isGenerating, addLog, projects, activeProjectId, appendChatMessage, generatedCode, customCommands } = useIdeStore();
   const [inputPrompt, setInputPrompt] = useState('');
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionStart, setMentionStart] = useState(-1);
   const [mentionIndex, setMentionIndex] = useState(0);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState('');
+  const [commandIndex, setCommandIndex] = useState(0);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const commandMetas = useMemo(() => allCommandMetas(customCommands), [customCommands]);
+  const commandCandidates = useMemo(
+    () => (commandOpen ? filterCommands(commandQuery, commandMetas) : []),
+    [commandOpen, commandQuery, commandMetas]
+  );
 
   // Artifact files available for `@` mentions.
   const artifactPaths = useMemo(() => parseMultiFileXml(generatedCode || '').map(f => f.relativePath), [generatedCode]);
@@ -45,6 +55,51 @@ export const ChatPanel: React.FC = () => {
     setInputPrompt(`${before}@${path} ${after}`);
     setMentionOpen(false);
     requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
+  /** Opens/closes the `/command` autocomplete (commands must lead the message). */
+  const updateCommand = (value: string) => {
+    const m = value.match(/^\/([a-z-]*)$/i);
+    if (!m) { setCommandOpen(false); return; }
+    setCommandQuery(m[1].toLowerCase());
+    setCommandIndex(0);
+    setCommandOpen(true);
+  };
+  const applyCommand = (id: string) => {
+    setInputPrompt(`/${id} `);
+    setCommandOpen(false);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
+  /** Runs a built-in action command (the store, via getState). */
+  const runActionCommand = async (id: string, args: string): Promise<string> => {
+    const s = useIdeStore.getState();
+    switch (id) {
+      case 'help':
+        return 'Available commands:\n' + commandMetas.map(c => `- \`${c.usage}\` — ${c.description}`).join('\n');
+      case 'verify':
+        s.verifyCurrentArtifact();
+        return `Verification: ${useIdeStore.getState().verificationResult?.summary ?? '(no result)'}`;
+      case 'generate':
+        await s.runGeneration();
+        return 'Generation finished — see the Artifact tab.';
+      case 'save':
+        await s.writeArtifactToDisk();
+        return 'Artifact saved to the project output folder.';
+      case 'export': {
+        const p = s.projects.find(x => x.id === s.activeProjectId);
+        await downloadProjectZip(p?.name || 'ipl_project', s.targetLang, s.generatedCode, s.code);
+        return 'Artifact exported as .zip.';
+      }
+      case 'new':
+        s.createProject(args || 'New Project');
+        return `Created project "${args || 'New Project'}".`;
+      case 'clear':
+        s.clearChat();
+        return 'Chat cleared.';
+      default:
+        return `Unknown command: /${id}. Type /help.`;
+    }
   };
 
   // Per-project, persisted chat history (survives switches + reloads).
@@ -75,6 +130,27 @@ export const ChatPanel: React.FC = () => {
 
     addLog(`[LLM Chat] User request: "${userText}"`, 'info');
 
+    // Micro-command? `/command` runs an action or expands a custom macro.
+    const cmd = parseChatCommand(userText);
+    if (cmd) {
+      const meta = commandMetas.find(m => m.id === cmd.id);
+      const reply = async (): Promise<{ text: string; codeChanged?: boolean }> => {
+        if (meta?.kind === 'prompt') {
+          const custom = customCommands.find(c => c.id === cmd.id);
+          const effective = expandCustomCommand(custom?.instruction || '', cmd.args);
+          const history = messages.map(m => ({ role: m.sender, content: m.text }));
+          const focus = extractArtifactMentions(effective, artifactPaths);
+          const { textReply, codeChanged } = await requestLLMCorrection(effective, history, focus);
+          return { text: textReply, codeChanged };
+        }
+        return { text: await runActionCommand(cmd.id, cmd.args) };
+      };
+      let res: { text: string; codeChanged?: boolean } = { text: '' };
+      try { res = await reply(); } catch (e: any) { res = { text: `Command failed: ${e.message}` }; }
+      appendChatMessage({ id: `reply-${Date.now()}`, sender: 'assistant', text: res.text, codeChanged: res.codeChanged, timestamp: new Date().toLocaleTimeString() });
+      return;
+    }
+
     try {
       // Pass the prior turns so a short reply like "oui" has its context (the
       // assistant's previous question/plan) — the chat is multi-turn, not stateless.
@@ -103,6 +179,13 @@ export const ChatPanel: React.FC = () => {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // `/command` autocomplete owns the arrows / Enter / Escape while open.
+    if (commandOpen && commandCandidates.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setCommandIndex(i => Math.min(i + 1, commandCandidates.length - 1)); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setCommandIndex(i => Math.max(i - 1, 0)); return; }
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); applyCommand(commandCandidates[commandIndex].id); return; }
+      if (e.key === 'Escape') { e.preventDefault(); setCommandOpen(false); return; }
+    }
     // `@` autocomplete owns the arrows / Enter / Escape while open.
     if (mentionOpen && candidates.length > 0) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIndex(i => Math.min(i + 1, candidates.length - 1)); return; }
@@ -196,6 +279,26 @@ export const ChatPanel: React.FC = () => {
 
       {/* Input Footer Form */}
       <form onSubmit={handleSend} className="p-2.5 border-t border-[#2a2f42] bg-[#0f1117] flex flex-col space-y-1.5 shrink-0 relative">
+        {/* `/command` autocomplete */}
+        {commandOpen && commandCandidates.length > 0 && (
+          <div className="absolute bottom-[100%] left-2.5 mb-1 w-80 max-h-56 overflow-y-auto bg-[#161922] border border-cyan-500/40 rounded-lg shadow-2xl z-30">
+            <div className="px-2 py-1 text-[9px] text-gray-500 font-mono border-b border-[#2a2f42]">Commands</div>
+            {commandCandidates.map((c, i) => (
+              <button
+                type="button"
+                key={c.id}
+                onMouseDown={(e) => { e.preventDefault(); applyCommand(c.id); }}
+                className={`w-full text-left px-2 py-1.5 text-[11px] flex flex-col transition-colors ${
+                  i === commandIndex ? 'bg-cyan-500/20' : 'hover:bg-[#2a2f42]'
+                }`}
+              >
+                <span className="font-mono text-cyan-300">{c.usage}{c.kind === 'prompt' ? ' · custom' : ''}</span>
+                <span className="text-[10px] text-gray-400 truncate">{c.description}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* `@file` autocomplete */}
         {mentionOpen && candidates.length > 0 && (
           <div className="absolute bottom-[100%] left-2.5 mb-1 w-72 max-h-48 overflow-y-auto bg-[#161922] border border-cyan-500/40 rounded-lg shadow-2xl z-30">
@@ -221,7 +324,7 @@ export const ChatPanel: React.FC = () => {
             rows={2}
             placeholder="Ask LLM Architect... (type @ to reference an artifact file)"
             value={inputPrompt}
-            onChange={(e) => { setInputPrompt(e.target.value); updateMention(e.target.value, e.target.selectionStart ?? e.target.value.length); }}
+            onChange={(e) => { setInputPrompt(e.target.value); updateCommand(e.target.value); updateMention(e.target.value, e.target.selectionStart ?? e.target.value.length); }}
             onKeyDown={handleKeyDown}
             disabled={isGenerating}
             className="flex-1 bg-[#161922] border border-[#2a2f42] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 disabled:opacity-50 font-sans resize-none min-h-[42px] max-h-[140px] scrollbar-thin select-text"

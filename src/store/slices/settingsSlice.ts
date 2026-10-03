@@ -3,7 +3,8 @@ import { DEFAULT_LLM_CONFIG } from '../../engine/llmGenerator';
 import type { Toolchains } from '../../engine/toolchains';
 import type { CustomTarget, PolyglotConfig } from '../types';
 import type { StoreSlice } from '../types';
-import { DEFAULT_CUSTOM_TARGETS, DEFAULT_POLYGLOT_CONFIG, DEFAULT_LAYOUT } from '../defaults';
+import { BUILTIN_COMMANDS, type CustomCommand } from '../../engine/chatCommands';
+import { DEFAULT_CUSTOM_TARGETS, DEFAULT_POLYGLOT_CONFIG, DEFAULT_LAYOUT, DEFAULT_CUSTOM_COMMANDS } from '../defaults';
 
 export interface SettingsSlice {
   llmConfig: LLMConfig;
@@ -17,6 +18,11 @@ export interface SettingsSlice {
   polyglotConfig: PolyglotConfig;
   isPolyglotModalOpen: boolean;
   customTargets: CustomTarget[];
+  /** User-defined chat micro-commands (`/id` → instruction macro). */
+  customCommands: CustomCommand[];
+  addCustomCommand: (cmd: CustomCommand) => void;
+  updateCustomCommand: (id: string, patch: Partial<CustomCommand>) => void;
+  deleteCustomCommand: (id: string) => void;
   leftSidebarWidth: number;
   rightSidebarWidth: number;
   hasSeenWelcome: boolean;
@@ -53,6 +59,7 @@ export const settingsSlice: StoreSlice<SettingsSlice> = (set, get) => ({
   polyglotConfig: DEFAULT_POLYGLOT_CONFIG,
   isPolyglotModalOpen: false,
   customTargets: DEFAULT_CUSTOM_TARGETS,
+  customCommands: DEFAULT_CUSTOM_COMMANDS,
   leftSidebarWidth: DEFAULT_LAYOUT.leftSidebarWidth,
   rightSidebarWidth: DEFAULT_LAYOUT.rightSidebarWidth,
   hasSeenWelcome: false,
@@ -81,6 +88,24 @@ export const settingsSlice: StoreSlice<SettingsSlice> = (set, get) => ({
   deleteCustomTarget: (id: string) => {
     set((state) => ({ customTargets: state.customTargets.filter(t => t.id !== id) }));
     get().addLog(`Custom target "${id}" removed.`, 'info');
+  },
+
+  addCustomCommand: (cmd) => {
+    const id = cmd.id.trim().toLowerCase().replace(/^\/+/, '').replace(/[^a-z0-9-]/g, '-');
+    if (!id) return;
+    if (BUILTIN_COMMANDS.some(b => b.id === id) || get().customCommands.some(c => c.id === id)) {
+      get().addLog(`Command "/${id}" already exists.`, 'warn');
+      return;
+    }
+    set((state) => ({ customCommands: [...state.customCommands, { ...cmd, id }] }));
+    get().addLog(`Command "/${id}" added.`, 'success');
+  },
+  updateCustomCommand: (id, patch) => {
+    set((state) => ({ customCommands: state.customCommands.map(c => (c.id === id ? { ...c, ...patch } : c)) }));
+  },
+  deleteCustomCommand: (id) => {
+    set((state) => ({ customCommands: state.customCommands.filter(c => c.id !== id) }));
+    get().addLog(`Command "/${id}" removed.`, 'info');
   },
 
   setLLMConfig: (configUpdate) => set((state) => ({

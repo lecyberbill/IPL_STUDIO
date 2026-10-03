@@ -4,6 +4,7 @@ import type { SyntaxErrorItem, IPLVerb } from '../engine/iplGrammar';
 import type { ConsolidationResult } from '../engine/consolidationAgent';
 import type { SmokeResult, SmokeVerdict } from '../engine/smokeCheck';
 import type { ArtifactVerification } from '../engine/verifyArtifact';
+import type { CustomCommand } from '../engine/chatCommands';
 import type { Toolchains } from '../engine/toolchains';
 import type { StateCreator } from 'zustand';
 
@@ -96,6 +97,11 @@ export interface IDEState {
   customTargets: CustomTarget[];
   addCustomTarget: (target: Omit<CustomTarget, 'id'>) => void;
   deleteCustomTarget: (id: string) => void;
+  /** User-defined chat micro-commands (`/id` → instruction macro). */
+  customCommands: CustomCommand[];
+  addCustomCommand: (cmd: CustomCommand) => void;
+  updateCustomCommand: (id: string, patch: Partial<CustomCommand>) => void;
+  deleteCustomCommand: (id: string) => void;
 
   // Projects Management
   projects: IPLProject[];
@@ -181,6 +187,8 @@ export interface IDEState {
   setProjectOutputDir: (id: string, outputDir: string) => void;
   /** Append a chat turn to the active project (persisted, per project). */
   appendChatMessage: (msg: ChatMessage) => void;
+  /** Clear the active project's chat history. */
+  clearChat: () => void;
   exportProject: (id?: string) => void;
   importProject: (fileName: string, fileContent: string) => void;
   writeArtifactToDisk: (id?: string) => Promise<boolean>;
