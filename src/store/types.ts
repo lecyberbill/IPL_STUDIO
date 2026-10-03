@@ -114,6 +114,8 @@ export interface IDEState {
   verificationResult: ArtifactVerification | null;
   /** Verify the current artifact against the current IPL contract (pure, no LLM, no spawn). */
   verifyCurrentArtifact: () => void;
+  /** Verify an EXTERNAL artifact (pasted/imported) against a contract — no generation. */
+  verifyArtifactInput: (artifactText: string, specText: string, opts?: { formFactor?: FormFactor; path?: string }) => void;
   /** File selected in the generated-files viewer (right sidebar). */
   selectedFilePath: string;
   setSelectedFilePath: (path: string) => void;

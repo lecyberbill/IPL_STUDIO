@@ -3,11 +3,12 @@ import { useIdeStore } from '../store/useIdeStore';
 import { TerminalPanel } from './TerminalPanel';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
 import { DeliveryPanel } from './DeliveryPanel';
-import { Terminal, Trash2, Info, CheckCircle2, AlertTriangle, AlertCircle, ChevronUp, ChevronDown, ListChecks, PackageCheck, Maximize2, Minimize2 } from 'lucide-react';
+import { VerifyPanel } from './VerifyPanel';
+import { Terminal, Trash2, Info, CheckCircle2, AlertTriangle, AlertCircle, ChevronUp, ChevronDown, ListChecks, PackageCheck, ShieldCheck, Maximize2, Minimize2 } from 'lucide-react';
 
 export const ConsolePanel: React.FC = () => {
   const { logs, clearLogs, syntaxErrors, consolidationResult } = useIdeStore();
-  const [activeTab, setActiveTab] = useState<'terminal' | 'diagnostics' | 'delivery' | 'logs'>('terminal');
+  const [activeTab, setActiveTab] = useState<'terminal' | 'diagnostics' | 'delivery' | 'verify' | 'logs'>('terminal');
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
   const [isMaximized, setIsMaximized] = useState<boolean>(false);
 
@@ -68,6 +69,18 @@ export const ConsolePanel: React.FC = () => {
           </button>
 
           <button
+            onClick={() => { setActiveTab('verify'); setIsExpanded(true); }}
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+              activeTab === 'verify' && isExpanded
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <ShieldCheck size={14} />
+            <span>Verify artifact</span>
+          </button>
+
+          <button
             onClick={() => { setActiveTab('logs'); setIsExpanded(true); }}
             className={`flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all ${
               activeTab === 'logs' && isExpanded
@@ -118,6 +131,8 @@ export const ConsolePanel: React.FC = () => {
             <DiagnosticsPanel />
           ) : activeTab === 'delivery' ? (
             <DeliveryPanel />
+          ) : activeTab === 'verify' ? (
+            <VerifyPanel />
           ) : (
             <div className="h-full overflow-y-auto p-3 space-y-1.5 font-mono text-xs select-text">
               {logs.length === 0 && (

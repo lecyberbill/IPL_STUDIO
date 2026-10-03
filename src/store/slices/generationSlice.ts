@@ -34,6 +34,7 @@ export interface GenerationSlice {
   /** Artifact verification (Pure IDE): gates + semantic receipt + parity, independent of generation. */
   verificationResult: ArtifactVerification | null;
   verifyCurrentArtifact: () => void;
+  verifyArtifactInput: (artifactText: string, specText: string, opts?: { formFactor?: FormFactor; path?: string }) => void;
   clearGenerationError: () => void;
   runGeneration: () => Promise<void>;
   requestLLMCorrection: (userPrompt: string, history?: ChatTurn[]) => Promise<{ textReply: string; codeChanged: boolean }>;
@@ -230,6 +231,22 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
     set({ verificationResult: result });
     addLog(
       `[Verify] ${result.summary}`,
+      result.verdict === 'pass' ? 'success' : result.verdict === 'warn' ? 'warn' : 'error'
+    );
+  },
+
+  /** Verify an EXTERNAL artifact (pasted/imported) — no generation involved. */
+  verifyArtifactInput: (artifactText, specText, opts) => {
+    const { addLog } = get();
+    const parsed = parseMultiFileXml(artifactText || '');
+    // Accept the app's <file> XML, or a single pasted file (name via opts.path).
+    const files = parsed.length > 0 || !artifactText.trim()
+      ? parsed
+      : [{ relativePath: opts?.path || 'main.js', content: artifactText }];
+    const result = verifyArtifact(files, specText || '', { formFactor: opts?.formFactor });
+    set({ verificationResult: result });
+    addLog(
+      `[Verify] external artifact → ${result.summary}`,
       result.verdict === 'pass' ? 'success' : result.verdict === 'warn' ? 'warn' : 'error'
     );
   },
