@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { useIdeStore } from '../store/useIdeStore';
-import { buildProjectArtifact, downloadProjectZip } from '../engine/artifactGenerator';
+import { downloadProjectZip, parseMultiFileXml } from '../engine/artifactGenerator';
 import { defaultOutputDir } from '../engine/paths';
 import {
   Code,
@@ -15,6 +15,9 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
+  FilePlus,
+  Pencil,
+  Trash2,
   Settings,
   AlertCircle,
   X
@@ -88,7 +91,10 @@ export const ArtifactFilesPanel: React.FC = () => {
     generationError,
     clearGenerationError,
     selectedFilePath,
-    setSelectedFilePath
+    setSelectedFilePath,
+    renameArtifactFile,
+    deleteArtifactFile,
+    addArtifactFile
   } = useIdeStore();
 
   const [copied, setCopied] = useState(false);
@@ -107,8 +113,9 @@ export const ArtifactFilesPanel: React.FC = () => {
   const activeProject = projects.find(p => p.id === activeProjectId);
   const outputDir = activeProject?.outputDir || defaultOutputDir(activeProject?.name || 'my_project');
 
-  const artifact = buildProjectArtifact(activeProject?.name || 'ipl_project', targetLang, generatedCode, code);
-  const files = artifact.files;
+  // The artifact manager operates on the REAL artifact files (the model output),
+  // so rename/delete/create persist into `generatedCode`.
+  const files = parseMultiFileXml(generatedCode || '');
   const currentFile = files.find(f => f.relativePath === selectedFilePath) || files[0] || { relativePath: 'code.txt', content: generatedCode };
 
   useEffect(() => {
@@ -124,6 +131,20 @@ export const ArtifactFilesPanel: React.FC = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  // Artifact manager actions (persist into generatedCode).
+  const handleNewFile = () => {
+    const p = window.prompt('New file path (e.g. src/utils.js):', 'newfile.js');
+    if (p && p.trim()) addArtifactFile(p.trim());
+  };
+  const handleRename = () => {
+    const next = window.prompt('Rename file:', currentFile.relativePath);
+    if (next && next.trim() && next.trim() !== currentFile.relativePath) renameArtifactFile(currentFile.relativePath, next.trim());
+  };
+  const handleDelete = () => {
+    if (!window.confirm(`Delete "${currentFile.relativePath}" from the artifact?`)) return;
+    deleteArtifactFile(currentFile.relativePath);
   };
 
   const handleCopyPath = () => {
@@ -195,6 +216,13 @@ export const ArtifactFilesPanel: React.FC = () => {
           <span className="text-gray-500">· {isGenerating ? 'generating...' : files.length > 0 ? `${files.length} file(s)` : 'idle'}</span>
         </div>
         <div className="flex items-center space-x-1">
+          <button
+            onClick={handleNewFile}
+            className="p-1 text-gray-400 hover:text-cyan-300 hover:bg-[#2a2f42] rounded transition-colors"
+            title="New file in the artifact"
+          >
+            <FilePlus size={13} />
+          </button>
           <button
             onClick={handleWriteDisk}
             disabled={isWritingDisk || !generatedCode}
@@ -324,7 +352,23 @@ export const ArtifactFilesPanel: React.FC = () => {
                   ))}
                 </select>
               </div>
-              <span className="shrink-0 text-gray-400">{currentFile?.content ? currentFile.content.length : 0} chars</span>
+              <div className="flex items-center space-x-1 shrink-0">
+                <button
+                  onClick={handleRename}
+                  className="p-1 text-gray-400 hover:text-cyan-300 hover:bg-[#2a2f42] rounded transition-colors"
+                  title="Rename this file"
+                >
+                  <Pencil size={12} />
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="p-1 text-gray-400 hover:text-rose-400 hover:bg-[#2a2f42] rounded transition-colors"
+                  title="Delete this file from the artifact"
+                >
+                  <Trash2 size={12} />
+                </button>
+                <span className="text-gray-400">{currentFile?.content ? currentFile.content.length : 0} chars</span>
+              </div>
             </div>
             <div className="flex-1 min-h-0 bg-[#0b0d13]">
               <Editor

@@ -56,6 +56,10 @@ export interface IDEState {
   code: string;
   targetLang: TargetLanguage;
   generatedCode: string;
+  /** Artifact manager: rename / delete / create a file inside the generated artifact. */
+  renameArtifactFile: (oldPath: string, newPath: string) => void;
+  deleteArtifactFile: (path: string) => void;
+  addArtifactFile: (path: string, content?: string) => void;
   isGenerating: boolean;
   editorViewMode: 'text' | 'blocks';
   syntaxErrors: SyntaxErrorItem[];

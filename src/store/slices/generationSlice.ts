@@ -20,6 +20,10 @@ import type { StoreSlice } from '../types';
 
 export interface GenerationSlice {
   generatedCode: string;
+  /** Artifact manager: rename / delete / create a file inside the generated artifact. */
+  renameArtifactFile: (oldPath: string, newPath: string) => void;
+  deleteArtifactFile: (path: string) => void;
+  addArtifactFile: (path: string, content?: string) => void;
   isGenerating: boolean;
   pendingClarification: ClarificationRequest | null;
   generationError: string | null;
@@ -249,6 +253,44 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
       `[Verify] external artifact → ${result.summary}`,
       result.verdict === 'pass' ? 'success' : result.verdict === 'warn' ? 'warn' : 'error'
     );
+  },
+
+  /** Rename a file inside the generated artifact (rewrites `generatedCode`). */
+  renameArtifactFile: (oldPath, newPath) => {
+    const { generatedCode, addLog, selectedFilePath } = get();
+    const clean = newPath.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+    if (!clean || clean.includes('..')) { addLog('[Artifact] Invalid file name.', 'warn'); return; }
+    const files = parseMultiFileXml(generatedCode || '');
+    if (!files.some(f => f.relativePath === oldPath)) { addLog(`[Artifact] "${oldPath}" not found.`, 'warn'); return; }
+    if (files.some(f => f.relativePath === clean)) { addLog(`[Artifact] "${clean}" already exists.`, 'warn'); return; }
+    const next = files.map(f => (f.relativePath === oldPath ? { ...f, relativePath: clean } : f));
+    set({ generatedCode: filesToXml(next) });
+    if (selectedFilePath === oldPath) get().setSelectedFilePath(clean);
+    addLog(`[Artifact] Renamed "${oldPath}" → "${clean}".`, 'info');
+  },
+
+  /** Delete a file from the generated artifact (rewrites `generatedCode`). */
+  deleteArtifactFile: (path) => {
+    const { generatedCode, addLog, selectedFilePath } = get();
+    const files = parseMultiFileXml(generatedCode || '');
+    const next = files.filter(f => f.relativePath !== path);
+    if (next.length === files.length) { addLog(`[Artifact] "${path}" not found.`, 'warn'); return; }
+    set({ generatedCode: filesToXml(next) });
+    if (selectedFilePath === path) get().setSelectedFilePath(next[0]?.relativePath || '');
+    addLog(`[Artifact] Deleted "${path}".`, 'info');
+  },
+
+  /** Add a new (empty) file to the generated artifact. */
+  addArtifactFile: (path, content = '') => {
+    const { generatedCode, addLog } = get();
+    const clean = path.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+    if (!clean || clean.includes('..')) { addLog('[Artifact] Invalid file name.', 'warn'); return; }
+    const files = parseMultiFileXml(generatedCode || '');
+    if (files.some(f => f.relativePath === clean)) { addLog(`[Artifact] "${clean}" already exists.`, 'warn'); return; }
+    const next = [...files, { relativePath: clean, content }];
+    set({ generatedCode: filesToXml(next) });
+    get().setSelectedFilePath(clean);
+    addLog(`[Artifact] Created "${clean}".`, 'info');
   },
 
   runGeneration: async () => {
