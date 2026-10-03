@@ -30,7 +30,7 @@ export const editorSlice: StoreSlice<EditorSlice> = (set, get) => ({
   syntaxErrors: [],
   editorInstance: null,
   selectedFilePath: '',
-  leftPanelTab: 'verbs',
+  leftPanelTab: 'sources',
 
   setSelectedFilePath: (selectedFilePath) => set({ selectedFilePath }),
   setLeftPanelTab: (leftPanelTab) => set({ leftPanelTab }),

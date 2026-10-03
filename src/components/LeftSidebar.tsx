@@ -25,10 +25,7 @@ export const LeftSidebar: React.FC = () => {
       {/* Header Tabs */}
       <div className="h-10 border-b border-[#2a2f42] px-2 flex items-center justify-between bg-[#0f1117] shrink-0">
         <div className="flex items-center space-x-1 w-full">
-          <button onClick={() => setLeftPanelTab('verbs')} className={tab('verbs')} title="IPL verb palette">
-            <Layers size={13} />
-            <span>Verbs</span>
-          </button>
+          {/* Files first (the contract + the artifact); IPL the language (verbs) last — it is a means, not the centre. */}
           <button onClick={() => setLeftPanelTab('sources')} className={tab('sources')} title="The .ipl SOURCES — the contract">
             <FolderGit2 size={13} />
             <span>Sources</span>
@@ -36,6 +33,10 @@ export const LeftSidebar: React.FC = () => {
           <button onClick={() => setLeftPanelTab('artifact')} className={tab('artifact')} title="The generated/imported ARTIFACT">
             <Package size={13} />
             <span>Artifact</span>
+          </button>
+          <button onClick={() => setLeftPanelTab('verbs')} className={tab('verbs')} title="IPL verb palette (a means, not the centre)">
+            <Layers size={13} />
+            <span>Verbs</span>
           </button>
         </div>
       </div>
