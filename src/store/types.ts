@@ -14,6 +14,15 @@ export interface LogEntry {
   text: string;
 }
 
+/** A chat turn, persisted per project so the conversation survives reloads. */
+export interface ChatMessage {
+  id: string;
+  sender: 'user' | 'assistant';
+  text: string;
+  codeChanged?: boolean;
+  timestamp: string;
+}
+
 export interface IPLProject {
   id: string;
   name: string;
@@ -23,6 +32,8 @@ export interface IPLProject {
   outputDir?: string;
   sourceFiles?: Record<string, string>;
   activeSourceFile?: string;
+  /** Per-project chat history (survives project switches and reloads). */
+  chatMessages?: ChatMessage[];
   updatedAt: string;
 }
 
@@ -166,6 +177,8 @@ export interface IDEState {
   switchProject: (id: string) => void;
   renameProject: (id: string, newName: string) => void;
   setProjectOutputDir: (id: string, outputDir: string) => void;
+  /** Append a chat turn to the active project (persisted, per project). */
+  appendChatMessage: (msg: ChatMessage) => void;
   exportProject: (id?: string) => void;
   importProject: (fileName: string, fileContent: string) => void;
   writeArtifactToDisk: (id?: string) => Promise<boolean>;

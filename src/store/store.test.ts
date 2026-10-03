@@ -145,6 +145,26 @@ describe('projectsSlice', () => {
     expect(proj.outputDir).toBe('output/custom');
   });
 
+  it('appendChatMessage persists a turn on the ACTIVE project only', () => {
+    const store = createTestStore();
+    const a = store.getState().activeProjectId;
+    store.getState().appendChatMessage({ id: 'm1', sender: 'user', text: 'hi', timestamp: 't' });
+    const pa = store.getState().projects.find(p => p.id === a)!;
+    expect(pa.chatMessages?.some(m => m.text === 'hi')).toBe(true);
+    // Another project is untouched.
+    const other = store.getState().projects.find(p => p.id !== a)!;
+    expect((other.chatMessages ?? []).some(m => m.text === 'hi')).toBe(false);
+  });
+
+  it('createProject seeds a welcome chat message', () => {
+    const store = createTestStore();
+    store.getState().createProject('Chat Proj');
+    const s = store.getState();
+    const proj = s.projects.find(p => p.id === s.activeProjectId)!;
+    expect(proj.chatMessages?.length).toBe(1);
+    expect(proj.chatMessages?.[0].sender).toBe('assistant');
+  });
+
   it('createSourceFile adds a file map and switches to it', () => {
     const store = createTestStore();
     store.getState().createSourceFile('auth.ipl');

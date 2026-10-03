@@ -1,8 +1,8 @@
 import { validateIPLCode } from '../../engine/iplGrammar';
 import { defaultOutputDir } from '../../engine/paths';
-import type { IPLProject } from '../types';
+import type { IPLProject, ChatMessage } from '../types';
 import type { StoreSlice } from '../types';
-import { DEFAULT_PROJECTS } from '../defaults';
+import { DEFAULT_PROJECTS, welcomeChatMessage } from '../defaults';
 
 export interface ProjectsSlice {
   projects: IPLProject[];
@@ -12,6 +12,7 @@ export interface ProjectsSlice {
   switchProject: (id: string) => void;
   renameProject: (id: string, newName: string) => void;
   setProjectOutputDir: (id: string, outputDir: string) => void;
+  appendChatMessage: (msg: ChatMessage) => void;
   exportProject: (id?: string) => void;
   importProject: (fileName: string, fileContent: string) => void;
   createSourceFile: (filename: string) => void;
@@ -34,6 +35,7 @@ export const projectsSlice: StoreSlice<ProjectsSlice> = (set, get) => ({
       code: defaultCode,
       targetLang: 'python',
       outputDir: finalOutputDir,
+      chatMessages: [welcomeChatMessage()],
       updatedAt: new Date().toLocaleTimeString()
     };
 
@@ -131,6 +133,16 @@ export const projectsSlice: StoreSlice<ProjectsSlice> = (set, get) => ({
       )
     }));
     get().addLog(`Output directory associated with project: "${outputDir.trim()}"`, 'info');
+  },
+
+  appendChatMessage: (msg) => {
+    set((state) => ({
+      projects: state.projects.map(p =>
+        p.id === state.activeProjectId
+          ? { ...p, chatMessages: [...(p.chatMessages ?? []), msg], updatedAt: new Date().toLocaleTimeString() }
+          : p
+      )
+    }));
   },
 
   exportProject: (id?: string) => {

@@ -1,28 +1,23 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
+import { welcomeChatMessage } from '../store/defaults';
+import type { ChatMessage } from '../store/types';
 import { Send, Bot, User, RefreshCw, FolderCheck } from 'lucide-react';
 import { MarkdownViewer } from './MarkdownViewer';
 
-export interface ChatMessage {
-  id: string;
-  sender: 'user' | 'assistant';
-  text: string;
-  codeChanged?: boolean;
-  timestamp: string;
-}
+export type { ChatMessage };
 
 export const ChatPanel: React.FC = () => {
-  const { requestLLMCorrection, isGenerating, addLog } = useIdeStore();
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      sender: 'assistant',
-      text: 'Hello! I am your LLM Architect. Ask me general questions or instruct me to add features, refactor code, or fix errors in your project files.',
-      timestamp: new Date().toLocaleTimeString()
-    }
-  ]);
+  const { requestLLMCorrection, isGenerating, addLog, projects, activeProjectId, appendChatMessage } = useIdeStore();
   const [inputPrompt, setInputPrompt] = useState('');
   const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  // Per-project, persisted chat history (survives switches + reloads).
+  const activeProj = projects.find(p => p.id === activeProjectId);
+  const messages: ChatMessage[] = useMemo(
+    () => (activeProj?.chatMessages && activeProj.chatMessages.length > 0 ? activeProj.chatMessages : [welcomeChatMessage()]),
+    [activeProj?.chatMessages]
+  );
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -40,7 +35,7 @@ export const ChatPanel: React.FC = () => {
       timestamp: new Date().toLocaleTimeString()
     };
 
-    setMessages(prev => [...prev, userMsg]);
+    appendChatMessage(userMsg);
     setInputPrompt('');
 
     addLog(`[LLM Chat] User request: "${userText}"`, 'info');
@@ -58,7 +53,7 @@ export const ChatPanel: React.FC = () => {
         codeChanged,
         timestamp: new Date().toLocaleTimeString()
       };
-      setMessages(prev => [...prev, botReply]);
+      appendChatMessage(botReply);
     } catch (err: any) {
       const errorMsg: ChatMessage = {
         id: `err-${Date.now()}`,
@@ -66,7 +61,7 @@ export const ChatPanel: React.FC = () => {
         text: `Error processing request: ${err.message}`,
         timestamp: new Date().toLocaleTimeString()
       };
-      setMessages(prev => [...prev, errorMsg]);
+      appendChatMessage(errorMsg);
     }
   };
 

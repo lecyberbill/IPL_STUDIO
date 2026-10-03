@@ -1,4 +1,12 @@
-import type { CustomTarget, IPLProject, PolyglotConfig } from './types';
+import type { CustomTarget, IPLProject, PolyglotConfig, ChatMessage } from './types';
+
+/** The assistant greeting seeded into every new project's (persisted) chat history. */
+export const welcomeChatMessage = (): ChatMessage => ({
+  id: 'welcome',
+  sender: 'assistant',
+  text: 'Hello! I am your LLM Architect. Ask me general questions or instruct me to add features, refactor code, or fix errors in your project files.',
+  timestamp: new Date().toLocaleTimeString()
+});
 
 export const DEFAULT_PROJECTS: IPLProject[] = [
   {
