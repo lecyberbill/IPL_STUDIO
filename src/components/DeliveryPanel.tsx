@@ -24,7 +24,7 @@ const EMPTY: ConsolidationResult = {
  * human judgment. Each remaining issue jumps to its file in the Files viewer.
  */
 export const DeliveryPanel: React.FC = () => {
-  const { consolidationResult, setActivePanelTab, setSelectedFilePath, addLog, consolidationEnabled, runUsage, targetLang, smokeResult, smokeVerdict, verificationResult, verifyCurrentArtifact } = useIdeStore();
+  const { consolidationResult, setLeftPanelTab, setSelectedFilePath, addLog, consolidationEnabled, runUsage, targetLang, smokeResult, smokeVerdict, verificationResult, verifyCurrentArtifact } = useIdeStore();
   const [showReport, setShowReport] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
@@ -39,7 +39,7 @@ export const DeliveryPanel: React.FC = () => {
   const hasActionable = remaining > 0 || warnings.length > 0;
 
   const navigate = (file: string) => {
-    setActivePanelTab('files');
+    setLeftPanelTab('artifact');
     setSelectedFilePath(file);
     addLog(`Delivery: opened "${file}" in the generated-files viewer.`, 'info');
   };
@@ -349,3 +349,4 @@ export const DeliveryPanel: React.FC = () => {
     </div>
   );
 };
+

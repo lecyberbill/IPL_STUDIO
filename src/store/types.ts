@@ -119,9 +119,9 @@ export interface IDEState {
   /** File selected in the generated-files viewer (right sidebar). */
   selectedFilePath: string;
   setSelectedFilePath: (path: string) => void;
-  /** Active right-sidebar tab, so the Delivery panel can jump to the Files view. */
-  activePanelTab: 'files' | 'chat';
-  setActivePanelTab: (tab: 'files' | 'chat') => void;
+  /** Left-sidebar active tab (single place for files: sources + artifact), so the Delivery panel can jump to the artifact. */
+  leftPanelTab: 'verbs' | 'sources' | 'artifact';
+  setLeftPanelTab: (tab: 'verbs' | 'sources' | 'artifact') => void;
   /** First-run onboarding: set to true once the welcome modal has been dismissed. */
   hasSeenWelcome: boolean;
   completeWelcome: () => void;
