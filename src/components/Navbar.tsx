@@ -13,6 +13,7 @@ import {
   GitCompare,
   Download,
   Trash2,
+  Pencil,
   Layers,
   GraduationCap,
   Globe,
@@ -35,6 +36,7 @@ export const Navbar: React.FC = () => {
     activeProjectId,
     switchProject,
     deleteProject,
+    renameProject,
     addLog,
     exportProject,
     customTargets,
@@ -118,6 +120,21 @@ export const Navbar: React.FC = () => {
             title="Project Manager & Create New Project"
           >
             <FolderPlus size={15} />
+          </button>
+
+          <button
+            onClick={() => {
+              const activeProj = projects.find(p => p.id === activeProjectId);
+              const current = activeProj?.name || '';
+              const next = window.prompt('Rename the current project:', current);
+              if (next && next.trim() && next.trim() !== current) {
+                renameProject(activeProjectId, next.trim());
+              }
+            }}
+            className="p-1.5 bg-[#0f1117] hover:bg-[#2a2f42] text-gray-300 rounded-md border border-[#2a2f42] transition-colors"
+            title="Edit Current Project (rename)"
+          >
+            <Pencil size={15} />
           </button>
 
           <button
