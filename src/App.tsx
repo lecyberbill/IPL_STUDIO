@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { LeftSidebar } from './components/LeftSidebar';
-import { IplMonacoEditor } from './components/IplMonacoEditor';
-import { BlockViewEditor } from './components/BlockViewEditor';
+import { CentralEditor } from './components/CentralEditor';
 import { TargetInspector } from './components/TargetInspector';
 import { ConsolePanel } from './components/ConsolePanel';
 import { SettingsModal } from './components/SettingsModal';
@@ -16,7 +15,6 @@ import { useIdeStore } from './store/useIdeStore';
 
 export const App: React.FC = () => {
   const { 
-    editorViewMode, 
     runGeneration, 
     isGitModalOpen, 
     toggleGitModal,
@@ -89,9 +87,9 @@ export const App: React.FC = () => {
           title="Drag to resize the left column (Double-click to reset)"
         />
 
-        {/* Central Zone: Monaco Editor or AST Blocks */}
+        {/* Central Zone: the single editing surface (source IPL or artifact file) */}
         <section className="flex-1 flex flex-col h-full overflow-hidden bg-[#12141c] min-w-0">
-          {editorViewMode === 'text' ? <IplMonacoEditor /> : <BlockViewEditor />}
+          <CentralEditor />
         </section>
 
         {/* Resize Handle Column 3 (Right) */}

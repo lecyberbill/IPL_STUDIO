@@ -24,6 +24,8 @@ export interface GenerationSlice {
   renameArtifactFile: (oldPath: string, newPath: string) => void;
   deleteArtifactFile: (path: string) => void;
   addArtifactFile: (path: string, content?: string) => void;
+  /** Update an artifact file's content (editing in the central editor). */
+  setArtifactFileContent: (path: string, content: string) => void;
   isGenerating: boolean;
   pendingClarification: ClarificationRequest | null;
   generationError: string | null;
@@ -278,6 +280,13 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
     set({ generatedCode: filesToXml(next) });
     if (selectedFilePath === path) get().setSelectedFilePath(next[0]?.relativePath || '');
     addLog(`[Artifact] Deleted "${path}".`, 'info');
+  },
+
+  /** Update an artifact file's content (the central editor edits artifact files too). */
+  setArtifactFileContent: (path, content) => {
+    const files = parseMultiFileXml(get().generatedCode || '');
+    const next = files.map(f => (f.relativePath === path ? { ...f, content } : f));
+    set({ generatedCode: filesToXml(next) });
   },
 
   /** Add a new (empty) file to the generated artifact. */

@@ -8,8 +8,6 @@ import {
   Settings, 
   FolderPlus, 
   Sparkles, 
-  LayoutTemplate, 
-  Code2, 
   GitCompare,
   Download,
   Trash2,
@@ -26,8 +24,6 @@ export const Navbar: React.FC = () => {
     setTargetLang, 
     runGeneration, 
     isGenerating, 
-    editorViewMode, 
-    setEditorViewMode,
     toggleSettings,
     toggleProjectModal,
     toggleProjectEdit,
@@ -147,35 +143,6 @@ export const Navbar: React.FC = () => {
             title="Delete Current Project"
           >
             <Trash2 size={15} />
-          </button>
-        </div>
-
-        <div className="h-5 w-[1px] bg-[#2a2f42]" />
-
-        {/* Editor View Toggle (Monaco Code vs AST Blocks) */}
-        <div className="flex bg-[#0f1117] p-0.5 rounded-lg border border-[#2a2f42]">
-          <button
-            onClick={() => setEditorViewMode('text')}
-            className={`flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-              editorViewMode === 'text'
-                ? 'bg-cyan-500/20 text-cyan-300 font-semibold shadow-sm'
-                : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            <Code2 size={13} />
-            <span>IPL Code</span>
-          </button>
-
-          <button
-            onClick={() => setEditorViewMode('blocks')}
-            className={`flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-              editorViewMode === 'blocks'
-                ? 'bg-cyan-500/20 text-cyan-300 font-semibold shadow-sm'
-                : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            <LayoutTemplate size={13} />
-            <span>AST Blocks</span>
           </button>
         </div>
 

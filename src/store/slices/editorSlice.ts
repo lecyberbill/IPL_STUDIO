@@ -8,6 +8,9 @@ export interface EditorSlice {
   code: string;
   targetLang: TargetLanguage;
   editorViewMode: 'text' | 'blocks';
+  /** What the central editor is editing: an IPL source or an artifact file. */
+  editingTarget: 'source' | 'artifact';
+  setEditingTarget: (t: 'source' | 'artifact') => void;
   syntaxErrors: SyntaxErrorItem[];
   editorInstance: monaco.editor.IStandaloneCodeEditor | null;
   selectedFilePath: string;
@@ -27,6 +30,7 @@ export const editorSlice: StoreSlice<EditorSlice> = (set, get) => ({
   code: '',
   targetLang: 'python',
   editorViewMode: 'text',
+  editingTarget: 'source',
   syntaxErrors: [],
   editorInstance: null,
   selectedFilePath: '',
@@ -73,6 +77,7 @@ export const editorSlice: StoreSlice<EditorSlice> = (set, get) => ({
   },
 
   setEditorViewMode: (editorViewMode) => set({ editorViewMode }),
+  setEditingTarget: (editingTarget) => set({ editingTarget }),
   setEditorInstance: (editorInstance) => set({ editorInstance }),
 
   insertVerbSnippet: (verb) => {

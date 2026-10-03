@@ -60,8 +60,12 @@ export interface IDEState {
   renameArtifactFile: (oldPath: string, newPath: string) => void;
   deleteArtifactFile: (path: string) => void;
   addArtifactFile: (path: string, content?: string) => void;
+  setArtifactFileContent: (path: string, content: string) => void;
   isGenerating: boolean;
   editorViewMode: 'text' | 'blocks';
+  /** What the central editor is editing: an IPL source or an artifact file. */
+  editingTarget: 'source' | 'artifact';
+  setEditingTarget: (t: 'source' | 'artifact') => void;
   syntaxErrors: SyntaxErrorItem[];
   editorInstance: monaco.editor.IStandaloneCodeEditor | null;
   /** Last generation / LLM failure surfaced to the UI, or null when none. */

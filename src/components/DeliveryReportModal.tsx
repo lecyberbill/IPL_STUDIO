@@ -18,7 +18,7 @@ interface DeliveryReportModalProps {
  * "Fermer" button make it impossible to get "trapped".
  */
 export const DeliveryReportModal: React.FC<DeliveryReportModalProps> = ({ open, onClose }) => {
-  const { consolidationResult, runUsage, setLeftPanelTab, setSelectedFilePath, addLog, targetLang } = useIdeStore();
+  const { consolidationResult, runUsage, setLeftPanelTab, setSelectedFilePath, setEditingTarget, addLog, targetLang } = useIdeStore();
   const [copiedPrompt, setCopiedPrompt] = useState(false);
 
   // Escape closes the popup (the overlay covers the whole IDE, so a keyboard
@@ -42,7 +42,8 @@ export const DeliveryReportModal: React.FC<DeliveryReportModalProps> = ({ open, 
   const navigate = (file: string) => {
     setLeftPanelTab('artifact');
     setSelectedFilePath(file);
-    addLog(`Delivery: opened "${file}" in the generated-files viewer.`, 'info');
+    setEditingTarget('artifact');
+    addLog(`Delivery: opened "${file}" in the central editor.`, 'info');
     onClose();
   };
 

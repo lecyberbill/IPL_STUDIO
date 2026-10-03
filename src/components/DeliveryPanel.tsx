@@ -24,7 +24,7 @@ const EMPTY: ConsolidationResult = {
  * human judgment. Each remaining issue jumps to its file in the Files viewer.
  */
 export const DeliveryPanel: React.FC = () => {
-  const { consolidationResult, setLeftPanelTab, setSelectedFilePath, addLog, consolidationEnabled, runUsage, targetLang, smokeResult, smokeVerdict, verificationResult, verifyCurrentArtifact } = useIdeStore();
+  const { consolidationResult, setLeftPanelTab, setSelectedFilePath, setEditingTarget, addLog, consolidationEnabled, runUsage, targetLang, smokeResult, smokeVerdict, verificationResult, verifyCurrentArtifact } = useIdeStore();
   const [showReport, setShowReport] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
@@ -41,7 +41,8 @@ export const DeliveryPanel: React.FC = () => {
   const navigate = (file: string) => {
     setLeftPanelTab('artifact');
     setSelectedFilePath(file);
-    addLog(`Delivery: opened "${file}" in the generated-files viewer.`, 'info');
+    setEditingTarget('artifact');
+    addLog(`Delivery: opened "${file}" in the central editor.`, 'info');
   };
 
   /** Runs a toolchain install command AFTER an explicit user confirmation. */

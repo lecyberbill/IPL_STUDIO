@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
-import { FileCode, FilePlus, Trash2, FolderGit2, Check, X } from 'lucide-react';
+import { FileCode, FilePlus, Trash2, FolderGit2, Check, X, Code2, LayoutTemplate } from 'lucide-react';
 
 export const SourceFileTree: React.FC = () => {
-  const { projects, activeProjectId, createSourceFile, switchSourceFile, deleteSourceFile } = useIdeStore();
+  const { projects, activeProjectId, createSourceFile, switchSourceFile, deleteSourceFile, editorViewMode, setEditorViewMode, setEditingTarget } = useIdeStore();
   const [newFileName, setNewFileName] = useState('');
   const [isAdding, setIsAdding] = useState(false);
 
@@ -27,18 +27,38 @@ export const SourceFileTree: React.FC = () => {
     <div className="w-full bg-[#12141c] flex flex-col h-full select-none">
       {/* Header Bar */}
       <div className="h-8 bg-[#161922] px-3 border-b border-[#2a2f42] flex items-center justify-between text-xs text-gray-300">
-        <div className="flex items-center space-x-1.5 font-semibold text-[11px]">
-          <FolderGit2 size={14} className="text-cyan-400" />
-          <span>IPL Source Tree</span>
+        <div className="flex items-center space-x-1.5 font-semibold text-[11px] min-w-0">
+          <FolderGit2 size={14} className="text-cyan-400 shrink-0" />
+          <span className="truncate">IPL Source Tree</span>
         </div>
 
-        <button
-          onClick={() => setIsAdding(!isAdding)}
-          className="p-1 text-gray-400 hover:text-cyan-300 hover:bg-[#2a2f42] rounded transition-colors"
-          title="New .ipl source file"
-        >
-          <FilePlus size={14} />
-        </button>
+        <div className="flex items-center space-x-1 shrink-0">
+          {/* Code / Blocks — IPL authoring representation (moved here: IPL is a means). */}
+          <div className="flex bg-[#0f1117] p-0.5 rounded-md border border-[#2a2f42]">
+            <button
+              onClick={() => { setEditorViewMode('text'); setEditingTarget('source'); }}
+              className={`p-1 rounded ${editorViewMode === 'text' ? 'bg-cyan-500/20 text-cyan-300' : 'text-gray-400 hover:text-white'}`}
+              title="Edit the IPL source as code"
+            >
+              <Code2 size={13} />
+            </button>
+            <button
+              onClick={() => { setEditorViewMode('blocks'); setEditingTarget('source'); }}
+              className={`p-1 rounded ${editorViewMode === 'blocks' ? 'bg-cyan-500/20 text-cyan-300' : 'text-gray-400 hover:text-white'}`}
+              title="Edit the IPL source as AST blocks"
+            >
+              <LayoutTemplate size={13} />
+            </button>
+          </div>
+
+          <button
+            onClick={() => setIsAdding(!isAdding)}
+            className="p-1 text-gray-400 hover:text-cyan-300 hover:bg-[#2a2f42] rounded transition-colors"
+            title="New .ipl source file"
+          >
+            <FilePlus size={14} />
+          </button>
+        </div>
       </div>
 
       {/* Add New File Bar */}
@@ -75,7 +95,7 @@ export const SourceFileTree: React.FC = () => {
           return (
             <div
               key={fileName}
-              onClick={() => switchSourceFile(fileName)}
+              onClick={() => { switchSourceFile(fileName); setEditingTarget('source'); }}
               className={`group px-2.5 py-1.5 rounded-lg border text-xs font-mono flex items-center justify-between cursor-pointer transition-all ${
                 isActive
                   ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 font-semibold shadow-sm'
