@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
-import { ShieldCheck, Play } from 'lucide-react';
+import { exportContractPrompt } from '../engine/exportContract';
+import { ShieldCheck, Play, Copy, Check } from 'lucide-react';
 
 type FormOpt = '' | 'cli' | 'web' | 'gui' | 'server' | 'library' | 'batch';
 const FORM_OPTS: FormOpt[] = ['', 'cli', 'web', 'gui', 'server', 'library', 'batch'];
@@ -16,8 +17,20 @@ export const VerifyPanel: React.FC = () => {
   const [spec, setSpec] = useState<string>(code || '');
   const [path, setPath] = useState<string>('main.js');
   const [form, setForm] = useState<FormOpt>('');
+  const [copied, setCopied] = useState<boolean>(false);
 
   const run = () => verifyArtifactInput(artifact, spec, { formFactor: form || undefined, path });
+
+  /** IPL as an input: copy the contract as a portable prompt for ANY model. */
+  const copyContract = async () => {
+    try {
+      await navigator.clipboard.writeText(exportContractPrompt(spec));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
 
   const v = verificationResult;
   const pct = (c?: { preserved: number; total: number }) => (c ? (c.total === 0 ? 'n/a' : `${c.preserved}/${c.total}`) : 'n/a');
@@ -82,6 +95,14 @@ export const VerifyPanel: React.FC = () => {
           title="Load the current project artifact + spec"
         >
           Load current
+        </button>
+        <button
+          onClick={copyContract}
+          className="flex items-center space-x-1 px-2 py-1 rounded text-gray-400 hover:text-white hover:bg-[#2a2f42] text-[11px] transition-colors"
+          title="Copy the contract as a portable prompt, to drive any external model (IPL as an input)"
+        >
+          {copied ? <Check size={12} className="text-emerald-300" /> : <Copy size={12} />}
+          <span>{copied ? 'Copied' : 'Copy contract prompt'}</span>
         </button>
       </div>
 
