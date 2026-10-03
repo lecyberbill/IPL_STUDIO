@@ -7,7 +7,7 @@ import { applyDeterministicRepairs } from '../../engine/deterministicRepair';
 import { consolidateArtifact } from '../../engine/consolidationAgent';
 import type { ConsolidationResult } from '../../engine/consolidationAgent';
 import { createRunTokenUsage } from '../../engine/llmGenerator';
-import type { RunTokenUsage, FormFactor } from '../../engine/llmGenerator';
+import type { RunTokenUsage, FormFactor, ChatTurn } from '../../engine/llmGenerator';
 import { smokeGateVerdict } from '../../engine/smokeCheck';
 import type { SmokeResult, SmokeVerdict } from '../../engine/smokeCheck';
 import { deriveBehaviorAssertFromSpec } from '../../engine/semanticPreservation';
@@ -31,7 +31,7 @@ export interface GenerationSlice {
   setSmokeResult: (result: SmokeResult | null) => void;
   clearGenerationError: () => void;
   runGeneration: () => Promise<void>;
-  requestLLMCorrection: (userPrompt: string) => Promise<{ textReply: string; codeChanged: boolean }>;
+  requestLLMCorrection: (userPrompt: string, history?: ChatTurn[]) => Promise<{ textReply: string; codeChanged: boolean }>;
   autoDebugAndFix: (customCmd?: string) => Promise<boolean>;
   answerClarification: (answer: string) => Promise<boolean>;
   clearPendingClarification: () => void;
@@ -297,7 +297,7 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
     }
   },
 
-  requestLLMCorrection: async (userPrompt: string) => {
+  requestLLMCorrection: async (userPrompt: string, history?: ChatTurn[]) => {
     const { generatedCode, targetLang, llmConfig, addLog, code, formFactor, projects, activeProjectId } = get();
     if (!userPrompt.trim()) return { textReply: '', codeChanged: false };
 
@@ -320,7 +320,8 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
         llmConfig,
         (msg, type) => addLog(msg, type),
         undefined,
-        { usage: runUsage, bucket: 'generation' }
+        { usage: runUsage, bucket: 'generation' },
+        history
       );
 
       // Extract the current state of the files

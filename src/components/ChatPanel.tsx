@@ -46,7 +46,10 @@ export const ChatPanel: React.FC = () => {
     addLog(`[LLM Chat] User request: "${userText}"`, 'info');
 
     try {
-      const { textReply, codeChanged } = await requestLLMCorrection(userText);
+      // Pass the prior turns so a short reply like "oui" has its context (the
+      // assistant's previous question/plan) — the chat is multi-turn, not stateless.
+      const history = messages.map(m => ({ role: m.sender, content: m.text }));
+      const { textReply, codeChanged } = await requestLLMCorrection(userText, history);
 
       const botReply: ChatMessage = {
         id: `reply-${Date.now()}`,

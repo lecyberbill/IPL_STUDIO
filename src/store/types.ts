@@ -1,5 +1,5 @@
 import type * as monaco from 'monaco-editor';
-import type { TargetLanguage, LLMConfig, RunTokenUsage, FormFactor } from '../engine/llmGenerator';
+import type { TargetLanguage, LLMConfig, RunTokenUsage, FormFactor, ChatTurn } from '../engine/llmGenerator';
 import type { SyntaxErrorItem, IPLVerb } from '../engine/iplGrammar';
 import type { ConsolidationResult } from '../engine/consolidationAgent';
 import type { SmokeResult, SmokeVerdict } from '../engine/smokeCheck';
@@ -159,7 +159,7 @@ export interface IDEState {
 
   // Generation & Autonomous Agent triggers
   runGeneration: () => Promise<void>;
-  requestLLMCorrection: (userPrompt: string) => Promise<{ textReply: string; codeChanged: boolean }>;
+  requestLLMCorrection: (userPrompt: string, history?: ChatTurn[]) => Promise<{ textReply: string; codeChanged: boolean }>;
   autoDebugAndFix: (customCmd?: string) => Promise<boolean>;
   /** Set when the self-healing loop paused because the LLM asked a precision. */
   pendingClarification: ClarificationRequest | null;

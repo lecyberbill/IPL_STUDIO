@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { extractClarificationRequest, estimateTokens, createRunTokenUsage, recordTokenUsage, callLLM, buildLangInstruction, buildFormDirective, reviewConfigFor, reviewerLabel, buildPass1Prompt, buildPass2Prompt, normalizeLLMInput } from './llmGenerator';
+import { extractClarificationRequest, estimateTokens, createRunTokenUsage, recordTokenUsage, callLLM, buildLangInstruction, buildFormDirective, reviewConfigFor, reviewerLabel, buildPass1Prompt, buildPass2Prompt, normalizeLLMInput, buildRefineUserPayload } from './llmGenerator';
 import { PASS1_SYSTEM_PROMPT, PASS2_SYSTEM_PROMPT, REPAIR_SYSTEM_PROMPT } from './llmPrompts';
 import type { LLMConfig } from './llmGenerator';
 
@@ -141,6 +141,32 @@ describe('callLLM token recording (P2)', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ollamaResponse(['plain'])));
     const out = await callLLM('prompt', localConfig, () => {});
     expect(out).toBe('plain');
+  });
+});
+
+describe('buildRefineUserPayload (multi-turn chat memory)', () => {
+  it('includes the recent conversation so a short reply has context', () => {
+    const p = buildRefineUserPayload('<file path="a.js"></file>', 'oui', [
+      { role: 'user', content: 'fais un jeu 3D' },
+      { role: 'assistant', content: 'Shall I start with Three.js + React?' }
+    ]);
+    expect(p).toContain('RECENT CONVERSATION');
+    expect(p).toContain('Assistant: Shall I start with Three.js + React?');
+    expect(p).toContain('USER REQUEST:');
+    expect(p).toContain('"oui"');
+  });
+
+  it('omits the history block when there is no history (single-shot unchanged)', () => {
+    const p = buildRefineUserPayload('<file path="a.js"></file>', 'fix the bug');
+    expect(p).not.toContain('RECENT CONVERSATION');
+    expect(p).toContain('USER REQUEST:\n"fix the bug"');
+  });
+
+  it('caps history to the last 8 turns (bounded tokens)', () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({ role: 'user' as const, content: `turn ${i}` }));
+    const p = buildRefineUserPayload('x', 'go', many);
+    expect(p).not.toContain('turn 0');
+    expect(p).toContain('turn 11');
   });
 });
 

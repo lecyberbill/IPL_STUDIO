@@ -583,6 +583,38 @@ export async function generateIPL(
   return generatedArtifact;
 }
 
+/** A prior chat turn, fed back so a multi-turn request has its context (e.g. "oui"). */
+export interface ChatTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+/**
+ * Builds the user payload for a refinement call. Kept pure/testable: the
+ * conversation history goes into the `user` message (NOT the system prompt), so
+ * the cache-stable system prefix is preserved. Only the last turns are included
+ * to bound tokens.
+ */
+export function buildRefineUserPayload(
+  existingXml: string,
+  userCorrectionPrompt: string,
+  history?: ChatTurn[]
+): string {
+  const recent = history?.slice(-8) ?? [];
+  const historyBlock = recent.length
+    ? `RECENT CONVERSATION (the request below refers to it — e.g. a "yes" answers the last question):\n${recent
+        .map(h => `${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`)
+        .join('\n')}\n\n`
+    : '';
+  return `EXISTING PROJECT FILES:
+\`\`\`xml
+${existingXml}
+\`\`\`
+
+${historyBlock}USER REQUEST:
+"${userCorrectionPrompt}"`;
+}
+
 /**
  * Refines existing project files based on user chat feedback / error logs
  */
@@ -593,19 +625,14 @@ export async function refineIPLArtifact(
   config: LLMConfig,
   onLog: (msg: string, type: 'info' | 'success' | 'warn' | 'error') => void,
   onStreamChunk?: (accumulatedText: string) => void,
-  usage?: TokenUsageHook
+  usage?: TokenUsageHook,
+  history?: ChatTurn[]
 ): Promise<string> {
   onLog(`🤖 Refactoring & updating [${targetLang.toUpperCase()}] project files based on user instruction...`, 'info');
 
   const prompt: LLMMessagePair = {
     system: REPAIR_SYSTEM_PROMPT,
-    user: `EXISTING PROJECT FILES:
-\`\`\`xml
-${existingXml}
-\`\`\`
-
-USER REQUEST:
-"${userCorrectionPrompt}"`
+    user: buildRefineUserPayload(existingXml, userCorrectionPrompt, history)
   };
 
   return await callLLM(prompt, config, onLog, onStreamChunk, { temperature: 0.0, usage });
