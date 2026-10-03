@@ -34,6 +34,8 @@ export interface IPLProject {
   activeSourceFile?: string;
   /** Per-project chat history (survives project switches and reloads). */
   chatMessages?: ChatMessage[];
+  /** Per-project generated artifact (survives project switches). */
+  generatedCode?: string;
   updatedAt: string;
 }
 

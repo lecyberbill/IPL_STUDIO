@@ -90,9 +90,16 @@ export const projectsSlice: StoreSlice<ProjectsSlice> = (set, get) => ({
   },
 
   switchProject: (id: string) => {
-    const targetProj = get().projects.find(p => p.id === id);
+    const state = get();
+    // Save the CURRENT artifact into the project we are leaving, so switching
+    // back restores it (context recovery, per project).
+    const savedProjects = state.projects.map(p =>
+      p.id === state.activeProjectId ? { ...p, generatedCode: state.generatedCode } : p
+    );
+    const targetProj = savedProjects.find(p => p.id === id);
     if (targetProj) {
       set({
+        projects: savedProjects,
         activeProjectId: targetProj.id,
         code: targetProj.code,
         targetLang: targetProj.targetLang,
@@ -104,13 +111,13 @@ export const projectsSlice: StoreSlice<ProjectsSlice> = (set, get) => ({
           ]
         },
         syntaxErrors: validateIPLCode(targetProj.code),
-        generatedCode: '',
+        generatedCode: targetProj.generatedCode || '',
         consolidationResult: null,
         selectedFilePath: '',
         runUsage: null
       });
       get().addLog(`Switched to project "${targetProj.name}".`, 'info');
-      if (targetProj.outputDir) {
+      if (targetProj.outputDir && !targetProj.generatedCode) {
         get().readArtifactFromDisk(targetProj.id);
       }
     }

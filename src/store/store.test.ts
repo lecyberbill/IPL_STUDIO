@@ -156,6 +156,18 @@ describe('projectsSlice', () => {
     expect((other.chatMessages ?? []).some(m => m.text === 'hi')).toBe(false);
   });
 
+  it('switchProject saves the artifact of the project being left and restores the target one', () => {
+    const store = createTestStore();
+    const a = store.getState().activeProjectId;
+    const b = store.getState().projects.find(p => p.id !== a)!.id;
+    store.setState({ generatedCode: '<file path="a.js">A</file>' });
+    store.getState().switchProject(b);
+    expect(store.getState().generatedCode).toBe(''); // B had no artifact
+    store.setState({ generatedCode: '<file path="b.js">B</file>' });
+    store.getState().switchProject(a);
+    expect(store.getState().generatedCode).toBe('<file path="a.js">A</file>');
+  });
+
   it('createProject seeds a welcome chat message', () => {
     const store = createTestStore();
     store.getState().createProject('Chat Proj');
