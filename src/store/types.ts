@@ -3,6 +3,7 @@ import type { TargetLanguage, LLMConfig, RunTokenUsage, FormFactor, ChatTurn } f
 import type { SyntaxErrorItem, IPLVerb } from '../engine/iplGrammar';
 import type { ConsolidationResult } from '../engine/consolidationAgent';
 import type { SmokeResult, SmokeVerdict } from '../engine/smokeCheck';
+import type { ArtifactVerification } from '../engine/verifyArtifact';
 import type { Toolchains } from '../engine/toolchains';
 import type { StateCreator } from 'zustand';
 
@@ -109,6 +110,10 @@ export interface IDEState {
   /** 0-token delivery-gate verdict derived from the runtime smoke (pass | warn | fail). */
   smokeVerdict: SmokeVerdict | null;
   setSmokeResult: (result: SmokeResult | null) => void;
+  /** Artifact verification (Pure IDE): gates + semantic receipt + parity, independent of generation. */
+  verificationResult: ArtifactVerification | null;
+  /** Verify the current artifact against the current IPL contract (pure, no LLM, no spawn). */
+  verifyCurrentArtifact: () => void;
   /** File selected in the generated-files viewer (right sidebar). */
   selectedFilePath: string;
   setSelectedFilePath: (path: string) => void;

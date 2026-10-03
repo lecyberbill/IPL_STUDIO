@@ -24,7 +24,7 @@ const EMPTY: ConsolidationResult = {
  * human judgment. Each remaining issue jumps to its file in the Files viewer.
  */
 export const DeliveryPanel: React.FC = () => {
-  const { consolidationResult, setActivePanelTab, setSelectedFilePath, addLog, consolidationEnabled, runUsage, targetLang, smokeResult, smokeVerdict } = useIdeStore();
+  const { consolidationResult, setActivePanelTab, setSelectedFilePath, addLog, consolidationEnabled, runUsage, targetLang, smokeResult, smokeVerdict, verificationResult, verifyCurrentArtifact } = useIdeStore();
   const [showReport, setShowReport] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
@@ -179,6 +179,35 @@ export const DeliveryPanel: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* Pure IDE — artifact vs contract verification (gates + semantic + parity).
+          Works on ANY artifact; generation feeds it (auto after a run). */}
+      <div className="px-3 py-1.5 border-b border-[#2a2f42] font-mono text-[10px] select-text space-y-1">
+        <div className="flex items-center justify-between">
+          <span className={verificationResult ? (verificationResult.verdict === 'pass' ? 'text-emerald-300' : verificationResult.verdict === 'warn' ? 'text-amber-300' : 'text-rose-300') : 'text-gray-400'}>
+            {verificationResult ? `Verify (contract): ${verificationResult.verdict.toUpperCase()} — ${verificationResult.summary}` : 'Verify artifact against the current IPL contract (no generation).'}
+          </span>
+          <button
+            onClick={() => verifyCurrentArtifact()}
+            className="px-2 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 text-[10px] font-semibold border border-cyan-500/40 transition-colors"
+            title="Check the current artifact against the IPL contract (deterministic gates + semantic receipt + parity)"
+          >
+            Verify
+          </button>
+        </div>
+        {verificationResult && (
+          <div className="text-gray-400 space-y-0.5">
+            <div>Files: {verificationResult.fileCount} · Gates: {verificationResult.gates.length} · Semantic: {verificationResult.semantic ? verificationResult.semantic.score : 'n/a'}{verificationResult.parity ? ` · Parity: ${verificationResult.parity.ok ? 'ok' : verificationResult.parity.issues.length + ' issue(s)'}` : ''}</div>
+            {verificationResult.gates.length > 0 && (
+              <ul className="text-rose-300/90 list-disc list-inside">
+                {verificationResult.gates.slice(0, 6).map((g, i) => (
+                  <li key={i}>[{g.gate}] {g.file}: {g.message}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Missing toolchains — install offer (explicit user confirmation) */}
       {smokeResult?.missingTools && smokeResult.missingTools.length > 0 && (

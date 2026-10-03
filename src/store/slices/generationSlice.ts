@@ -11,6 +11,8 @@ import type { RunTokenUsage, FormFactor, ChatTurn } from '../../engine/llmGenera
 import { smokeGateVerdict } from '../../engine/smokeCheck';
 import type { SmokeResult, SmokeVerdict } from '../../engine/smokeCheck';
 import { deriveBehaviorAssertFromSpec } from '../../engine/semanticPreservation';
+import { verifyArtifact } from '../../engine/verifyArtifact';
+import type { ArtifactVerification } from '../../engine/verifyArtifact';
 import type { Toolchains } from '../../engine/toolchains';
 import { defaultOutputDir } from '../../engine/paths';
 import type { ClarificationRequest } from '../types';
@@ -29,6 +31,9 @@ export interface GenerationSlice {
   /** Derived, 0-token delivery-gate verdict from the runtime smoke (same object as `smokeResult`). */
   smokeVerdict: SmokeVerdict | null;
   setSmokeResult: (result: SmokeResult | null) => void;
+  /** Artifact verification (Pure IDE): gates + semantic receipt + parity, independent of generation. */
+  verificationResult: ArtifactVerification | null;
+  verifyCurrentArtifact: () => void;
   clearGenerationError: () => void;
   runGeneration: () => Promise<void>;
   requestLLMCorrection: (userPrompt: string, history?: ChatTurn[]) => Promise<{ textReply: string; codeChanged: boolean }>;
@@ -207,11 +212,27 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
   runUsage: null,
   smokeResult: null,
   smokeVerdict: null,
+  verificationResult: null,
 
   setConsolidationResult: (consolidationResult) => set({ consolidationResult }),
   setRunUsage: (runUsage) => set({ runUsage }),
   setSmokeResult: (smokeResult) => set({ smokeResult }),
   clearGenerationError: () => set({ generationError: null }),
+
+  /**
+   * Pure IDE — verify the current artifact against the current IPL contract.
+   * No LLM, no spawn: deterministic gates + semantic-preservation receipt +
+   * oracle/parity. Works on ANY artifact (ours, or one pasted/imported).
+   */
+  verifyCurrentArtifact: () => {
+    const { generatedCode, code, formFactor, addLog } = get();
+    const result = verifyArtifact(generatedCode || '', code || '', { formFactor });
+    set({ verificationResult: result });
+    addLog(
+      `[Verify] ${result.summary}`,
+      result.verdict === 'pass' ? 'success' : result.verdict === 'warn' ? 'warn' : 'error'
+    );
+  },
 
   runGeneration: async () => {
     const { code, targetLang, llmConfig, polyglotConfig, addLog, projects, activeProjectId, formFactor } = get();
@@ -288,6 +309,9 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
         addLog('[Smoke] ✅ Delivery gate: runtime smoke passed.', 'success');
       }
       set({ smokeResult: smoke, smokeVerdict: verdict });
+      // Pure IDE: generation feeds verification — the artifact is immediately
+      // checked against the same contract (gates + semantic + parity).
+      get().verifyCurrentArtifact();
     } catch (err: any) {
       const message = err?.message || 'Unknown generation error';
       addLog(`Generation error: ${message}`, 'error');
