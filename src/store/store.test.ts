@@ -271,6 +271,15 @@ describe('buildGitCommand (repo management from chat)', () => {
     expect(buildGitCommand('corrige le bug dans app.js')).toBeNull();
     expect(buildGitCommand('la liste des boissons est vide')).toBeNull();
   });
+
+  it('never hijacks a build request that merely CONTAINS a git-ish word', () => {
+    // The guard: a keyword anywhere must not turn a generation request into an
+    // instant no-LLM git reply (the "it returned code instantly" failure).
+    expect(buildGitCommand('on peut faire un jeu type bac à sable légo en 3D, des pièces à disposition, mettre des couleurs différentes, pouvoir supprimer déplacer des pièces, annuler, grouper pour dupliquer dans un UI moderne futuriste ?')).toBeNull();
+    expect(buildGitCommand('explique les différences entre A et B')).toBeNull();
+    expect(buildGitCommand('la logique du jeu doit gérer le score')).toBeNull();
+    expect(buildGitCommand('ajoute un bouton pour pousser le score')).toBeNull();
+  });
 });
 
 describe('generationSlice', () => {

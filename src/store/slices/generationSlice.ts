@@ -146,18 +146,25 @@ function extractCommitMessage(prompt: string): string {
  */
 export function buildGitCommand(prompt: string): string | null {
   const trimmed = prompt.trim();
+  // Explicit git passthrough is always honoured.
   if (/^(git|!git)\s/i.test(trimmed)) return trimmed.replace(/^!/, '');
 
   const p = trimmed.toLowerCase();
-  if (/\b(commit|commits|valider)\b/.test(p)) {
+  // Only treat a prompt as repo-management when the intent LEADS the sentence
+  // (after optional polite lead-ins). Matching a keyword ANYWHERE (the old
+  // behaviour) hijacked ordinary build/code requests into an instant, no-LLM git
+  // reply — e.g. a request containing the word "diff"/"commit"/"log" would never
+  // generate. Anchoring is the guard.
+  const head = p.replace(/^(peux[- ]tu |peut[- ]tu |merci de |fais |fait |montre |affiche |un |une |le |la |les |l'|du |de )+/, '');
+  if (/^(commit|commits|valider)\b/.test(head)) {
     const push = /\b(push|pousse|pousser|envoie|envoyer)\b/.test(p);
     return `git add . && git commit -m "${extractCommitMessage(trimmed)}"${push ? ' && git push' : ''}`;
   }
-  if (/\b(push|pousse|pousser|envoie|envoyer)\b/.test(p)) return 'git push';
-  if (/\b(statut|status|etat|état)\b/.test(p)) return 'git status';
-  if (/\blog\b/.test(p)) return 'git log --oneline -10';
-  if (/\b(pull|tire|récupère|recupere)\b/.test(p)) return 'git pull';
-  if (/\b(diff|différences|differences)\b/.test(p)) return 'git diff';
+  if (/^(push|pousse|pousser|envoie|envoyer)\b/.test(head)) return 'git push';
+  if (/^(statut|status|etat|état)\b/.test(head)) return 'git status';
+  if (/^log\b/.test(head)) return 'git log --oneline -10';
+  if (/^(pull|tire|récupère|recupere)\b/.test(head)) return 'git pull';
+  if (/^diff\b/.test(head)) return 'git diff';
   return null;
 }
 
