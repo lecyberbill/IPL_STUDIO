@@ -7,6 +7,7 @@ import { TargetInspector } from './components/TargetInspector';
 import { ConsolePanel } from './components/ConsolePanel';
 import { SettingsModal } from './components/SettingsModal';
 import { ProjectModal } from './components/ProjectModal';
+import { ProjectEditModal } from './components/ProjectEditModal';
 import { GitDiffModal } from './components/GitDiffModal';
 import { PolyglotModal } from './components/PolyglotModal';
 import { TutorialModal } from './tutorial';
@@ -113,6 +114,7 @@ export const App: React.FC = () => {
       {/* 4. Modals */}
       <SettingsModal />
       <ProjectModal />
+      <ProjectEditModal />
       <PolyglotModal />
       <GitDiffModal isOpen={isGitModalOpen} onClose={toggleGitModal} />
       <TutorialModal isOpen={isTutorialOpen} onClose={toggleTutorial} />

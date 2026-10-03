@@ -30,13 +30,13 @@ export const Navbar: React.FC = () => {
     setEditorViewMode,
     toggleSettings,
     toggleProjectModal,
+    toggleProjectEdit,
     toggleGitModal,
     toggleTutorial,
     projects,
     activeProjectId,
     switchProject,
     deleteProject,
-    renameProject,
     addLog,
     exportProject,
     customTargets,
@@ -123,16 +123,9 @@ export const Navbar: React.FC = () => {
           </button>
 
           <button
-            onClick={() => {
-              const activeProj = projects.find(p => p.id === activeProjectId);
-              const current = activeProj?.name || '';
-              const next = window.prompt('Rename the current project:', current);
-              if (next && next.trim() && next.trim() !== current) {
-                renameProject(activeProjectId, next.trim());
-              }
-            }}
+            onClick={toggleProjectEdit}
             className="p-1.5 bg-[#0f1117] hover:bg-[#2a2f42] text-gray-300 rounded-md border border-[#2a2f42] transition-colors"
-            title="Edit Current Project (rename)"
+            title="Edit Current Project (name + output directory)"
           >
             <Pencil size={15} />
           </button>

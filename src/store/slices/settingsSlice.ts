@@ -9,6 +9,9 @@ export interface SettingsSlice {
   llmConfig: LLMConfig;
   isSettingsOpen: boolean;
   isProjectModalOpen: boolean;
+  /** Edit-current-project modal (name + output dir). */
+  isProjectEditOpen: boolean;
+  toggleProjectEdit: () => void;
   isGitModalOpen: boolean;
   isTutorialOpen: boolean;
   polyglotConfig: PolyglotConfig;
@@ -44,6 +47,7 @@ export const settingsSlice: StoreSlice<SettingsSlice> = (set, get) => ({
   llmConfig: DEFAULT_LLM_CONFIG,
   isSettingsOpen: false,
   isProjectModalOpen: false,
+  isProjectEditOpen: false,
   isGitModalOpen: false,
   isTutorialOpen: false,
   polyglotConfig: DEFAULT_POLYGLOT_CONFIG,
@@ -85,6 +89,7 @@ export const settingsSlice: StoreSlice<SettingsSlice> = (set, get) => ({
 
   toggleSettings: () => set((state) => ({ isSettingsOpen: !state.isSettingsOpen })),
   toggleProjectModal: () => set((state) => ({ isProjectModalOpen: !state.isProjectModalOpen })),
+  toggleProjectEdit: () => set((state) => ({ isProjectEditOpen: !state.isProjectEditOpen })),
   toggleGitModal: () => set((state) => ({ isGitModalOpen: !state.isGitModalOpen })),
   toggleTutorial: () => set((state) => ({ isTutorialOpen: !state.isTutorialOpen })),
   completeWelcome: () => set({ hasSeenWelcome: true }),

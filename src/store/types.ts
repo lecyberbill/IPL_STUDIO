@@ -87,6 +87,9 @@ export interface IDEState {
   llmConfig: LLMConfig;
   isSettingsOpen: boolean;
   isProjectModalOpen: boolean;
+  /** Edit-current-project modal (name + output dir). */
+  isProjectEditOpen: boolean;
+  toggleProjectEdit: () => void;
   isGitModalOpen: boolean;
   isTutorialOpen: boolean;
   toggleTutorial: () => void;
