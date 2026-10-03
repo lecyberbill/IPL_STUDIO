@@ -113,3 +113,25 @@ exact tree) is LLM freedom, deliberately not measured (and not promised).
 - The **remaining ceiling is model variance** — not the language, not the spec.
   Beyond a second model (optional, for *coverage/attribution*, not reliability),
   the lever is execution + deterministic gates, which is where the effort went.
+
+## Strategic resolution — the IDE is the product, IPL is a verification *contract*
+
+Given the measured result (an LLM cannot be made to converge like a deterministic
+engine), the project pivots from "IPL generates your app" to a **toolbox IDE**
+whose centre is **verification**:
+
+- **IPL's primary role is a contract**: a compact typed description (identities,
+  types, formulas, output keys, fixtures) that the IDE checks **any artifact**
+  against — ours, another model's, a human's, an external tool's.
+- **Generation becomes one optional tool** in the box (from a spec, or the chat,
+  or plain copy-paste to any model) — never the promise.
+- **The drift-measurement apparatus takes centre stage**: gates, runtime smoke
+  (crash + behavior), semantic-preservation, oracle/parity, layer-aware report,
+  token telemetry. This is not overhead — it is *the product*, and it is what
+  makes the tool trustworthy where a "miracle" generator is not.
+- **Nothing is lost**: the reusable core (the verification engine + the IDE
+  shell) is exactly what this pivot requires; IPL becomes one `DslAdapter` among
+  possible ones (see `ROADMAP.md` → Phase 12/13).
+
+The honest one-liner for the project: **express the intent once, then measure how
+far any artifact drifts from it.**

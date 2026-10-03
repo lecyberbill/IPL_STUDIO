@@ -13,7 +13,14 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 
 The project's honest claim is deliberately narrower than "IPL produces better apps": the intent language pins a **typed data contract** (*what*), the LLM owns the *how* (architecture, exact source tree), and the measurable ceiling is **model variance** — the contract can survive into the source while the executable output still drifts. So the value is measured, not promised: **contain the drift as much as possible, prove the remainder layer-by-layer** (receipts), and never present the DSL as a way to *eliminate* the model's freedom. "First-try honesty" (principle 4) is the yardstick for every phase.
 
-**The centre of gravity is the IDE, not the language.** The product is a **robust, reliable agentic IDE** — orchestration, sandboxing, verification, measurement, delivery. IPL is **one means** among possible ones (a `DslAdapter`), not the point of the project. The same robust engine must serve another constrained-intent language, or a plain-prompt workflow, without the DSL being the raison d'être. Robustness and reliability of the *tool* outrank the elegance of the *language* — the 3D-sandbox incident (an agent that edited the IDE's own source and returned code instead of generating) is the kind of failure the IDE itself must preclude.
+**The centre of gravity is the IDE, not the language — and IPL's primary role is a _verification contract_.** The product is a **toolbox IDE**. In it, IPL is not the generator of truth: it is a compact, typed **contract** (identities, types, formulas, output keys, fixtures) that the IDE **checks any artifact against** — one produced by our generator, by another model, by a human, by an external tool. The point is not "IPL builds the app"; the point is **"express the intent once, then measure how far any artifact drifts from it."**
+
+Consequently:
+- **Generation is one optional tool** in the box (from a spec, or assisted via the chat, or plain copy-paste to any external model) — never the promise.
+- **The drift-measurement apparatus takes centre stage**: deterministic gates, runtime smoke (crash + behavior), semantic-preservation receipt, oracle/spec parity, the layer-aware report, token telemetry. This is the value: *contain and expose the model's non-determinism, wherever the artifact came from.*
+- **IPL is a means, not the raison d'être.** The same robust engine must verify any constrained-intent contract and any target language; the DSL is a `DslAdapter` among possible ones.
+
+Robustness and reliability of the *tool* outrank the elegance of the *language* — the 3D-sandbox incident (an agent that edited the IDE's own source and returned code instead of generating) is the kind of failure the IDE itself must preclude.
 
 ---
 
@@ -272,6 +279,28 @@ The project's honest claim is deliberately narrower than "IPL produces better ap
 - [ ] The `DslAdapter` seam is documented and the IPL implementation is moved behind it (no behavior change).
 
 **Status**: 🟢 direction confirmed by the measurement; multiple pieces already shipped (deterministic gates, layered receipts, semantic-preservation, oracle/parity, de-biased NL witness, hardened web verify, token metric).
+
+---
+
+## ✅ Phase 13 — Pure IDE: IPL as a *verification contract* (any artifact)
+
+**Objective**: Make IPL's primary role a **contract you verify artifacts against** — not a generator. Express the intent once (IPL), then measure how far **any** artifact drifts from it, whatever produced it. This is where the whole drift-measurement apparatus earns its place.
+
+**Why (measured)**: an LLM cannot be made to converge like a deterministic engine. So the honest, durable value is not "generate a correct app" but "**verify and contain** what any model produced." The IDE is the toolbox; IPL is the contract in it.
+
+**Scope**:
+- **Decouple verify from generate** — a first-class flow: *artifact (generated / pasted / imported) + contract (IPL) → receipts*. Reuse the existing toolbox end-to-end: semantic-preservation, oracle (derived + exact), oracle/spec parity, deterministic gates, runtime smoke (crash + behavior), layer-aware report, token telemetry. The artifact's origin is irrelevant.
+- **External artifact intake** — paste or import files produced by *another* model/tool and verify them (the copy-paste workflow, made first-class).
+- **Contract export** — emit the contract (identities/types/formulas/output keys/fixtures) as a prompt block that drives *any* external model (IPL as an *input* is the secondary path).
+- **Multi-target / any DSL** — the same contract verifies artifacts in different target languages; the verification engine sits behind the `DslAdapter` seam (Phase 12).
+- **Report as the product** — the layer-aware + semantic + parity + token receipts become the deliverable the human reads.
+
+**Acceptance criteria**:
+- [ ] A user can verify a pasted/imported artifact against an IPL contract **without generation**, and get the layer-aware + semantic-preservation + parity receipts.
+- [ ] The contract is exportable as a prompt to drive an external model.
+- [ ] Verification is target- and DSL-agnostic (behind the `DslAdapter` seam), IPL being just one adapter.
+
+**Status**: 🟢 direction set; the toolbox already exists (gates, smoke, semantic-preservation, oracle/parity, benchmark receipts) — the phase is about **re-centring it on verification** rather than on generation.
 
 ---
 
