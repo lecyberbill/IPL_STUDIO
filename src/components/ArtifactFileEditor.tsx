@@ -65,7 +65,7 @@ export const ArtifactFileEditor: React.FC = () => {
           onChange={(val) => setArtifactFileContent(file.relativePath, val || '')}
           options={{
             fontSize: 12,
-            minimap: { enabled: false },
+            minimap: { enabled: true },
             scrollBeyondLastLine: false,
             automaticLayout: true,
             tabSize: 2,
