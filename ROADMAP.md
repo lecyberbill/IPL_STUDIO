@@ -13,6 +13,8 @@ IPL Studio is a polyglot, intent-based IDE whose core belief is **"rails, not wa
 
 The project's honest claim is deliberately narrower than "IPL produces better apps": the intent language pins a **typed data contract** (*what*), the LLM owns the *how* (architecture, exact source tree), and the measurable ceiling is **model variance** — the contract can survive into the source while the executable output still drifts. So the value is measured, not promised: **contain the drift as much as possible, prove the remainder layer-by-layer** (receipts), and never present the DSL as a way to *eliminate* the model's freedom. "First-try honesty" (principle 4) is the yardstick for every phase.
 
+**The centre of gravity is the IDE, not the language.** The product is a **robust, reliable agentic IDE** — orchestration, sandboxing, verification, measurement, delivery. IPL is **one means** among possible ones (a `DslAdapter`), not the point of the project. The same robust engine must serve another constrained-intent language, or a plain-prompt workflow, without the DSL being the raison d'être. Robustness and reliability of the *tool* outrank the elegance of the *language* — the 3D-sandbox incident (an agent that edited the IDE's own source and returned code instead of generating) is the kind of failure the IDE itself must preclude.
+
 ---
 
 ## ✅ Completed
@@ -256,7 +258,13 @@ The project's honest claim is deliberately narrower than "IPL produces better ap
 - **Spec-derived exact oracle** — derive expected values from the spec's fixtures when computable (reuse `seed` + formula), not only the structural `exists`/presence oracle, so the gate rejects wrong values (not only missing keys).
 - **Placeholder-HTML gate** — the one recognized remaining gap (comment-only `.html`); needs a real-content check that avoids false-positives on JS-rendered SPAs.
 - **Model-variance ledger** — document per-model first-try PASS% and semantic spread (the ceiling is model variance), so the scorecard is a real A/B across backends, and the reviewer-bias (shared model) is surfaced, not hidden.
-- **DslAdapter seam** — extract the IPL-specific parts (grammar, contract extraction, prompt builders, oracle/render) behind a `DslAdapter` interface, so the whole robust verification loop is reusable for another constrained-intent language (X-Studio); the agentic IDE (dev-server, security, terminal, git, panels) is already language-agnostic.
+- **DslAdapter seam** — extract the IPL-specific parts (grammar, contract extraction, prompt builders, oracle/render) behind a `DslAdapter` interface, so the whole robust verification loop is reusable for another constrained-intent language (X-Studio); the agentic IDE (dev-server, security, terminal, git, panels) is already language-agnostic. This makes **IPL a means, not the centre**: the IDE is the product, the DSL is one adapter.
+
+**Robustness & safety guards (from the 3D-sandbox incident)** — the IDE must preclude its own failure modes:
+- **Never self-edit**: the agent must never write to the IDE's own source (`src/`); generation targets an explicit **project output directory**. A guard rejects a write whose target is inside the IDE tree. (The incident: an agent edited the IDE's own repo instead of generating a project.)
+- **Fail loudly when no generation happened**: if a chat prompt expects a generation but no LLM call occurred (an instant reply), surface it explicitly — never present an echoed/cached/stale diff as a generated result. (The incident: an instant reply returned unrelated code with "no generation".)
+- **Unambiguous instant paths**: natural-language git/repo intents must be anchored (the intent leads the sentence), so a normal build request containing a git-ish word can never be hijacked into an instant, no-LLM git reply. *(shipped: `buildGitCommand` anchored + test.)*
+- **Dirty-tree guard**: a clean working tree is the last-line gate — the incident caused zero damage because nothing was committed; the IDE should make uncommitted source changes visible before any agent run.
 
 **Acceptance criteria**:
 - [ ] A benchmark report is produced with `n≥3` (pass rate + semantic spread) by default.
