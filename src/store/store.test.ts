@@ -280,6 +280,14 @@ describe('buildGitCommand (repo management from chat)', () => {
     expect(buildGitCommand('la logique du jeu doit gérer le score')).toBeNull();
     expect(buildGitCommand('ajoute un bouton pour pousser le score')).toBeNull();
   });
+
+  it('never treats a LONG prompt as a git intent, even if it starts with a git verb', () => {
+    // Length guard: repo commands are short; a sentence-long request is a build.
+    expect(buildGitCommand('commit tout le travail et explique moi ensuite comment le jeu du bac à sable fonctionne')).toBeNull();
+    expect(buildGitCommand('pousse le repo puis génère moi un jeu de construction 3D avec des pièces colorées')).toBeNull();
+    // Short repo intents still work.
+    expect(buildGitCommand('commit et pousse')).toContain('git commit');
+  });
 });
 
 describe('generationSlice', () => {

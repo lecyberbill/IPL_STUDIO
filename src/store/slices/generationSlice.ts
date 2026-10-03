@@ -149,6 +149,11 @@ export function buildGitCommand(prompt: string): string | null {
   // Explicit git passthrough is always honoured.
   if (/^(git|!git)\s/i.test(trimmed)) return trimmed.replace(/^!/, '');
 
+  // Repo intents are SHORT (a command, ~1-8 words). A long prompt is a build/code
+  // request, never a git command — this makes hijacking a build request into an
+  // instant, no-LLM git reply impossible regardless of wording.
+  if (trimmed.split(/\s+/).filter(Boolean).length > 8) return null;
+
   const p = trimmed.toLowerCase();
   // Only treat a prompt as repo-management when the intent LEADS the sentence
   // (after optional polite lead-ins). Matching a keyword ANYWHERE (the old
