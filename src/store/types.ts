@@ -192,7 +192,7 @@ export interface IDEState {
 
   // Generation & Autonomous Agent triggers
   runGeneration: () => Promise<void>;
-  requestLLMCorrection: (userPrompt: string, history?: ChatTurn[]) => Promise<{ textReply: string; codeChanged: boolean }>;
+  requestLLMCorrection: (userPrompt: string, history?: ChatTurn[], focusFiles?: string[]) => Promise<{ textReply: string; codeChanged: boolean }>;
   autoDebugAndFix: (customCmd?: string) => Promise<boolean>;
   /** Set when the self-healing loop paused because the LLM asked a precision. */
   pendingClarification: ClarificationRequest | null;

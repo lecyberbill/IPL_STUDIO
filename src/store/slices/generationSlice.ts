@@ -43,7 +43,7 @@ export interface GenerationSlice {
   verifyArtifactInput: (artifactText: string, specText: string, opts?: { formFactor?: FormFactor; path?: string }) => void;
   clearGenerationError: () => void;
   runGeneration: () => Promise<void>;
-  requestLLMCorrection: (userPrompt: string, history?: ChatTurn[]) => Promise<{ textReply: string; codeChanged: boolean }>;
+  requestLLMCorrection: (userPrompt: string, history?: ChatTurn[], focusFiles?: string[]) => Promise<{ textReply: string; codeChanged: boolean }>;
   autoDebugAndFix: (customCmd?: string) => Promise<boolean>;
   answerClarification: (answer: string) => Promise<boolean>;
   clearPendingClarification: () => void;
@@ -389,7 +389,7 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
     }
   },
 
-  requestLLMCorrection: async (userPrompt: string, history?: ChatTurn[]) => {
+  requestLLMCorrection: async (userPrompt: string, history?: ChatTurn[], focusFiles?: string[]) => {
     const { generatedCode, targetLang, llmConfig, addLog, code, formFactor, projects, activeProjectId } = get();
     if (!userPrompt.trim()) return { textReply: '', codeChanged: false };
 
@@ -413,7 +413,8 @@ export const generationSlice: StoreSlice<GenerationSlice> = (set, get) => ({
         (msg, type) => addLog(msg, type),
         undefined,
         { usage: runUsage, bucket: 'generation' },
-        history
+        history,
+        focusFiles
       );
 
       // Extract the current state of the files

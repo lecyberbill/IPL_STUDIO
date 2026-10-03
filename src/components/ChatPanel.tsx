@@ -1,16 +1,51 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useIdeStore } from '../store/useIdeStore';
 import { welcomeChatMessage } from '../store/defaults';
+import { parseMultiFileXml } from '../engine/artifactGenerator';
+import { extractArtifactMentions, filterMentionCandidates } from '../engine/artifactMentions';
 import type { ChatMessage } from '../store/types';
-import { Send, Bot, User, RefreshCw, FolderCheck } from 'lucide-react';
+import { Send, Bot, User, RefreshCw, FolderCheck, FileCode } from 'lucide-react';
 import { MarkdownViewer } from './MarkdownViewer';
 
 export type { ChatMessage };
 
 export const ChatPanel: React.FC = () => {
-  const { requestLLMCorrection, isGenerating, addLog, projects, activeProjectId, appendChatMessage } = useIdeStore();
+  const { requestLLMCorrection, isGenerating, addLog, projects, activeProjectId, appendChatMessage, generatedCode } = useIdeStore();
   const [inputPrompt, setInputPrompt] = useState('');
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionStart, setMentionStart] = useState(-1);
+  const [mentionIndex, setMentionIndex] = useState(0);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Artifact files available for `@` mentions.
+  const artifactPaths = useMemo(() => parseMultiFileXml(generatedCode || '').map(f => f.relativePath), [generatedCode]);
+  const candidates = useMemo(
+    () => (mentionOpen ? filterMentionCandidates(mentionQuery, artifactPaths) : []),
+    [mentionOpen, mentionQuery, artifactPaths]
+  );
+
+  /** Opens/updates the `@` autocomplete based on the text before the cursor. */
+  const updateMention = (value: string, cursor: number) => {
+    const before = value.slice(0, cursor);
+    const at = before.lastIndexOf('@');
+    if (at === -1) { setMentionOpen(false); return; }
+    const frag = before.slice(at + 1);
+    if (!/^[\w./-]*$/.test(frag)) { setMentionOpen(false); return; }
+    setMentionStart(at);
+    setMentionQuery(frag);
+    setMentionIndex(0);
+    setMentionOpen(true);
+  };
+
+  const applyMention = (path: string) => {
+    const before = inputPrompt.slice(0, mentionStart);
+    const after = inputPrompt.slice(mentionStart + 1 + mentionQuery.length);
+    setInputPrompt(`${before}@${path} ${after}`);
+    setMentionOpen(false);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
 
   // Per-project, persisted chat history (survives switches + reloads).
   const activeProj = projects.find(p => p.id === activeProjectId);
@@ -44,7 +79,9 @@ export const ChatPanel: React.FC = () => {
       // Pass the prior turns so a short reply like "oui" has its context (the
       // assistant's previous question/plan) — the chat is multi-turn, not stateless.
       const history = messages.map(m => ({ role: m.sender, content: m.text }));
-      const { textReply, codeChanged } = await requestLLMCorrection(userText, history);
+      // Resolve `@file` mentions → explicit focus files for the model.
+      const focusFiles = extractArtifactMentions(userText, artifactPaths);
+      const { textReply, codeChanged } = await requestLLMCorrection(userText, history, focusFiles);
 
       const botReply: ChatMessage = {
         id: `reply-${Date.now()}`,
@@ -66,6 +103,13 @@ export const ChatPanel: React.FC = () => {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // `@` autocomplete owns the arrows / Enter / Escape while open.
+    if (mentionOpen && candidates.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIndex(i => Math.min(i + 1, candidates.length - 1)); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIndex(i => Math.max(i - 1, 0)); return; }
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); applyMention(candidates[mentionIndex]); return; }
+      if (e.key === 'Escape') { e.preventDefault(); setMentionOpen(false); return; }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (inputPrompt.trim() && !isGenerating) {
@@ -151,13 +195,33 @@ export const ChatPanel: React.FC = () => {
       </div>
 
       {/* Input Footer Form */}
-      <form onSubmit={handleSend} className="p-2.5 border-t border-[#2a2f42] bg-[#0f1117] flex flex-col space-y-1.5 shrink-0">
+      <form onSubmit={handleSend} className="p-2.5 border-t border-[#2a2f42] bg-[#0f1117] flex flex-col space-y-1.5 shrink-0 relative">
+        {/* `@file` autocomplete */}
+        {mentionOpen && candidates.length > 0 && (
+          <div className="absolute bottom-[100%] left-2.5 mb-1 w-72 max-h-48 overflow-y-auto bg-[#161922] border border-cyan-500/40 rounded-lg shadow-2xl z-30">
+            <div className="px-2 py-1 text-[9px] text-gray-500 font-mono border-b border-[#2a2f42]">Reference an artifact file</div>
+            {candidates.map((c, i) => (
+              <button
+                type="button"
+                key={c}
+                onMouseDown={(e) => { e.preventDefault(); applyMention(c); }}
+                className={`w-full text-left px-2 py-1.5 text-[11px] font-mono flex items-center space-x-1.5 transition-colors ${
+                  i === mentionIndex ? 'bg-cyan-500/20 text-cyan-300' : 'text-gray-300 hover:bg-[#2a2f42]'
+                }`}
+              >
+                <FileCode size={12} className="shrink-0 opacity-70" />
+                <span className="truncate">@{c}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="flex items-end space-x-2">
           <textarea
+            ref={textareaRef}
             rows={2}
-            placeholder="Ask LLM Architect a question or instruct code changes..."
+            placeholder="Ask LLM Architect... (type @ to reference an artifact file)"
             value={inputPrompt}
-            onChange={(e) => setInputPrompt(e.target.value)}
+            onChange={(e) => { setInputPrompt(e.target.value); updateMention(e.target.value, e.target.selectionStart ?? e.target.value.length); }}
             onKeyDown={handleKeyDown}
             disabled={isGenerating}
             className="flex-1 bg-[#161922] border border-[#2a2f42] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 disabled:opacity-50 font-sans resize-none min-h-[42px] max-h-[140px] scrollbar-thin select-text"
@@ -173,7 +237,7 @@ export const ChatPanel: React.FC = () => {
           </button>
         </div>
         <div className="flex items-center justify-between text-[9px] text-gray-500 font-mono px-1">
-          <span>Shift+Enter = nouvelle ligne</span>
+          <span>@ = référencer un fichier · Shift+Enter = nouvelle ligne</span>
           <span>Enter = envoyer</span>
         </div>
       </form>

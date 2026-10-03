@@ -598,7 +598,8 @@ export interface ChatTurn {
 export function buildRefineUserPayload(
   existingXml: string,
   userCorrectionPrompt: string,
-  history?: ChatTurn[]
+  history?: ChatTurn[],
+  focusFiles?: string[]
 ): string {
   const recent = history?.slice(-8) ?? [];
   const historyBlock = recent.length
@@ -606,12 +607,17 @@ export function buildRefineUserPayload(
         .map(h => `${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`)
         .join('\n')}\n\n`
     : '';
+  const focus = focusFiles && focusFiles.length
+    ? `FOCUS FILES (the user explicitly referenced these with @ — prioritise them, but keep the whole project consistent):\n${focusFiles
+        .map(f => `- ${f}`)
+        .join('\n')}\n\n`
+    : '';
   return `EXISTING PROJECT FILES:
 \`\`\`xml
 ${existingXml}
 \`\`\`
 
-${historyBlock}USER REQUEST:
+${historyBlock}${focus}USER REQUEST:
 "${userCorrectionPrompt}"`;
 }
 
@@ -626,13 +632,14 @@ export async function refineIPLArtifact(
   onLog: (msg: string, type: 'info' | 'success' | 'warn' | 'error') => void,
   onStreamChunk?: (accumulatedText: string) => void,
   usage?: TokenUsageHook,
-  history?: ChatTurn[]
+  history?: ChatTurn[],
+  focusFiles?: string[]
 ): Promise<string> {
   onLog(`🤖 Refactoring & updating [${targetLang.toUpperCase()}] project files based on user instruction...`, 'info');
 
   const prompt: LLMMessagePair = {
     system: REPAIR_SYSTEM_PROMPT,
-    user: buildRefineUserPayload(existingXml, userCorrectionPrompt, history)
+    user: buildRefineUserPayload(existingXml, userCorrectionPrompt, history, focusFiles)
   };
 
   return await callLLM(prompt, config, onLog, onStreamChunk, { temperature: 0.0, usage });
