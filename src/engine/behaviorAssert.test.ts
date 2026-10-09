@@ -181,3 +181,20 @@ describe('behaviorAssert — evaluateBehavior', () => {
     expect(missing.failures.join('')).toContain('json path "orders" expected to exist');
   });
 });
+
+describe('extractJson — robust to logs and large output', () => {
+  it('picks the largest parseable block, not the first embedded object', () => {
+    const out = 'Order details: {"a":1}\nthen payload {"b":2,"c":3}\n';
+    expect(extractJson(out)).toEqual({ b: 2, c: 3 });
+  });
+
+  it('extracts the payload from large output full of brace fragments', () => {
+    const noise = Array.from({ length: 20000 }, (_, i) => `log {${i}} line`).join('\n');
+    const out = `${noise}\n{"answer":42,"ok":true}\n`;
+    expect(extractJson(out)).toEqual({ answer: 42, ok: true });
+  });
+
+  it('parses a top-level array output', () => {
+    expect(extractJson('[1,2,3]')).toEqual([1, 2, 3]);
+  });
+});

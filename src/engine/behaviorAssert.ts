@@ -101,27 +101,25 @@ export function extractJson(output: string): unknown | null {
       // fall through to block extraction
     }
   }
-  // Collect every `{...}` block by brace matching, longest first.
-  const blocks: string[] = [];
+  // Collect every `{...}` block by brace matching, longest first. A single
+  // stack pass pairs each `{` with its matching `}` in O(n) — identical set to
+  // the naive per-brace forward scan, but without the quadratic blow-up on large
+  // output. (start index kept so equal-length ties keep their original order.)
+  const blocks: Array<{ start: number; text: string }> = [];
+  const openStack: number[] = [];
   for (let i = 0; i < t.length; i++) {
-    if (t[i] !== '{') continue;
-    let depth = 0;
-    for (let j = i; j < t.length; j++) {
-      const c = t[j];
-      if (c === '{') depth++;
-      else if (c === '}') {
-        depth--;
-        if (depth === 0) {
-          blocks.push(t.slice(i, j + 1));
-          break;
-        }
-      }
+    const c = t[i];
+    if (c === '{') {
+      openStack.push(i);
+    } else if (c === '}') {
+      const start = openStack.pop();
+      if (start !== undefined) blocks.push({ start, text: t.slice(start, i + 1) });
     }
   }
-  blocks.sort((a, b) => b.length - a.length);
+  blocks.sort((a, b) => (b.text.length - a.text.length) || (a.start - b.start));
   for (const block of blocks) {
     try {
-      return JSON.parse(block);
+      return JSON.parse(block.text);
     } catch {
       // try the next block
     }
