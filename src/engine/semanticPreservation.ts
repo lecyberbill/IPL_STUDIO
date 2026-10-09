@@ -457,21 +457,52 @@ export function deriveOutputJsonKeys(specCode: string): string[] {
   return keys;
 }
 
+/** Seed string values keyed by field name, from `seed <E> <n> { field: "..." }`. */
+function deriveSeedFieldStrings(specCode: string): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  const { ast } = parseIPL(specCode);
+  const visit = (stmts: IPLStatement[]): void => {
+    for (const s of stmts) {
+      if (s.kind === 'seed') {
+        for (const p of s.props) {
+          if (p.key && p.value?.kind === 'literal' && typeof p.value.value === 'string' && p.value.value) {
+            const list = (out[p.key] ??= []);
+            if (!list.includes(p.value.value)) list.push(p.value.value);
+          }
+        }
+      }
+      visit(s.body);
+      visit(s.elseBody ?? []);
+      visit(s.catchBody ?? []);
+    }
+  };
+  visit(ast.statements);
+  return out;
+}
+
 /**
  * Derives a default behavioral oracle from the spec (advisory by default — it
  * is a structural floor, not the exact-value oracle a hand-written `continue`
  * would give). Returns null when the spec declares no JSON output, so a spec
  * without a structured output falls back to the crash-only smoke.
  *
- * The assertion checks that each declared output key appears as a property name
- * in the app's JSON output (the container/array index is unknown to the spec,
- * so presence is what we can guarantee). Exact values stay hand-written (the
- * benchmark) or float-approx where computed.
+ * For each declared output key we assert, in the app's JSON output:
+ *  - the property name appears (`"key"`) — a structural floor, and
+ *  - when the spec `seed`s a string for that very field, the exact seeded value
+ *    appears (`"AB-123"`) — so a *wrong* value is rejected, not just a missing
+ *    key. Only string fixtures are used (float formatting makes numeric equality
+ *    fragile); computed values stay hand-written/approx.
  */
 export function deriveBehaviorAssertFromSpec(specCode: string): BehaviorAssert | null {
   const keys = deriveOutputJsonKeys(specCode);
   if (keys.length === 0) return null;
-  return { stdoutContains: keys.map(k => `"${k}"`) };
+  const seedFields = deriveSeedFieldStrings(specCode);
+  const needles: string[] = [];
+  for (const k of keys) {
+    needles.push(`"${k}"`);
+    for (const v of seedFields[k] ?? []) needles.push(`"${v}"`);
+  }
+  return { stdoutContains: [...new Set(needles)] };
 }
 
 /** The intent type (or `options(...)`) of an `add` field value, from the AST. */

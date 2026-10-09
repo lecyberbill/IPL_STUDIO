@@ -214,6 +214,17 @@ listen event on "x" {
     expect(assert).toEqual({ stdoutContains: ['"plate"', '"cost"'] });
   });
 
+  it('asserts the exact seeded value when a seed field matches an output key', () => {
+    const spec = `
+add entity Vehicle { plate: text, cost: number }
+seed Vehicle car1 { plate: "AB-123", cost: 3.2 }
+listen event on "x" {
+  send receipt to screen { format: "json", plate: v.plate, cost: c }
+}`;
+    const assert = deriveBehaviorAssertFromSpec(spec);
+    expect(assert).toEqual({ stdoutContains: ['"plate"', '"AB-123"', '"cost"'] });
+  });
+
   it('returns null when the spec declares no JSON output (falls back to crash-only smoke)', () => {
     expect(deriveBehaviorAssertFromSpec('add message { text: "hi" }\nreturn success')).toBeNull();
   });
