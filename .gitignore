@@ -30,3 +30,8 @@ dist-ssr
 
 # Output generated projects
 output/
+
+# Cloud-sync (pCloud) noise — conflict copies and stray synced folders.
+# The repo should be excluded from pCloud; this is a second line of defence.
+*conflicted*
+nouveau/
