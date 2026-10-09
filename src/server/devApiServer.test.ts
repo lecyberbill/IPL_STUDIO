@@ -400,7 +400,7 @@ describe('runtime smoke test (runSyntaxSmoke)', () => {
       'web'
     );
     expect(result.execution?.ok).toBe(true);
-  });
+  }, 30000); // a real browser may launch (cold start) when one is present
 
   it.runIf(findBrowserPath() !== null)('real browser execution flags a runtime error (process is not defined)', async () => {
     const result = await runSyntaxSmoke(
@@ -410,7 +410,7 @@ describe('runtime smoke test (runSyntaxSmoke)', () => {
     );
     expect(result.execution?.ok).toBe(false);
     expect(result.execution?.error).toMatch(/process is not defined|browser runtime error/i);
-  });
+  }, 30000);
 });
 
 describe('static serving (Serve button)', () => {
