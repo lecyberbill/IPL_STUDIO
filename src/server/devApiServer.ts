@@ -2,6 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import http from 'http';
 import os from 'os';
+import { pathToFileURL } from 'url';
 import { spawn, exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import { isCommandAllowed, commandPrefix } from '../engine/security.js';
@@ -11,6 +12,7 @@ import { evaluateBehavior } from '../engine/behaviorAssert.js';
 import type { BehaviorAssert } from '../engine/behaviorAssert.js';
 import { resolveTool, installCommandFor, resolveToolchainCommand } from '../engine/toolchains.js';
 import type { Toolchains } from '../engine/toolchains.js';
+import { findBrowserPath, runHeadlessBrowserCheck } from '../engine/webRuntime.js';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -143,6 +145,10 @@ function buildCliCommand(targetLang: string, files: Array<{ relativePath: string
  * checks: per-language syntax + a bounded CLI execution (node/python) or a
  * web HTTP GET. Missing toolchains are reported as install candidates.
  */
+// Real-browser runtime checks live in the pure engine module (usable from the
+// plain-node benchmark runner too); re-exported here for the dev server + tests.
+export { findBrowserPath, runHeadlessBrowserCheck };
+
 export async function runSyntaxSmoke(
   files: Array<{ relativePath: string; content: string }>,
   toolchains?: Toolchains,
@@ -192,15 +198,26 @@ export async function runSyntaxSmoke(
         });
       }
     } else if (formFactor === 'web') {
-      const { url } = await serveStaticDir(sandbox);
-      try {
-        const res = await fetch(`${url}/`);
-        const text = await res.text();
-        execution = { ok: res.status === 200 && /<\/html>/i.test(text), error: res.status !== 200 ? `HTTP ${res.status}` : !/<\/html>/i.test(text) ? 'HTML not closed' : undefined };
-      } catch (err: any) {
-        execution = { ok: false, error: err.message.slice(0, 200) };
-      } finally {
-        stopStaticServer(sandbox);
+      // REAL browser execution (dependency-free, via a system Chromium/Edge):
+      // load the entry HTML and capture runtime errors (`process is not defined`,
+      // uncaught TypeError, runtime SyntaxError). Static web targets → file://
+      // (reliable); fall back to serve+GET when no browser is available.
+      const browser = findBrowserPath();
+      const entry = files.find(f => /\.html?$/i.test(f.relativePath))?.relativePath;
+      if (browser && entry) {
+        const url = pathToFileURL(path.join(sandbox, entry)).href;
+        execution = runHeadlessBrowserCheck(browser, url);
+      } else {
+        const { url } = await serveStaticDir(sandbox);
+        try {
+          const res = await fetch(`${url}/`);
+          const text = await res.text();
+          execution = { ok: res.status === 200 && /<\/html>/i.test(text), error: res.status !== 200 ? `HTTP ${res.status}` : !/<\/html>/i.test(text) ? 'HTML not closed' : undefined };
+        } catch (err: any) {
+          execution = { ok: false, error: err.message.slice(0, 200) };
+        } finally {
+          stopStaticServer(sandbox);
+        }
       }
     }
 

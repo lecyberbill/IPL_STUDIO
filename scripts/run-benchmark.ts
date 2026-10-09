@@ -41,6 +41,8 @@ import { analyzeIPLSemantics } from '../src/engine/iplSemantics.ts';
 import { extractIPLSemanticContract, measureSemanticPreservation, deriveContractContext, checkOracleParity, renderNLBrief } from '../src/engine/semanticPreservation.ts';
 import type { SemanticReceipt, OracleParity } from '../src/engine/semanticPreservation.ts';
 import { resolveIPLProject } from '../src/engine/iplGrammar.ts';
+import { findBrowserPath, runHeadlessBrowserCheck } from '../src/engine/webRuntime.ts';
+import { pathToFileURL } from 'node:url';
 
 // ---------------------------------------------------------------------------
 // CLI options
@@ -1363,9 +1365,17 @@ async function verifyIn(runDir: string, execDir: string, spec: BenchSpec, args: 
     }
   }
 
-  // (A placeholder/comment-only HTML — run 2 — is a real bug but cannot be
-  //  gated deterministically without false-positives on JS-rendered SPAs; noted
-  //  as a recognized gap, not gated here.)
+  // Real browser execution for web targets (dependency-free): catch runtime
+  // errors (`process is not defined`, uncaught TypeError) that marker/forbid and
+  // node --check both miss. Skipped when no system browser is available.
+  if (spec.formFactor === 'web' && !spec.verify.command) {
+    const browser = findBrowserPath();
+    const entry = allFiles.find(f => /\.html?$/i.test(f));
+    if (browser && entry) {
+      const res = runHeadlessBrowserCheck(browser, pathToFileURL(pathResolve(execDir, entry)).href);
+      if (!res.ok) return { status: 'FAIL', detail: res.error || 'browser runtime failed' };
+    }
+  }
 
   if (spec.verify.command) {
     const run = runCommand(execDir, spec.verify.command, args.timeoutRunMs, args.pythonPath);

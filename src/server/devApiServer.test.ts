@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { createDevApiServer, serveStaticDir, stopStaticServer, runSyntaxSmoke, type DevApiServerOptions } from './devApiServer';
+import { createDevApiServer, serveStaticDir, stopStaticServer, runSyntaxSmoke, findBrowserPath, type DevApiServerOptions } from './devApiServer';
 import { deriveBehaviorAssertFromSpec } from '../engine/semanticPreservation';
 import { smokeGateVerdict } from '../engine/smokeCheck';
 import { resolveIPLProject } from '../engine/iplGrammar';
@@ -400,6 +400,16 @@ describe('runtime smoke test (runSyntaxSmoke)', () => {
       'web'
     );
     expect(result.execution?.ok).toBe(true);
+  });
+
+  it.runIf(findBrowserPath() !== null)('real browser execution flags a runtime error (process is not defined)', async () => {
+    const result = await runSyntaxSmoke(
+      [{ relativePath: 'index.html', content: '<!DOCTYPE html><html><body><div id="app">x</div><script>document.getElementById("app").textContent = process.env.SECRET;</script></body></html>' }],
+      undefined,
+      'web'
+    );
+    expect(result.execution?.ok).toBe(false);
+    expect(result.execution?.error).toMatch(/process is not defined|browser runtime error/i);
   });
 });
 
