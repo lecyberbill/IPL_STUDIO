@@ -75,4 +75,16 @@ describe('parser fuzz — arbitrary input never throws (rails, not walls)', () =
     expect(result!.unresolved).toEqual([]);
     expect(typeof result!.code).toBe('string');
   });
+
+  it('pathologically nested blocks are depth-bounded — never blows the stack', () => {
+    for (const n of [64, 500, 5000]) {
+      const src = 'if x {\n'.repeat(n) + '}\n'.repeat(n);
+      let diags: ReturnType<typeof validateIPLCode> | undefined;
+      expect(() => { diags = validateIPLCode(src); }, `validate threw at depth ${n}`).not.toThrow();
+      expect(() => parseIPLToTree(src), `parseIPLToTree threw at depth ${n}`).not.toThrow();
+      expect(diags!.every(d => d.severity === 'info' || d.severity === 'warning')).toBe(true);
+    }
+    const deep = 'if x {\n'.repeat(5000) + '}\n'.repeat(5000);
+    expect(validateIPLCode(deep).some(d => /nesting exceeds/i.test(d.message))).toBe(true);
+  });
 });

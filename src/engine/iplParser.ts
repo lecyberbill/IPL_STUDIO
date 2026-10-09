@@ -92,6 +92,14 @@ const PUNCT_MAP: Record<string, IPTokenType> = {
 const TWO_CHAR_OPS = ['==', '!=', '>=', '<=', '&&', '||'];
 const ONE_CHAR_OPS = ['=', '<', '>', '+', '-', '*', '/', '!'];
 
+/**
+ * Hard cap on block nesting. The recursive-descent parser would otherwise blow
+ * the JS call stack on a pathologically nested spec (thousands of `{`). Beyond
+ * this we stop descending, emit one advisory warning, and skip the block — so
+ * parsing still never throws (the "rails, not walls" guarantee).
+ */
+const MAX_BLOCK_DEPTH = 256;
+
 export function tokenize(source: string): { tokens: IPToken[]; diagnostics: IPLDiagnostic[] } {
   const tokens: IPToken[] = [];
   const diagnostics: IPLDiagnostic[] = [];
@@ -457,6 +465,8 @@ class IPLParserImpl {
   private last: IPToken | null = null;
   diagnostics: IPLDiagnostic[];
   private lineStarts: number[];
+  /** Current block nesting depth, bounded so pathological input cannot blow the stack. */
+  private blockDepth = 0;
 
   constructor(source: string, tokens: IPToken[], diagnostics: IPLDiagnostic[]) {
     this.source = source;
@@ -693,32 +703,58 @@ class IPLParserImpl {
   }
 
   private parseStatementsBlock(): IPLStatement[] {
-    const stmts: IPLStatement[] = [];
-    while (true) {
-      this.skipNewlines();
+    if (this.blockDepth >= MAX_BLOCK_DEPTH) {
       const t = this.peek();
-      if (t.type === 'rbrace') {
-        this.consume();
-        break;
+      this.diag('warning', `Block nesting exceeds ${MAX_BLOCK_DEPTH} levels; the deeper block was skipped.`, t.line, t.column, t.endColumn);
+      this.skipNestedBlock();
+      return [];
+    }
+    const stmts: IPLStatement[] = [];
+    this.blockDepth++;
+    try {
+      while (true) {
+        this.skipNewlines();
+        const t = this.peek();
+        if (t.type === 'rbrace') {
+          this.consume();
+          break;
+        }
+        if (t.type === 'eof') {
+          this.diagnostics.push(this.unclosedBlockDiag());
+          break;
+        }
+        if (t.type === 'lbrace') {
+          this.consume();
+          this.skipNewlines();
+          stmts.push(...this.parseStatementsBlock());
+          continue;
+        }
+        const s = this.parseStatement();
+        if (s) {
+          stmts.push(s);
+        } else {
+          this.consume();
+        }
       }
+    } finally {
+      this.blockDepth--;
+    }
+    return stmts;
+  }
+
+  /** Consumes tokens until the current block's braces balance (depth-limited fallback). */
+  private skipNestedBlock(): void {
+    let depth = 1;
+    while (depth > 0) {
+      const t = this.peek();
       if (t.type === 'eof') {
         this.diagnostics.push(this.unclosedBlockDiag());
         break;
       }
-      if (t.type === 'lbrace') {
-        this.consume();
-        this.skipNewlines();
-        stmts.push(...this.parseStatementsBlock());
-        continue;
-      }
-      const s = this.parseStatement();
-      if (s) {
-        stmts.push(s);
-      } else {
-        this.consume();
-      }
+      if (t.type === 'lbrace') depth++;
+      else if (t.type === 'rbrace') depth--;
+      this.consume();
     }
-    return stmts;
   }
 
   private parsePropsUntilRbrace(): IPLProperty[] {
