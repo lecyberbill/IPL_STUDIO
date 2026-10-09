@@ -236,7 +236,9 @@ export function evaluateBehavior(
     }
     if (trace) {
       const r = runAutomaton(trace, assert.machine);
-      if (!r.accepted && r.error) failures.push(`automaton: ${r.error}`);
+      if (!r.accepted) {
+        failures.push(`automaton: ${r.error ?? `trace ended in {${r.reached.join(', ')}} without an accepting state`}`);
+      }
     }
   }
 

@@ -51,11 +51,21 @@ export interface BrowserCheckResult {
  * `--virtual-time-budget` bounds the wait; `--dump-dom` prints the rendered DOM.
  */
 export function runHeadlessBrowserCheck(browser: string, url: string, timeoutMs = 20000): BrowserCheckResult {
+  if (!browser || !url) return { ok: false, error: 'a browser path and a url are required' };
   const args = [
     '--headless=new', '--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage',
     '--enable-logging=stderr', '--v=1', '--virtual-time-budget=3000', '--dump-dom', url
   ];
   const res = spawnSync(browser, args, { encoding: 'utf8', timeout: timeoutMs, windowsHide: true, maxBuffer: 16 * 1024 * 1024 });
+  if (res.error) {
+    const code = (res.error as NodeJS.ErrnoException).code;
+    const reason = code === 'ETIMEDOUT'
+      ? `timed out after ${timeoutMs}ms`
+      : code === 'ENOENT'
+        ? 'the browser executable was not found'
+        : res.error.message;
+    return { ok: false, error: `could not launch the browser (${reason})` };
+  }
   const log = `${res.stdout || ''}\n${res.stderr || ''}`;
   const err = log.match(/Uncaught [^\n\r]*|(?:ReferenceError|TypeError|SyntaxError)[^\n\r]*|is not defined[^\n\r]*/i);
   if (err) return { ok: false, error: `browser runtime error: ${err[0].replace(/\s+/g, ' ').trim().slice(0, 200)}` };
