@@ -304,17 +304,18 @@ Robustness and reliability of the *tool* outrank the elegance of the *language* 
 
 ---
 
-## ⬜ Phase 14 — AFN
+## ⬜ Phase 14 — AFN (Automate Fini Non-déterministe)
 
-**Objective**: ⚠️ *À préciser* — l'acronyme **AFN** n'est pas encore défini (non référencé ailleurs dans le projet). Entrée posée à la demande ; à compléter (définition, périmètre, critères d'acceptation) quand le concept sera décrit.
+**Concept**: un **AFN** (NFA) est un automate fini où, depuis un état et un symbole, **plusieurs transitions sont possibles** — l'automate peut être simultanément dans un ensemble d'états. Son pendant est l'**automate fini déterministe** (DFA). La **construction des sous-ensembles** transforme tout AFN en un DFA équivalent (même langage accepté), au prix d'une explosion d'états. Résultat clé : **le non-déterminisme n'ajoute aucune puissance de reconnaissance** — il ajoute une *liberté de représentation qui peut toujours être rendue explicite*.
 
-**Scope**:
-- _(à définir)_
+**Pourquoi ça compte ici (l'analogie directe)**: le LLM est un **AFN d'intention → code** (plusieurs continuations possibles pour une même entrée). Notre thèse est exactement le résultat AFN→DFA : on ne peut pas rendre l'exécuteur déterministe, mais on peut **déterminiser le contrat qui l'entoure** (couche de vérification) — *mesurer et borner* le non-déterminisme au lieu de prétendre l'éliminer. Les receipts / l'oracle sont la « construction des sous-ensembles » qui rend la liberté observable.
 
-**Acceptance criteria**:
-- [ ] _(à définir)_
+**Directions à développer (à confirmer avec l'utilisateur)**:
+- **Oracle d'automate sur la trace d'exécution**: étendre l'oracle comportemental (aujourd'hui par *valeurs*) à un **oracle d'automate fini sur la séquence d'événements** — la spec déclare un cycle de vie (états/événements/transitions), et le vérificateur accepte/rejette la trace observée contre un DFA (vérification *stateful/protocole*, là où l'oracle de valeurs est aveugle).
+- **Couche lexicale IPL comme DFA**: formaliser le tokenizer canonique comme un automate déterministe (0 token).
+- **Lecture « déterminisation » des degrés de liberté**: exprimer le ledger *liberté vs contrainte* en termes d'automates (quelles transitions le modèle contrôle, lesquelles le contrat fixe).
 
-**Status**: ⬜ not started — definition pending.
+**Status**: ⬜ not started — direction to define together (l'angle « oracle d'automate » est le plus concret et le plus proche de la Phase 12/13).
 
 ---
 
