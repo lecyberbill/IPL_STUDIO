@@ -6,6 +6,13 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## [Unreleased]
 
+### 🌐 Pure IDE — verify contract, artifact manager, real browser gate
+- **Verify an artifact** (console tab): deterministic gates + semantic-preservation receipt + oracle/spec parity against the current IPL contract, **no generation/LLM**; also verifies an **external** artifact (paste/import). **Export the contract** as a portable prompt for any model.
+- **Artifact manager** (left `Artifact` tab): create / rename / delete files; the **central editor** edits the IPL source **or** an artifact file (single contextual surface); left = files (`Sources`·`Artifact`) + verbs last, right = chat only.
+- **Per-project context**: chat history **and** artifact persist across project switches and reloads.
+- **Chat `@file` mentions** (FOCUS block for the model) and **`/commands`** (`/help /verify /generate /save /export /new /clear`) + **custom commands** in Settings.
+- **Real browser execution for web** (`engine/webRuntime.ts`, dependency-free): headless Chrome/Edge loads the entry HTML and captures runtime errors (`process is not defined`, …); wired into the app-flow smoke + benchmark `verifyIn` (web), with a serve+GET fallback when no browser exists.
+
 ### 🏭 Multi-domain stress test (unrelated business problems)
 - `--spec` is now repeatable (accumulates ids), so a mixed-domain run is one command.
 - 5 new specs across unrelated domains, each with a self-consistent `seed`-backed behavioral oracle + equal-information NL brief: `banking` (finance), `logistics` (supply chain), `inventory` (retail), `payroll` (HR), `telecom` (utilities). Mock oracles added so the CI mock bench stays green.

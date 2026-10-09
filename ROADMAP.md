@@ -261,7 +261,7 @@ Robustness and reliability of the *tool* outrank the elegance of the *language* 
 
 **Scope** (each closes a hole the benchmarks / a real browser test / the analysis exposed):
 - **Sampling by default** — first-try rates and semantic score min–max are reported across `n≥3` iterations (a single run hides model variance; the receipts already aggregate, make `n=3` the default for a report).
-- **Real browser execution for web** — the current web "verify" is marker + form + `node --check` + Node-ism ban; a headless browser (JS execution) is the only way to prove a web app *actually runs* (the `process is not defined`/'missing }' class was only seen when a human opened the app).
+- **Real browser execution for web** *(shipped: `engine/webRuntime.ts` + smoke + benchmark)* — the old web "verify" was marker + form + `node --check` + Node-ism ban; a headless browser (JS execution) is the only way to prove a web app *actually runs* (the `process is not defined`/'missing }' class was only seen when a human opened the app). The gate now loads the entry HTML in headless Chrome/Edge and captures runtime errors.
 - **Spec-derived exact oracle** — derive expected values from the spec's fixtures when computable (reuse `seed` + formula), not only the structural `exists`/presence oracle, so the gate rejects wrong values (not only missing keys).
 - **Placeholder-HTML gate** — the one recognized remaining gap (comment-only `.html`); needs a real-content check that avoids false-positives on JS-rendered SPAs.
 - **Model-variance ledger** — document per-model first-try PASS% and semantic spread (the ceiling is model variance), so the scorecard is a real A/B across backends, and the reviewer-bias (shared model) is surfaced, not hidden.
@@ -275,7 +275,7 @@ Robustness and reliability of the *tool* outrank the elegance of the *language* 
 
 **Acceptance criteria**:
 - [ ] A benchmark report is produced with `n≥3` (pass rate + semantic spread) by default.
-- [ ] A generated web app is executed in a headless browser before delivery (functional, not just served).
+- [x] A generated web app is executed in a headless browser before delivery (functional, not just served). *(dependency-free, via the system Chrome/Edge; graceful skip when absent)*
 - [ ] The `DslAdapter` seam is documented and the IPL implementation is moved behind it (no behavior change).
 
 **Status**: 🟢 direction confirmed by the measurement; multiple pieces already shipped (deterministic gates, layered receipts, semantic-preservation, oracle/parity, de-biased NL witness, hardened web verify, token metric).
