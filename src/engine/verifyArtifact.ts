@@ -25,14 +25,14 @@ import {
   findEsmScriptMismatch
 } from './staticChecker.ts';
 import {
-  extractIPLSemanticContract,
   measureSemanticPreservation,
-  checkOracleParity,
-  deriveBehaviorAssertFromSpec
+  checkOracleParity
 } from './semanticPreservation.ts';
 import type { SemanticReceipt, OracleParity } from './semanticPreservation.ts';
 import type { BehaviorAssert } from './behaviorAssert.ts';
 import type { FormFactor } from './llmGenerator.ts';
+import { getDslAdapter } from './dslAdapter.ts';
+import type { DslAdapter } from './dslAdapter.ts';
 
 export interface GateFinding {
   /** The deterministic gate that produced the finding. */
@@ -72,8 +72,9 @@ export function toArtifactFiles(input: string | ProjectArtifactFile[]): ProjectA
 export function verifyArtifact(
   input: string | ProjectArtifactFile[],
   specCode: string,
-  opts: { formFactor?: FormFactor; oracle?: BehaviorAssert } = {}
+  opts: { formFactor?: FormFactor; oracle?: BehaviorAssert; adapter?: DslAdapter } = {}
 ): ArtifactVerification {
+  const adapter = opts.adapter ?? getDslAdapter();
   const files = toArtifactFiles(input);
   const gates: GateFinding[] = [];
 
@@ -91,11 +92,11 @@ export function verifyArtifact(
   push('esm', 'warn', findEsmScriptMismatch(files).map(f => ({ file: f.file, message: 'ESM script loaded without type="module"' })));
 
   // Semantic-preservation receipt (contract survival, independent of runtime).
-  const contract = extractIPLSemanticContract(specCode);
+  const contract = adapter.extractContract(specCode);
   const semantic = measureSemanticPreservation(contract, files);
 
   // Spec-derived structural oracle + optional parity check against an explicit oracle.
-  const derivedOracle = deriveBehaviorAssertFromSpec(specCode);
+  const derivedOracle = adapter.deriveOracle(specCode);
   const parity = opts.oracle ? checkOracleParity(specCode, opts.oracle) : undefined;
 
   const errors = gates.filter(g => g.severity === 'error').length;

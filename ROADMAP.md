@@ -276,7 +276,7 @@ Robustness and reliability of the *tool* outrank the elegance of the *language* 
 **Acceptance criteria**:
 - [ ] A benchmark report is produced with `n≥3` (pass rate + semantic spread) by default.
 - [x] A generated web app is executed in a headless browser before delivery (functional, not just served). *(dependency-free, via the system Chrome/Edge; graceful skip when absent)*
-- [ ] The `DslAdapter` seam is documented and the IPL implementation is moved behind it (no behavior change).
+- [x] The `DslAdapter` seam is documented (`docs/dsl-adapter.md`) and the IPL implementation is behind it (`engine/dslAdapter.ts`; `verifyArtifact` routes through it — no behavior change).
 
 **Status**: 🟢 direction confirmed by the measurement; multiple pieces already shipped (deterministic gates, layered receipts, semantic-preservation, oracle/parity, de-biased NL witness, hardened web verify, token metric).
 
