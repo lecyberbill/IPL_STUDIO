@@ -304,6 +304,20 @@ Robustness and reliability of the *tool* outrank the elegance of the *language* 
 
 ---
 
+## ⬜ Phase 14 — AFN
+
+**Objective**: ⚠️ *À préciser* — l'acronyme **AFN** n'est pas encore défini (non référencé ailleurs dans le projet). Entrée posée à la demande ; à compléter (définition, périmètre, critères d'acceptation) quand le concept sera décrit.
+
+**Scope**:
+- _(à définir)_
+
+**Acceptance criteria**:
+- [ ] _(à définir)_
+
+**Status**: ⬜ not started — definition pending.
+
+---
+
 ## 🧭 Guiding Principles (unchanged)
 
 1. **Rails, not walls** — diagnostics never block; severity is `info | warning`.
