@@ -49,7 +49,7 @@ export interface SyntaxErrorItem {
 // Tokens
 // ---------------------------------------------------------------------------
 
-type IPTokenType =
+export type IPTokenType =
   | 'ident'
   | 'string'
   | 'number'
@@ -68,7 +68,7 @@ type IPTokenType =
   | 'semi'
   | 'punct';
 
-interface IPToken {
+export interface IPToken {
   type: IPTokenType;
   value: string;
   line: number;
@@ -92,7 +92,7 @@ const PUNCT_MAP: Record<string, IPTokenType> = {
 const TWO_CHAR_OPS = ['==', '!=', '>=', '<=', '&&', '||'];
 const ONE_CHAR_OPS = ['=', '<', '>', '+', '-', '*', '/', '!'];
 
-function tokenize(source: string): { tokens: IPToken[]; diagnostics: IPLDiagnostic[] } {
+export function tokenize(source: string): { tokens: IPToken[]; diagnostics: IPLDiagnostic[] } {
   const tokens: IPToken[] = [];
   const diagnostics: IPLDiagnostic[] = [];
   const len = source.length;

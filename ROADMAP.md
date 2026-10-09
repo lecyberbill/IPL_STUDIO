@@ -304,7 +304,7 @@ Robustness and reliability of the *tool* outrank the elegance of the *language* 
 
 ---
 
-## ⬜ Phase 14 — AFN (Automate Fini Non-déterministe)
+## ✅ Phase 14 — AFN (Automate Fini Non-déterministe)
 
 **Concept**: un **AFN** (NFA) est un automate fini où, depuis un état et un symbole, **plusieurs transitions sont possibles** — l'automate peut être simultanément dans un ensemble d'états. Son pendant est l'**automate fini déterministe** (DFA). La **construction des sous-ensembles** transforme tout AFN en un DFA équivalent (même langage accepté), au prix d'une explosion d'états. Résultat clé : **le non-déterminisme n'ajoute aucune puissance de reconnaissance** — il ajoute une *liberté de représentation qui peut toujours être rendue explicite*.
 
@@ -312,16 +312,16 @@ Robustness and reliability of the *tool* outrank the elegance of the *language* 
 
 **Directions**:
 - **Oracle d'automate sur la trace d'exécution** *(shipped: `engine/automaton.ts` + `BehaviorAssert.machine`)* — `runAutomaton(trace, machine)` simule un **AFN** (ensemble d'états atteignables = construction des sous-ensembles au runtime) et accepte/rejette la trace. **Intégré à l'oracle comportemental** : `machine` (avec `tracePath` JSON optionnel, sinon les lignes stdout). Un spec peut donc vérifier un **cycle de vie / protocole**, là où l'oracle par valeurs est aveugle. **+10 tests** (automate déterministe + AFN + intégration).
-- **Couche lexicale IPL comme DFA**: formaliser le tokenizer canonique comme un automate déterministe (0 token).
-- **Lecture « déterminisation » des degrés de liberté**: exprimer le ledger *liberté vs contrainte* en termes d'automates (quelles transitions le modèle contrôle, lesquelles le contrat fixe).
+- **Couche lexicale IPL comme DFA**: formaliser le tokenizer canonique comme un automate déterministe (0 token). *(shipped: `engine/lexerDfa.ts` — table d'états/transitions explicite ; `lexerDfa.test.ts` prouve l'accord token-pour-token avec le scanner canonique sur tout le corpus + cas limites ; +45 tests ; doc `docs/ipl-lexer-dfa.md`).*
+- **Lecture « déterminisation » des degrés de liberté**: exprimer le ledger *liberté vs contrainte* en termes d'automates (quelles transitions le modèle contrôle, lesquelles le contrat fixe). *(shipped: `engine/freedomLedger.ts` — transitions étiquetées `model`/`contract` ; invariant `isDeterminized` = aucune exécution acceptée (artefact livré) ne peut éviter une transition `contract` ; +5 tests ; section « automaton transitions » dans `docs/degrees-of-freedom.md`).*
 
 **Acceptance criteria**:
 - [x] Un oracle d'automate fini (AFN supporté) vérifie une trace d'événements (module pur + tests).
 - [x] Intégré à `BehaviorAssert` (trace = `tracePath` JSON ou lignes stdout).
-- [ ] Le tokenizer IPL est documenté comme DFA.
-- [ ] Le ledger des degrés de liberté est exprimé en termes de transitions d'automate.
+- [x] Le tokenizer IPL est documenté comme DFA (`docs/ipl-lexer-dfa.md`, accord testé avec le scanner canonique).
+- [x] Le ledger des degrés de liberté est exprimé en termes de transitions d'automate (`engine/freedomLedger.ts` + invariant `isDeterminized`).
 
-**Status**: 🟢 le cœur (oracle AFN sur la trace) est livré et testé ; le reste (lexer DFA, ledger automates) reste à faire.
+**Status**: 🟢 Phase 14 complète — oracle AFN sur la trace, lexer DFA (testé), ledger liberté/contrainte en transitions d'automate.
 
 ---
 

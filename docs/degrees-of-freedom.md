@@ -28,7 +28,7 @@
 | **Inter-file dependency closure** | lowering + integration | 🟢 gate | `staticChecker.findMissingModuleRefs` (imports resolve) |
 | **Runtime crash / syntax / toolchain** (app flow) | execution smoke | 🟢 gate | `runSyntaxSmoke` + `smokeGateVerdict` (`fail` on crash, `warn` on syntax/missing toolchain) |
 | **Behavioral correctness — output structure** | spec-derived oracle | 🟢 gate | `deriveBehaviorAssertFromSpec` (spec's `send format:json` keys) → `evaluateBehavior` `exists`/presence |
-| **Behavioral correctness — output values** | hand oracle / float-approx | 🟡 measured | benchmark `verify.assert` (`equals`/`approx`); app flow derives structure, exact values stay explicit |
+| **Behavioral correctness — output values** | spec seed + hand oracle / float-approx | 🟡 measured → 🟢 partial | `deriveBehaviorAssertFromSpec` now asserts the **exact seeded value** of any `seed` field that matches a declared JSON output key (e.g. `plate → "AB-123"`), so wrong strings fail; computed values stay explicit hand-oracle (`equals`/`approx`) |
 | **Runtime behavior** at first pass | generated app + run harness | 🟢 gate | benchmark `verify` (run command, JSON-path asserts) |
 | **Independent reviewer (2nd model)** | reviewer config | 🔵 optional | `LLMConfig.reviewer` (Settings "Independent Reviewer"): different mode/model/endpoint/key. **Coverage + attribution, not reliability** — reliability comes from the deterministic gates above, never from a reviewer. |
 | **Deterministic pre-repair** | 0-token fixes | 🟢 gate | `deterministicRepair.ts` (ES-module, Tailwind CDN, SEARCH/REPLACE, python relative imports) |
@@ -81,3 +81,30 @@ hand" for a 2nd model is fine: you keep the reliability path measured.
 
 That is answered per run by the receipts above — not by demanding IPL emit a
 byte-identical tree every time.
+
+## The same ledger, as automaton transitions (Phase 14)
+
+The rows above are *promises*; this is the same content as a **labelled
+automaton** (`src/engine/freedomLedger.ts`). Each edge says **who decides**:
+
+- **`model`** — free / nondeterministic (the LLM may pick any continuation),
+- **`contract`** — deterministic (a gate, oracle, or delivery rule decides).
+
+```
+request ──model──▶ intent ──model──▶ topology ──model──▶ code
+                                                            │ contract (gates)
+                                                            ▼
+                            code ◀──model── repaired ◀──contract── gated
+                                                                    │ contract (oracle)
+                                                                    ▼
+                                                      verified ──contract──▶ delivered ✓
+```
+
+`isDeterminized(FREEDOM_LEDGER)` returns `true`: the invariant is that **no
+accepting run (a delivered artifact) can avoid a `contract` transition** — model
+freedom is never shipped unobserved. This is the AFN→DFA reading in code form:
+the model is the nondeterministic automaton, the contract layer is the subset
+construction that turns its freedom into a deterministic accept/reject. A `model`
+edge straight into `delivered` would make the check fail; the test asserts both
+the good table and that exact violation. The headline balance
+(`actorCounts`) is **4 model edges : 4 contract edges**.
