@@ -507,3 +507,42 @@ export function findEsmScriptMismatch(files: ProjectArtifactFile[]): EsmScriptMi
   }
   return issues;
 }
+
+export interface UnsafePath {
+  /** The offending `relativePath`, exactly as written by the model. */
+  file: string;
+  /** Why the path is unsafe. */
+  reason: string;
+  /** How to fix it. */
+  suggestion: string;
+}
+
+/**
+ * Path-safety gate (deterministic, 0 tokens). An artifact's file paths come from
+ * untrusted model output; an absolute path or a `..` segment can escape the
+ * target directory (or a zip extractor's root). The IDE's write sandbox already
+ * refuses such writes, but flagging them here surfaces the drift as a gate
+ * finding instead of a late refusal — the verification engine's job.
+ */
+export function findUnsafePaths(files: ProjectArtifactFile[]): UnsafePath[] {
+  const issues: UnsafePath[] = [];
+  for (const f of files) {
+    const raw = typeof f.relativePath === 'string' ? f.relativePath : '';
+    if (!raw.trim()) {
+      issues.push({ file: raw, reason: 'empty file path', suggestion: 'Every file needs a non-empty relative path inside the project.' });
+      continue;
+    }
+    if (raw.includes('\0')) {
+      issues.push({ file: raw, reason: 'path contains a null byte', suggestion: 'Remove the NUL byte from the file path.' });
+      continue;
+    }
+    if (/^([a-zA-Z]:[\\/]|[\\/])/.test(raw)) {
+      issues.push({ file: raw, reason: 'absolute file path', suggestion: `"${raw}" is absolute; artifacts must use paths relative to the project root.` });
+      continue;
+    }
+    if (raw.replace(/\\/g, '/').split('/').includes('..')) {
+      issues.push({ file: raw, reason: 'path escapes the target ("..")', suggestion: `"${raw}" contains ".." and would escape the project directory. Use a path inside the project.` });
+    }
+  }
+  return issues;
+}

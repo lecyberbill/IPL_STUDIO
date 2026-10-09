@@ -22,7 +22,8 @@ import {
   findIplLeakage,
   findPatchLeakage,
   findTruncatedFiles,
-  findEsmScriptMismatch
+  findEsmScriptMismatch,
+  findUnsafePaths
 } from './staticChecker.ts';
 import {
   measureSemanticPreservation,
@@ -90,6 +91,7 @@ export function verifyArtifact(
   push('patch-leak', 'error', findPatchLeakage(files).map(f => ({ file: f.file, message: 'SEARCH/REPLACE marker leaked into the code' })));
   push('truncation', 'error', findTruncatedFiles(files).map(f => ({ file: f.file, message: 'file is cut short (truncated)' })));
   push('esm', 'warn', findEsmScriptMismatch(files).map(f => ({ file: f.file, message: 'ESM script loaded without type="module"' })));
+  push('path', 'error', findUnsafePaths(files).map(p => ({ file: p.file, message: p.reason })));
 
   // Semantic-preservation receipt (contract survival, independent of runtime).
   const contract = adapter.extractContract(specCode);

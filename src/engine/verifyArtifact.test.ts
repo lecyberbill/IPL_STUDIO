@@ -58,4 +58,10 @@ listen event on "x" { send r to screen { format: "json", currency: g.currency } 
     const files = toArtifactFiles(xml);
     expect(files).toEqual([{ relativePath: 'a.js', content: 'console.log(1);' }]);
   });
+
+  it('fails on an artifact whose file path escapes the project (path gate)', () => {
+    const r = verifyArtifact([{ relativePath: '../evil.js', content: 'console.log(1);' }], SPEC);
+    expect(r.verdict).toBe('fail');
+    expect(r.gates.some(g => g.gate === 'path' && g.severity === 'error')).toBe(true);
+  });
 });

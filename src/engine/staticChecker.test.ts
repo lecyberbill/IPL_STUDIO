@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findMissingModuleRefs, findFormMismatches, findIplLeakage, findPatchLeakage, findTruncatedFiles, findEsmScriptMismatch, normalizeRelative, resolveCandidates, extractRelativeImports } from './staticChecker';
+import { findMissingModuleRefs, findFormMismatches, findIplLeakage, findPatchLeakage, findTruncatedFiles, findEsmScriptMismatch, findUnsafePaths, normalizeRelative, resolveCandidates, extractRelativeImports } from './staticChecker';
 import type { ProjectArtifactFile } from './artifactGenerator';
 
 const file = (relativePath: string, content: string): ProjectArtifactFile => ({ relativePath, content });
@@ -291,5 +291,37 @@ describe('findFormMismatches (P4 form-factor gate)', () => {
     expect(web.some(i => i.reason === 'web asset present for a batch target')).toBe(true);
     const dom = findFormMismatches([file('main.js', 'document.getElementById("a").textContent = "x";')], 'batch');
     expect(dom[0].reason).toContain('DOM/browser usage');
+  });
+});
+
+describe('findUnsafePaths (path-safety gate)', () => {
+  it('accepts ordinary relative paths, including nested and ./-prefixed', () => {
+    expect(findUnsafePaths([
+      file('index.html', ''),
+      file('src/main.rs', ''),
+      file('css/styles.css', ''),
+      file('./main.py', '')
+    ])).toEqual([]);
+  });
+
+  it('flags parent-escaping paths', () => {
+    const issues = findUnsafePaths([file('../secrets.env', 'x'), file('src/../../etc/passwd', 'y')]);
+    expect(issues).toHaveLength(2);
+    expect(issues.every(i => i.reason.includes('escapes'))).toBe(true);
+  });
+
+  it('flags absolute paths (posix, drive, and UNC)', () => {
+    expect(findUnsafePaths([file('/etc/passwd', '')])[0].reason).toBe('absolute file path');
+    expect(findUnsafePaths([file('C:\\Windows\\system32', '')])[0].reason).toBe('absolute file path');
+    expect(findUnsafePaths([file('\\\\server\\share', '')])[0].reason).toBe('absolute file path');
+  });
+
+  it('flags empty paths and null bytes', () => {
+    expect(findUnsafePaths([file('', '')])[0].reason).toBe('empty file path');
+    expect(findUnsafePaths([file('a\0b.txt', '')])[0].reason).toBe('path contains a null byte');
+  });
+
+  it('accepts backslash-separated relative paths on Windows', () => {
+    expect(findUnsafePaths([file('src\\models\\order.js', '')])).toEqual([]);
   });
 });
