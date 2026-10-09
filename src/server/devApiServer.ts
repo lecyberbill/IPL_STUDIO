@@ -58,6 +58,42 @@ function getHostname(hostHeader: string): string {
   return host.split(':')[0];
 }
 
+/** Upper bound on a JSON request body, so a huge upload cannot exhaust memory. */
+const MAX_BODY_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Reads and parses a JSON request body with a size cap. Replies 413 for an
+ * oversized body and 400 for malformed JSON — the right status for a bad client,
+ * instead of a generic 500 — and never lets a partial/oversized read through.
+ */
+function readJsonBody(req: any, res: any, onBody: (data: any) => void): void {
+  let body = '';
+  let done = false;
+  req.on('data', (chunk: any) => {
+    if (done) return;
+    body += chunk;
+    if (body.length > MAX_BODY_BYTES) {
+      done = true;
+      res.statusCode = 413;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ error: `Request body exceeds ${MAX_BODY_BYTES} bytes.` }));
+    }
+  });
+  req.on('end', () => {
+    if (done) return;
+    let data: any;
+    try {
+      data = body.length > 0 ? JSON.parse(body) : {};
+    } catch {
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ error: 'Malformed JSON request body.' }));
+      return;
+    }
+    onBody(data);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Static file serving (test the generated web app straight from the IDE)
 // ---------------------------------------------------------------------------
@@ -418,11 +454,8 @@ export function createDevApiServer(options: DevApiServerOptions): DevApiServer {
 
   const handler = async (req: any, res: any, next: any) => {
     if (req.url === '/api/write-artifact' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (chunk: any) => { body += chunk; });
-      req.on('end', () => {
+      readJsonBody(req, res, (data) => {
         try {
-          const data = JSON.parse(body);
           const { outputDir, files } = data;
           if (!outputDir || !Array.isArray(files)) {
             res.statusCode = 400;
@@ -476,11 +509,8 @@ export function createDevApiServer(options: DevApiServerOptions): DevApiServer {
         }
       });
     } else if (req.url === '/api/serve' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (chunk: any) => { body += chunk; });
-      req.on('end', async () => {
+      readJsonBody(req, res, async (data) => {
         try {
-          const data = JSON.parse(body);
           const { outputDir } = data;
           if (!outputDir) {
             res.statusCode = 400;
@@ -506,11 +536,8 @@ export function createDevApiServer(options: DevApiServerOptions): DevApiServer {
         }
       });
     } else if (req.url === '/api/serve-stop' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (chunk: any) => { body += chunk; });
-      req.on('end', () => {
+      readJsonBody(req, res, (data) => {
         try {
-          const data = JSON.parse(body);
           const { outputDir } = data;
           const stopped = outputDir ? stopStaticServer(outputDir) : false;
           res.statusCode = 200;
@@ -523,11 +550,8 @@ export function createDevApiServer(options: DevApiServerOptions): DevApiServer {
         }
       });
     } else if (req.url === '/api/smoke-test' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (chunk: any) => { body += chunk; });
-      req.on('end', async () => {
+      readJsonBody(req, res, async (data) => {
         try {
-          const data = JSON.parse(body);
           const files = data.files;
           if (!Array.isArray(files)) {
             res.statusCode = 400;
@@ -546,11 +570,8 @@ export function createDevApiServer(options: DevApiServerOptions): DevApiServer {
         }
       });
     } else if (req.url === '/api/read-disk' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (chunk: any) => { body += chunk; });
-      req.on('end', () => {
+      readJsonBody(req, res, (data) => {
         try {
-          const data = JSON.parse(body);
           const { outputDir } = data;
           if (!outputDir) {
             res.statusCode = 400;
@@ -607,11 +628,8 @@ export function createDevApiServer(options: DevApiServerOptions): DevApiServer {
         }
       });
     } else if (req.url === '/api/confirm-path' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (chunk: any) => { body += chunk; });
-      req.on('end', () => {
+      readJsonBody(req, res, (data) => {
         try {
-          const data = JSON.parse(body);
           const { path: targetPath } = data;
           if (!targetPath || typeof targetPath !== 'string') {
             res.statusCode = 400;
@@ -633,11 +651,8 @@ export function createDevApiServer(options: DevApiServerOptions): DevApiServer {
         }
       });
     } else if (req.url === '/api/run-command' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (chunk: any) => { body += chunk; });
-      req.on('end', () => {
+      readJsonBody(req, res, (data) => {
         try {
-          const data = JSON.parse(body);
           const { command, cwd } = data;
           if (!command) {
             res.statusCode = 400;
@@ -720,11 +735,8 @@ export function createDevApiServer(options: DevApiServerOptions): DevApiServer {
         res.end(JSON.stringify({ diffText: 'Git repository not initialized or no changes.' }));
       }
     } else if (req.url === '/api/git/commit' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (chunk: any) => { body += chunk; });
-      req.on('end', async () => {
+      readJsonBody(req, res, async (data) => {
         try {
-          const data = JSON.parse(body);
           const message = String(data.message || 'IPL Studio Auto-Commit')
             .replace(/\r?\n/g, ' ')
             .trim() || 'IPL Studio Auto-Commit';

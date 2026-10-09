@@ -265,6 +265,43 @@ describe('createDevApiServer — write-artifact handler', () => {
   });
 });
 
+describe('createDevApiServer — request body handling', () => {
+  const opts = { devToken: '', isProduction: false, allowedCommands: null };
+
+  it('replies 400 on malformed JSON (not a generic 500)', () => {
+    const server = createDevApiServer(opts);
+    const res = createMockRes();
+    const { req, emit } = mockReq('/api/confirm-path', 'POST', { host: 'localhost' });
+    (req as any)._queuedBody = '{ not json';
+    server.handler(req, res, () => { throw new Error('next must not be called'); });
+    emit();
+    expect(res.statusCode).toBe(400);
+    expect(parseJson(res).error).toContain('Malformed JSON');
+  });
+
+  it('replies 413 when the body exceeds the cap', () => {
+    const server = createDevApiServer(opts);
+    const res = createMockRes();
+    const { req, emit } = mockReq('/api/confirm-path', 'POST', { host: 'localhost' });
+    (req as any)._queuedBody = `{"path":"${'x'.repeat(9 * 1024 * 1024)}"}`;
+    server.handler(req, res, () => { throw new Error('next must not be called'); });
+    emit();
+    expect(res.statusCode).toBe(413);
+    expect(parseJson(res).error).toContain('exceeds');
+  });
+
+  it('treats an empty body as {} and fails validation with 400', () => {
+    const server = createDevApiServer(opts);
+    const res = createMockRes();
+    const { req, emit } = mockReq('/api/confirm-path', 'POST', { host: 'localhost' });
+    (req as any)._queuedBody = '';
+    server.handler(req, res, () => { throw new Error('next must not be called'); });
+    emit();
+    expect(res.statusCode).toBe(400);
+    expect(parseJson(res).error).toContain('path parameter is required');
+  });
+});
+
 describe('runtime smoke test (runSyntaxSmoke)', () => {
   it('passes a syntactically valid JS file', async () => {
     const result = await runSyntaxSmoke([
