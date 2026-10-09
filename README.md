@@ -7,12 +7,12 @@
 [![Changelog](https://img.shields.io/badge/Release_Notes-v1.4.0-blue.svg?style=for-the-badge)](CHANGELOG.md)
 [![LLM Agent Guide](https://img.shields.io/badge/Agent_Prompt-IPL_Guide-purple.svg?style=for-the-badge)](IPL_AGENT_GUIDE.md)
 [![Benchmark Suite](https://img.shields.io/badge/Benchmark-Hello_World-orange.svg?style=for-the-badge)](BENCHMARK_HELLO_WORLD.md)
-[![Roadmap](https://img.shields.io/badge/Roadmap-Phases_4--10-teal.svg?style=for-the-badge)](ROADMAP.md)
+[![Roadmap](https://img.shields.io/badge/Roadmap-Phases_4--13-teal.svg?style=for-the-badge)](ROADMAP.md)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
-> **IPL Studio** is an AI-powered polyglot, intent-based IDE with autonomous agentic capabilities. It transforms high-level declarative specifications written in **IPL (Intent Programming Language)** into runnable, multi-file codebases (Rust, Python, Node.js, Go, C++, HTML5, Java, etc.) written directly to disk.
+> **IPL Studio** is a **toolbox IDE** for intent-structured development. You describe the intent in **IPL (Intent Programming Language)** — a compact, typed **contract** — and the IDE can generate an app (Rust, Python, Node.js, Go, C++, HTML5, …), but above all it **verifies any artifact against that contract** (ours, another model's, a human's), measuring and containing the model's drift.
 
-> **Honest positioning.** An intent language does *not* make the model reliable — it makes the model's **freedom measurable** and a failure **attributable** to a specific layer. IPL pins the *what* (a typed data contract: identities, types, formulas, output keys, fixtures), while the *how* (architecture, exact source tree) stays the LLM's. The measurable ceiling is **model variance**: even when the spec's contract survives into the source (semantic-preservation 0.82–0.95), the executable output can still diverge. Reliability therefore comes from **execution + deterministic gates + layer-aware receipts**, not from the language. This is "rails, not walls": the DSL guides and advises, but never blocks; the LLM remains the final interpreter.
+> **Honest positioning.** An intent language does *not* make the model reliable — it makes the model's **freedom measurable** and a failure **attributable** to a specific layer. IPL pins the *what* (a typed data contract: identities, types, formulas, output keys, fixtures), while the *how* (architecture, exact source tree) stays the LLM's. The measurable ceiling is **model variance**: even when the spec's contract survives into the source (semantic-preservation 0.82–0.95), the executable output can still diverge. Reliability therefore comes from **execution + deterministic gates + layer-aware receipts**, not from the language. This is "rails, not walls": the DSL guides and advises, but never blocks; the LLM remains the final interpreter. **IPL is a means, not the centre** — the product is the IDE.
 
 ---
 
@@ -39,6 +39,15 @@
 - **Natural-language control witness** (`--nl-witness`) — the same requirements as prose, generated first-try, compared head-to-head. On a rich spec this shows *IPL did better — NL lacked the constraint*.
 - **Cache-stable system prompts** — Pass 1 / Pass 2 / repair system prompts are byte-stable constants (`src/engine/llmPrompts.ts`) so the Cloud API gets a DeepSeek Cache Hit on every request.
 - **Degrees-of-freedom ledger** — [`docs/degrees-of-freedom.md`](docs/degrees-of-freedom.md) explicitates promise → owner layer → measured today.
+
+### 🧰 Pure IDE — verify a contract, on any artifact
+- **Verify the artifact** (`Verify artifact` console tab) — runs the deterministic gates + semantic-preservation receipt + oracle/spec parity against the current IPL contract, **no generation, no LLM**. It also verifies an **external** artifact (paste `<file>` blocks, or a single file with a path) and renders the verdict + breakdown.
+- **Export the contract** — copy the contract (identities/types/formulas/output keys/fixtures) as a portable prompt to drive **any** external model; paste the result back and Verify it. *(IPL as an input.)*
+- **Artifact manager** — the `Artifact` tab lists the generated files and lets you **create / rename / delete** them (plus Save-to-disk, Export .zip, Sync). Selecting a file opens it in the central editor.
+- **Single contextual editor** — one central editor that edits the **IPL source** (code or AST blocks) **or** any **artifact file**, depending on what you select.
+- **Layout** — left = files (`Sources` · `Artifact`) + the verb palette last; right = **Chat** only.
+- **Per-project context** — the chat history **and** the artifact persist across project switches and reloads.
+- **`@file` mentions** (reference a specific artifact file, with a FOCUS block for the model) and **`/commands`** (`/help /verify /generate /save /export /new /clear`), plus **custom commands** in Settings → *Chat Commands*.
 
 ---
 
@@ -186,7 +195,7 @@ Never expose this server to an untrusted network.
 npm test        # one-shot
 npm run test:watch
 ```
-**320 tests across 20 suites** cover the IPL parser, the semantic analyzer, the reference index (go-to-def), the grammar signature, the semantic-preservation receipt, the behavioral assertions (exit code / stdout / structured-JSON / float-approx checks), the store slices, the reusable dev-server middleware, and golden execution fixtures.
+**373 tests across 24 suites** cover the IPL parser, the semantic analyzer, the reference index (go-to-def), the grammar signature, artifact verification, the semantic-preservation receipt, artifact mentions + chat commands, the behavioral assertions (exit code / stdout / structured-JSON / float-approx checks), the store slices (incl. per-project chat + artifact recovery), the reusable dev-server middleware, and golden execution fixtures.
 
 ### 5. Run the Automated Benchmark Harness
 ```bash
