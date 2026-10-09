@@ -310,12 +310,18 @@ Robustness and reliability of the *tool* outrank the elegance of the *language* 
 
 **Pourquoi ça compte ici (l'analogie directe)**: le LLM est un **AFN d'intention → code** (plusieurs continuations possibles pour une même entrée). Notre thèse est exactement le résultat AFN→DFA : on ne peut pas rendre l'exécuteur déterministe, mais on peut **déterminiser le contrat qui l'entoure** (couche de vérification) — *mesurer et borner* le non-déterminisme au lieu de prétendre l'éliminer. Les receipts / l'oracle sont la « construction des sous-ensembles » qui rend la liberté observable.
 
-**Directions à développer (à confirmer avec l'utilisateur)**:
-- **Oracle d'automate sur la trace d'exécution**: étendre l'oracle comportemental (aujourd'hui par *valeurs*) à un **oracle d'automate fini sur la séquence d'événements** — la spec déclare un cycle de vie (états/événements/transitions), et le vérificateur accepte/rejette la trace observée contre un DFA (vérification *stateful/protocole*, là où l'oracle de valeurs est aveugle).
+**Directions**:
+- **Oracle d'automate sur la trace d'exécution** *(shipped: `engine/automaton.ts` + `BehaviorAssert.machine`)* — `runAutomaton(trace, machine)` simule un **AFN** (ensemble d'états atteignables = construction des sous-ensembles au runtime) et accepte/rejette la trace. **Intégré à l'oracle comportemental** : `machine` (avec `tracePath` JSON optionnel, sinon les lignes stdout). Un spec peut donc vérifier un **cycle de vie / protocole**, là où l'oracle par valeurs est aveugle. **+10 tests** (automate déterministe + AFN + intégration).
 - **Couche lexicale IPL comme DFA**: formaliser le tokenizer canonique comme un automate déterministe (0 token).
 - **Lecture « déterminisation » des degrés de liberté**: exprimer le ledger *liberté vs contrainte* en termes d'automates (quelles transitions le modèle contrôle, lesquelles le contrat fixe).
 
-**Status**: ⬜ not started — direction to define together (l'angle « oracle d'automate » est le plus concret et le plus proche de la Phase 12/13).
+**Acceptance criteria**:
+- [x] Un oracle d'automate fini (AFN supporté) vérifie une trace d'événements (module pur + tests).
+- [x] Intégré à `BehaviorAssert` (trace = `tracePath` JSON ou lignes stdout).
+- [ ] Le tokenizer IPL est documenté comme DFA.
+- [ ] Le ledger des degrés de liberté est exprimé en termes de transitions d'automate.
+
+**Status**: 🟢 le cœur (oracle AFN sur la trace) est livré et testé ; le reste (lexer DFA, ledger automates) reste à faire.
 
 ---
 

@@ -6,6 +6,11 @@ All notable changes to **IPL Studio** are documented in this file.
 
 ## [Unreleased]
 
+### 🔁 Finite-automaton trace oracle (AFN / NFA)
+- `src/engine/automaton.ts` (pure): `runAutomaton(trace, machine)` simulates a **non-deterministic** finite automaton — it carries the SET of reachable states (subset construction executed at runtime) and accepts/rejects an event trace. Transitions may target several states.
+- `BehaviorAssert.machine` (+ optional `tracePath`): the behavioral oracle now also checks a **lifecycle / protocol** over the app's emitted event trace (stdout lines, or a `string[]` at a JSON path) — where a value oracle is blind. 0-token, +10 tests.
+- The same idea as the project's thesis, in automata terms: the LLM is an NFA of intent→code; the verification layer is the subset construction that makes its freedom explicit and checkable.
+
 ### 🌐 Pure IDE — verify contract, artifact manager, real browser gate
 - **Verify an artifact** (console tab): deterministic gates + semantic-preservation receipt + oracle/spec parity against the current IPL contract, **no generation/LLM**; also verifies an **external** artifact (paste/import). **Export the contract** as a portable prompt for any model.
 - **Artifact manager** (left `Artifact` tab): create / rename / delete files; the **central editor** edits the IPL source **or** an artifact file (single contextual surface); left = files (`Sources`·`Artifact`) + verbs last, right = chat only.

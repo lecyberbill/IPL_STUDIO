@@ -149,6 +149,20 @@ describe('behaviorAssert — evaluateBehavior', () => {
     expect(notNum.failures.join('')).toContain('is not a number');
   });
 
+  it('machine (AFN trace oracle) accepts a conforming stdout-line trace', () => {
+    const machine = { initial: 'created', accept: ['shipped'], transitions: [{ from: 'created', on: 'pay', to: 'paid' }, { from: 'paid', on: 'ship', to: 'shipped' }] };
+    expect(evaluateBehavior('pay\nship\n', '', 0, { machine }).pass).toBe(true);
+    const bad = evaluateBehavior('ship\n', '', 0, { machine });
+    expect(bad.pass).toBe(false);
+    expect(bad.failures.join('')).toContain('automaton');
+  });
+
+  it('machine reads the trace from a JSON path when tracePath is set', () => {
+    const machine = { initial: 'a', accept: ['b'], transitions: [{ from: 'a', on: 'go', to: 'b' }], tracePath: 'events' };
+    expect(evaluateBehavior('{"events":["go"]}', '', 0, { machine }).pass).toBe(true);
+    expect(evaluateBehavior('{"events":["stop"]}', '', 0, { machine }).pass).toBe(false);
+  });
+
   it('exists asserts presence/absence (spec-derived schema oracle)', () => {
     const present = evaluateBehavior('{"orders":[{"x":1}],"grandTotal":5.78}', '', 0, {
       jsonInOutput: [

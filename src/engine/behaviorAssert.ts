@@ -1,3 +1,6 @@
+import { runAutomaton } from './automaton.ts';
+import type { Automaton } from './automaton.ts';
+
 /**
  * Behavioral assertions — the "does the generated app actually do what the
  * spec said?" proof, on top of the raw exit-code / marker checks.
@@ -44,6 +47,12 @@ export interface BehaviorAssert {
   stdoutRegex?: string;
   stdinLines?: string[];
   jsonInOutput?: JsonAssert[];
+  /**
+   * Finite-automaton trace oracle (AFN): the app's emitted event trace must be
+   * accepted by this automaton. The trace is the string array at `tracePath`
+   * (JSON) when set, otherwise the non-empty trimmed stdout lines.
+   */
+  machine?: Automaton & { tracePath?: string };
 }
 
 export interface BehaviorResult {
@@ -211,6 +220,23 @@ export function evaluateBehavior(
           failures.push(`json path "${j.path}" has no assertion comparator`);
         }
       }
+    }
+  }
+
+  // Finite-automaton trace oracle (AFN): accept/reject the event trace.
+  if (assert.machine) {
+    let trace: string[] | null = null;
+    if (assert.machine.tracePath) {
+      const json = extractJson(output);
+      const arr = json === null ? undefined : getJsonPath(json, assert.machine.tracePath);
+      trace = Array.isArray(arr) ? arr.map(String) : null;
+      if (trace === null) failures.push(`machine trace path "${assert.machine.tracePath}" is not a string array`);
+    } else {
+      trace = output.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    }
+    if (trace) {
+      const r = runAutomaton(trace, assert.machine);
+      if (!r.accepted && r.error) failures.push(`automaton: ${r.error}`);
     }
   }
 
